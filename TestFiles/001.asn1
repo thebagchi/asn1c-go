@@ -1,5 +1,9 @@
 Sample001
 DEFINITIONS
+-- I'm a line comment
+/*
+ * I'm a block comment
+ */
 AUTOMATIC TAGS ::= BEGIN
 
 END
