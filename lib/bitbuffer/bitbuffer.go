@@ -40,10 +40,12 @@ import (
 	"slices"
 )
 
-const (
-	// ENABLE_TRACE controls whether trace output is printed
+// ENABLE_TRACE controls whether trace output is printed.
+var (
 	ENABLE_TRACE = false
+)
 
+const (
 	// BITS_PER_BYTE is the number of bits in a byte
 	BITS_PER_BYTE = 8
 
