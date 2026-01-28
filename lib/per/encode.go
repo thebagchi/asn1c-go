@@ -530,43 +530,21 @@ func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
 // |  |  |- NOTE - Thus, if "ub" is greater than or equal to 64K, the encoding of the length
 // |  |  |  |  determinant is the same as it would be if the length were unconstrained.
 
-// EncodeLengthDeterminant encodes a constrained, unconstrained, or semi-constrained length determinant according to section 11.9
-// Returns the remaining pending length after encoding the current fragment
-// lb: lower bound (nil for unconstrained)
-// ub: upper bound (nil for unconstrained or semi-constrained)
 func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uint64, error) {
 	const K64 = 65536 // 64K
-
-	// 11.9.3.1 and 11.9.3.2: The length determinant will be either:
-	// a) normally small length (handled separately by EncodeNormallySmallLength)
-	// b) constrained whole number with "ub" less than 64K (11.9.3.3 / 11.9.4.1)
-	// c) semi-constrained or constrained with "ub" >= 64K (11.9.3.5-11.9.3.8.4 / 11.9.4.2)
-
-	// Check if we have a constrained length with ub < 64K
 	if ub != nil && *ub > 0 && *ub < K64 {
-		// 11.9.3.3 (ALIGNED) / 11.9.4.1 (UNALIGNED): Constrained length with ub < 64K
-		// Encode using EncodeConstrainedWholeNumber (11.5)
 		err := e.EncodeConstrainedWholeNumber(int64(*lb), int64(*ub), int64(n))
 		if err != nil {
 			return 0, err
 		}
-		// Constrained lengths with ub < 64K do not support fragmentation
 		return 0, nil
 	}
-
-	// 11.9.3.5-11.9.3.8.4 (ALIGNED) / 11.9.4.2 (UNALIGNED):
-	// Unconstrained length or constrained with ub >= 64K
-	// Note: "lb" does not affect the length encodings per 11.9.3.5
 	return e.EncodeUnconstrainedLength(n)
 }
 
-// EncodeUnconstrainedLength encodes an unconstrained length with fragmentation support according to 11.9.3.5 to 11.9.3.8.4 (ALIGNED) and 11.9.4.2 (UNALIGNED)
-// Returns the remaining pending length after encoding the current fragment
 func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	const K = 16384 // 16K = 16 * 1024
 
-	// For ALIGNED variant, align to octet boundary before encoding length
-	// Per 11.9.3.6, 11.9.3.7, 11.9.3.8: "bit-field (octet-aligned in the ALIGNED variant)"
 	if e.aligned {
 		if err := e.codec.Align(); err != nil {
 			return 0, err
@@ -664,10 +642,7 @@ func CalculateFragmentSize(n uint64) uint64 {
 // |- 12.1 The bit shall be set to 1 for TRUE and 0 for FALSE.
 // |- 12.2 The bit-field shall be appended to the field-list with no length determinant.
 
-// EncodeBoolean encodes a boolean value according to section 12
 func (e *Encoder) EncodeBoolean(value bool) error {
-	// 12.1: Encode as a bit-field consisting of a single bit
-	// 12.2: Set to 1 for TRUE, 0 for FALSE
 	if value {
 		return e.codec.Write(1, 1)
 	} else {
@@ -766,7 +741,7 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 
 		if extended {
 			// Encode as unconstrained integer (13.2.4 to 13.2.6)
-			return e.EncodeUnconstrainedInteger(value)
+			return e.EncodeUnconstrainedWholeNumber(value)
 		}
 		// Encode as if no extension marker (proceed to 13.2)
 	}
@@ -780,86 +755,22 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 
 	// Determine constraint type
 	if lb != nil && ub != nil {
-		// 13.2.2: Constrained whole number
-		return e.EncodeConstrainedInteger(value, *lb, *ub)
+		// 13.2.2: Constrained whole number (13.2.5, 13.2.6)
+		// Check if indefinite length case (11.5.7.4) - when range > 64K
+		bound := uint64(*ub - *lb + 1)
+		if bound > 65536 {
+			// 13.2.6a: Indefinite length case - use 11.7 (semi-constrained)
+			// When range > 64K, use semi-constrained encoding which handles
+			// length determinant and value encoding
+			return e.EncodeSemiConstrainedWholeNumber(*lb, value)
+		}
+		// 13.2.5: Not indefinite length case - use 11.5 directly
+		return e.EncodeConstrainedWholeNumber(*lb, *ub, value)
 	} else if lb != nil && ub == nil {
 		// 13.2.3: Semi-constrained whole number
-		return e.EncodeSemiConstrainedInteger(value, *lb)
+		return e.EncodeSemiConstrainedWholeNumber(*lb, value)
 	} else {
 		// 13.2.4: Unconstrained whole number
-		return e.EncodeUnconstrainedInteger(value)
+		return e.EncodeUnconstrainedWholeNumber(value)
 	}
-}
-
-// EncodeConstrainedInteger handles constrained integers (13.2.2, 13.2.5, 13.2.6)
-func (e *Encoder) EncodeConstrainedInteger(value int64, lb int64, ub int64) error {
-	// Check if indefinite length case occurred (11.5.7.4)
-	// For constrained integers, indefinite length occurs when range > 64K
-	bound := uint64(ub - lb + 1)
-	if bound > 65536 {
-		// 13.2.6a: Indefinite length case
-		// Encode (value - lb) as non-negative-binary-integer with minimum octets (11.5.7.4)
-		offset := uint64(value - lb)
-		octets := OctetsNonNegativeBinaryIntegerLength(offset)
-		if octets == 0 {
-			octets = 1
-		}
-
-		// Calculate maximum octets needed for the range (for length determinant upper bound)
-		maximum := OctetsNonNegativeBinaryIntegerLength(bound - 1)
-		if maximum == 0 {
-			maximum = 1
-		}
-
-		// Encode constrained length determinant with lb=1, ub=maxOctets (13.2.6a)
-		lb64 := uint64(1)
-		max64 := uint64(maximum)
-		_, err := e.EncodeLengthDeterminant(uint64(octets), &lb64, &max64)
-		if err != nil {
-			return err
-		}
-
-		// Encode the offset value directly as non-negative-binary-integer (11.3)
-		return e.codec.Write(uint8(octets*8), offset)
-	}
-
-	// 13.2.5: Not indefinite length case - use 11.5 directly
-	return e.EncodeConstrainedWholeNumber(lb, ub, value)
-}
-
-// EncodeSemiConstrainedInteger handles semi-constrained integers (13.2.3, 13.2.6)
-func (e *Encoder) EncodeSemiConstrainedInteger(value int64, lb int64) error {
-	// 13.2.6b: Always use unconstrained length determinant for semi-constrained
-	// Calculate octets needed for the value
-	offset := uint64(value - lb)
-	octets := OctetsNonNegativeBinaryIntegerLength(offset)
-	if octets == 0 {
-		octets = 1
-	}
-
-	// Encode unconstrained length determinant
-	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
-	if err != nil {
-		return err
-	}
-
-	// Use 11.7 to encode the semi-constrained whole number
-	return e.EncodeSemiConstrainedWholeNumber(lb, value)
-}
-
-// EncodeUnconstrainedInteger handles unconstrained integers (13.2.4, 13.2.6)
-func (e *Encoder) EncodeUnconstrainedInteger(value int64) error {
-	// 13.2.6b: Always use unconstrained length determinant for unconstrained
-	// Calculate octets needed for the value
-	octets := OctetsTwosComplementBinaryIntegerLength(value)
-
-	// Encode unconstrained length determinant
-	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
-	if err != nil {
-		return err
-	}
-
-	// Use 11.8 to encode the unconstrained whole number
-	err = e.EncodeUnconstrainedWholeNumber(value)
-	return err
 }
