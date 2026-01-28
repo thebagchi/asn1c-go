@@ -532,7 +532,7 @@ func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
 
 func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uint64, error) {
 	const K64 = 65536 // 64K
-	if ub != nil && *ub > 0 && *ub < K64 {
+	if ub != nil && lb != nil && (*ub-*lb+1) < K64 {
 		err := e.EncodeConstrainedWholeNumber(int64(*lb), int64(*ub), int64(n))
 		if err != nil {
 			return 0, err
