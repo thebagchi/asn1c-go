@@ -551,80 +551,51 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 		}
 	}
 
-	// 11.9.3.6: If "n" is less than or equal to 127, encode in single octet
-	// Bit 8 = 0, bits 7-1 = n
 	if n <= 127 {
-		// Format: 0nnnnnnn (bit 8 is 0, bits 7-1 contain n)
 		if err := e.codec.Write(8, n); err != nil {
 			return 0, err
 		}
 		return 0, nil
 	}
 
-	// 11.9.3.7: If "n" is greater than 127 and less than 16K, encode in two octets
-	// Bit 8 = 1, bit 7 = 0, bits 6-1 of first octet + all bits of second octet = n
 	if n < K {
-		// Format: 10nnnnnn nnnnnnnn (bits 8-7 are 10, remaining 14 bits contain n)
-		value := (1 << 15) | n // Set bit 15 to 1 (bit 8 of first octet), bit 14 is 0, bits 13-0 = n
+		value := (1 << 15) | n
 		if err := e.codec.Write(16, value); err != nil {
 			return 0, err
 		}
 		return 0, nil
 	}
 
-	// 11.9.3.8: If "n" is greater than or equal to 16K - fragmentation case
-	// Encode single octet with bits 8-7 = 11, bits 6-1 = k (1-4)
-	// 11.9.3.8.1: Calculate fragment size m = k * 16K
 	m := CalculateFragmentSize(n)
-	k := m / K // k will be 1, 2, 3, or 4
+	k := m / K
 
-	// Format: 11kkkkkk (bits 8-7 are 11, bits 6-1 contain k)
-	value := (3 << 6) | k // 3 << 6 = 0xC0 (bits 8-7 set to 11), then OR with k
+	value := (3 << 6) | k
 	if err := e.codec.Write(8, value); err != nil {
 		return 0, err
 	}
-
-	// 11.9.3.8.3: Return pending length for remaining fragments (n - m)
-	// The procedures of 11.9 shall be reapplied to add the remaining part
 	return n - m, nil
 }
 
-// EncodeNormallySmallLength encodes a normally small length according to 11.9.3.4 and 11.9.4.2
-// Returns the remaining pending length after encoding the current fragment
 func (e *Encoder) EncodeNormallySmallLength(n uint64) (uint64, error) {
-	// 11.9.3.4: Where the length determinant is a normally small length and "n" is less than or equal to 64,
-	// a single-bit bit-field shall be appended to the field-list with the bit set to 0, and the value "n–1"
-	// shall be encoded as a non-negative-binary-integer into a 6-bit bit-field.
 	if n <= 64 {
-		// Encode bit 0
 		if err := e.codec.Write(1, 0); err != nil {
 			return 0, err
 		}
-		// Encode (n-1) in 6 bits
 		if err := e.codec.Write(6, n-1); err != nil {
 			return 0, err
 		}
 		return 0, nil
 	}
 
-	// 11.9.3.4: If "n" is greater than 64, a single-bit bit-field shall be appended to the field-list with
-	// the bit set to 1, followed by the encoding of "n" as an unconstrained length determinant followed by
-	// the associated field, according to the procedures of 11.9.3.5 to 11.9.3.8.4.
 	if err := e.codec.Write(1, 1); err != nil {
 		return 0, err
 	}
 	return e.EncodeUnconstrainedLength(n)
 }
 
-// CalculateFragmentSize calculates the fragmentation parameters for lengths >= 16K according to 11.9.3.8.1
-// Returns the fragment size (m) for the largest valid fragment
 func CalculateFragmentSize(n uint64) uint64 {
-	// 11.9.3.8.1: The value of bits 6 to 1 (1 to 4) shall be multiplied by 16K giving a count ("m" say).
-	// The choice of the integer in bits 6 to 1 shall be the maximum allowed value such that
-	// the associated field or list of fields contains more than or exactly "m" octets, bits, components or characters.
 	const K = 16384 // 16K = 16 * 1024
 
-	// Determine k (1-4) such that k * 16K <= n, choosing maximum k
 	if n >= 4*K {
 		return 4 * K // 64K
 	} else if n >= 3*K {
@@ -632,7 +603,7 @@ func CalculateFragmentSize(n uint64) uint64 {
 	} else if n >= 2*K {
 		return 2 * K // 32K
 	} else {
-		return K // 16K (minimum for fragmentation)
+		return K // 16K
 	}
 }
 
@@ -711,14 +682,8 @@ func (e *Encoder) EncodeBoolean(value bool) error {
 // |  |  |  |  lower bounds, or if the type is extensible and the value does not lie within the
 // |  |  |  |  range of the extension root.
 
-// EncodeInteger encodes an integer value according to section 13
-// lb: lower bound (nil for unconstrained lower bound)
-// ub: upper bound (nil for unconstrained upper bound)
-// extensible: whether the type has an extension marker
 func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bool) error {
-	// 13.1: Handle extension marker case
 	if extensible {
-		// Determine if value is in extension (outside root)
 		extended := false
 		if lb != nil && value < *lb {
 			extended = true
@@ -727,7 +692,6 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 			extended = true
 		}
 
-		// Write extension bit: 1 if using extension, 0 if within root
 		switch extended {
 		case true:
 			if err := e.codec.Write(1, 1); err != nil {
@@ -740,37 +704,23 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 		}
 
 		if extended {
-			// Encode as unconstrained integer (13.2.4 to 13.2.6)
 			return e.EncodeUnconstrainedWholeNumber(value)
 		}
-		// Encode as if no extension marker (proceed to 13.2)
 	}
 
-	// 13.2: No extension marker case
-	// 13.2.1: Single value constraint
 	if lb != nil && ub != nil && *lb == *ub {
-		// No encoding needed for single value
 		return nil
 	}
 
-	// Determine constraint type
 	if lb != nil && ub != nil {
-		// 13.2.2: Constrained whole number (13.2.5, 13.2.6)
-		// Check if indefinite length case (11.5.7.4) - when range > 64K
 		bound := uint64(*ub - *lb + 1)
 		if bound > 65536 {
-			// 13.2.6a: Indefinite length case - use 11.7 (semi-constrained)
-			// When range > 64K, use semi-constrained encoding which handles
-			// length determinant and value encoding
 			return e.EncodeSemiConstrainedWholeNumber(*lb, value)
 		}
-		// 13.2.5: Not indefinite length case - use 11.5 directly
 		return e.EncodeConstrainedWholeNumber(*lb, *ub, value)
 	} else if lb != nil && ub == nil {
-		// 13.2.3: Semi-constrained whole number
 		return e.EncodeSemiConstrainedWholeNumber(*lb, value)
 	} else {
-		// 13.2.4: Unconstrained whole number
 		return e.EncodeUnconstrainedWholeNumber(value)
 	}
 }
