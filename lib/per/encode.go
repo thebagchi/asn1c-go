@@ -724,3 +724,118 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 		return e.EncodeUnconstrainedWholeNumber(value)
 	}
 }
+
+// 14 Encoding the enumerated type
+// |- NOTE - (Tutorial) An enumerated type without an extension marker is encoded as if it were a constrained integer whose subtype
+// |  |  constraint does not contain an extension marker. This means that an enumerated type will almost always in practice be encoded as
+// |  |  a bit-field in the smallest number of bits needed to express every enumeration. In the presence of an extension marker, it is encoded
+// |  |  as a normally small non-negative whole number if the value is not in the extension root.
+// |- 14.1 The enumerations in the enumeration root shall be sorted into ascending order by their enumeration value, and
+// |  |  shall then be assigned an enumeration index starting with zero for the first enumeration, one for the second, and so on up
+// |  |  to the last enumeration in the sorted list. The extension additions (which are always defined in ascending order) shall be
+// |  |  assigned an enumeration index starting with zero for the first enumeration, one for the second, and so on up to the last
+// |  |  enumeration in the extension additions.
+// |  |- NOTE - Rec. ITU-T X.680 | ISO/IEC 8824-1 requires that each successive extension addition shall have a greater enumeration
+// |  |  |  value than the last.
+// |- 14.2 If the extension marker is absent in the definition of the enumerated type, then the enumeration index shall be
+// |  |  encoded. Its encoding shall be as though it were a value of a constrained integer type for which there is no extension
+// |  |  marker present, where the lower bound is 0 and the upper bound is the largest enumeration index associated with the type,
+// |  |  completing this procedure.
+// |- 14.3 If the extension marker is present, then a single bit shall be added to the field-list in a bit-field of length one.
+// |  |  The bit shall be set to 1 if the value to be encoded is not within the extension root, and zero otherwise. In the former case,
+// |  |  the enumeration additions shall be sorted according to 14.1 and the value shall be added to the field-list as a normally
+// |  |  small non-negative whole number whose value is the enumeration index of the additional enumeration and with "lb" set
+// |  |  to 0, completing this procedure. In the latter case, the value shall be encoded as if the extension marker is not present, as
+// |  |  specified in 14.2.
+// |  |- NOTE - There are no PER-visible constraints that can be applied to an enumerated type that are visible to these encoding rules.
+
+// 15 Encoding the real type
+// |- NOTE - (Tutorial) A real uses the contents octets of CER/DER preceded by a length determinant that will in practice be a single
+// |  |  octet.
+// |- 15.1 If the base of the abstract value is 10, then the base of the encoded value shall be 10, and if the base of the
+// |  |  abstract value is 2 the base of the encoded value shall be 2.
+// |- 15.2 The encoding of REAL specified for CER and DER in Rec. ITU-T X.690 | ISO/IEC 8825-1, 11.3 shall be applied
+// |  |  to give a bit-field (octet-aligned in the ALIGNED variant) which is the contents octets of the CER/DER encoding. The
+// |  |  contents octets of this encoding consists of "n" (say) octets and is placed in a bit-field (octet-aligned in the ALIGNED
+// |  |  variant) of "n" octets. The procedures of 11.9 shall be invoked to append this bit-field (octet-aligned in the ALIGNED
+// |  |  variant) of "n" octets to the field-list, preceded by an unconstrained length determinant equal to "n".
+
+// 16 Encoding the bitstring type
+// |- NOTE - (Tutorial) Bitstrings constrained to a fixed length less than or equal to 16 bits do not cause octet alignment. Larger
+// |  |  bitstrings are octet-aligned in the ALIGNED variant. If the length is fixed by constraints and the upper bound is less than 64K,
+// |  |  there is no explicit length encoding, otherwise a length encoding is included which can take any of the forms specified earlier for
+// |  |  length encodings, including fragmentation for large bit strings.
+// |- 16.1 PER-visible constraints can only constrain the length of the bitstring.
+// |- 16.2 Where there are no PER-visible constraints and Rec. ITU-T X.680 | ISO/IEC 8824-1, 22.7, applies the value
+// |  |  shall be encoded with no trailing 0 bits (note that this means that a value with no 1 bits is always encoded as an empty bit
+// |  |  string).
+// |- 16.3 Where there is a PER-visible constraint and Rec. ITU-T X.680 | ISO/IEC 8824-1, 22.7, applies (i.e., the bitstring
+// |  |  type is defined with a "NamedBitList"), the value shall be encoded with trailing 0 bits added or removed as necessary to
+// |  |  ensure that the size of the transmitted value is the smallest size capable of carrying this value and satisfies the effective
+// |  |  size constraint.
+// |- 16.4 Let the maximum number of bits in the bitstring (as determined by PER-visible constraints on the length) be
+// |  |  "ub" and the minimum number of bits be "lb". If there is no finite maximum we say that "ub" is unset. If there is no
+// |  |  constraint on the minimum, then "lb" has the value zero. Let the length of the actual bit string value to be encoded be
+// |  |  "n" bits.
+// |- 16.5 When a bitstring value is placed in a bit-field as specified in 16.6 to 16.11, the leading bit of the bitstring value
+// |  |  shall be placed in the leading bit of the bit-field, and the trailing bit of the bitstring value shall be placed in the trailing bit
+// |  |  of the bit-field.
+// |- 16.6 If the type is extensible for PER encodings (see 10.3.9), then a bit-field consisting of a single bit shall be added
+// |  |  to the field-list. The bit shall be set to 1 if the length of this encoding is not within the range of the extension root, and
+// |  |  zero otherwise. In the former case, 16.11 shall be invoked to add the length as a semi-constrained whole number to the
+// |  |  field-list, followed by the bitstring value. In the latter case the length and value shall be encoded as if no extension is
+// |  |  present in the constraint.
+// |- 16.7 If an extension marker is not present in the constraint specification of the bitstring type, then 16.8 to 16.11
+// |  |  apply.
+// |- 16.8 If the bitstring is constrained to be of zero length ("ub" equals zero), then it shall not be encoded (no additions
+// |  |  to the field-list), completing the procedures of this clause.
+// |- 16.9 If all values of the bitstring are constrained to be of the same length ("ub" equals "lb") and that length is less
+// |  |  than or equal to sixteen bits, then the bitstring shall be placed in a bit-field of the constrained length "ub" which shall be
+// |  |  appended to the field-list with no length determinant, completing the procedures of this clause.
+// |- 16.10 If all values of the bitstring are constrained to be of the same length ("ub" equals "lb") and that length is greater
+// |  |  than sixteen bits but less than 64K bits, then the bitstring shall be placed in a bit-field (octet-aligned in the ALIGNED
+// |  |  variant) of length "ub" (which is not necessarily a multiple of eight bits) and shall be appended to the field-list with no
+// |  |  length determinant, completing the procedures of this clause.
+// |- 16.11 If 16.8-16.10 do not apply, the bitstring shall be placed in a bit-field (octet-aligned in the ALIGNED variant)
+// |  |  of length "n" bits and the procedures of 11.9 shall be invoked to add this bit-field (octet-aligned in the ALIGNED variant)
+// |  |  of "n" bits to the field-list, preceded by a length determinant equal to "n" bits as a constrained whole number if "ub" is set
+// |  |  and is less than 64K or as a semi-constrained whole number if "ub" is unset. "lb" is as determined above.
+// |  |- NOTE - Fragmentation applies for unconstrained or large "ub" after 16K, 32K, 48K or 64K bits.
+
+// 17 Encoding the octetstring type
+// |- NOTE - Octet strings of fixed length less than or equal to two octets are not octet-aligned. All other octet strings are octet-aligned
+// |  |  in the ALIGNED variant. Fixed length octet strings encode with no length octets if they are shorter than 64K. For unconstrained
+// |  |  octet strings the length is explicitly encoded (with fragmentation if necessary).
+// |- 17.1 PER-visible constraints can only constrain the length of the octetstring.
+// |- 17.2 Let the maximum number of octets in the octetstring (as determined by PER-visible constraints on the length)
+// |  |  be "ub" and the minimum number of octets be "lb". If there is no finite maximum, we say that "ub" is unset. If there is no
+// |  |  constraint on the minimum, then "lb" has the value zero. Let the length of the actual octetstring value to be encoded be
+// |  |  "n" octets.
+// |- 17.3 If the type is extensible for PER encodings (see 10.3.9), then a bit-field consisting of a single bit shall be added
+// |  |  to the field-list. The bit shall be set to 1 if the length of this encoding is not within the range of the extension root, and
+// |  |  zero otherwise. In the former case 17.8 shall be invoked to add the length as a semi-constrained whole number to the
+// |  |  field-list, followed by the octetstring value. In the latter case the length and value shall be encoded as if no extension is
+// |  |  present in the constraint.
+// |- 17.4 If an extension marker is not present in the constraint specification of the octetstring type, then 17.5 to 17.8
+// |  |  apply.
+// |- 17.5 If the octetstring is constrained to be of zero length ("ub" equals zero), then it shall not be encoded (no additions
+// |  |  to the field-list), completing the procedures of this clause.
+// |- 17.6 If all values of the octetstring are constrained to be of the same length ("ub" equals "lb") and that length is less
+// |  |  than or equal to two octets, the octetstring shall be placed in a bit-field with a number of bits equal to the constrained
+// |  |  length "ub" multiplied by eight which shall be appended to the field-list with no length determinant, completing the
+// |  |  procedures of this clause.
+// |- 17.7 If all values of the octetstring are constrained to be of the same length ("ub" equals "lb") and that length is
+// |  |  greater than two octets but less than 64K, then the octetstring shall be placed in a bit-field (octet-aligned in the ALIGNED
+// |  |  variant) with the constrained length "ub" octets which shall be appended to the field-list with no length determinant,
+// |  |  completing the procedures of this clause.
+// |- 17.8 If 17.5 to 17.7 do not apply, the octetstring shall be placed in a bit-field (octet-aligned in the ALIGNED variant)
+// |  |  of length "n" octets and the procedures of 11.9 shall be invoked to add this bit-field (octet-aligned in the ALIGNED
+// |  |  variant) of "n" octets to the field-list, preceded by a length determinant equal to "n" octets as a constrained whole number
+// |  |  if "ub" is set, and as a semi-constrained whole number if "ub" is unset. "lb" is as determined above.
+// |  |- NOTE - The fragmentation procedures may apply after 16K, 32K, 48K, or 64K octets.
+
+// 18 Encoding the null type
+// |- NOTE - (Tutorial) The null type is essentially a place holder, with practical meaning only in the case of a choice or an optional set
+// |  |  or sequence component. Identification of the null in a choice, or its presence as an optional element, is performed in these encoding
+// |  |  rules without the need to have octets representing the null. Null values therefore never contribute to the octets of an encoding.
+// |  |  There shall be no addition to the field-list for a null value.
