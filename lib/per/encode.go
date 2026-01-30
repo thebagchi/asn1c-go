@@ -1,6 +1,7 @@
 package per
 
 import (
+	"encoding/asn1"
 	"math/bits"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
@@ -855,6 +856,139 @@ func (e *Encoder) EncodeEnumerated(value uint64, count uint64, extensible bool) 
 // |  |- NOTE - Fragmentation applies for unconstrained or large "ub" after 16K, 32K, 48K
 // |  |  |  or 64K bits.
 
+func (e *Encoder) WriteBits(data []byte, count uint) error {
+	if count == 0 {
+		return nil
+	}
+
+	num := count / 8
+	if num > 0 {
+		if err := e.codec.WriteBytes(data[:num]); err != nil {
+			return err
+		}
+	}
+
+	remaining := count % 8
+	if remaining > 0 {
+		var (
+			last  = data[num]
+			value = uint64(last >> (8 - remaining))
+		)
+		return e.codec.Write(uint8(remaining), value)
+	}
+	return nil
+}
+
+func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
+	ub *uint64, extensible bool) error {
+	// 16.6 If the type is extensible, add a bit indicating if the length is in
+	// the extension root
+	if extensible {
+		extended := false
+		if lb != nil && uint64(value.BitLength) < *lb {
+			extended = true
+		}
+		if ub != nil && uint64(value.BitLength) > *ub {
+			extended = true
+		}
+
+		if extended {
+			if err := e.codec.Write(1, 1); err != nil {
+				return err
+			}
+			// Encode length as semi-constrained whole number (16.11) with
+			// fragmentation
+			zero := uint64(0)
+			if err := e.EncodeBitStringFragments(value.Bytes,
+				uint64(value.BitLength), &zero, nil); err != nil {
+				return err
+			}
+			return nil
+		} else {
+			if err := e.codec.Write(1, 0); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 16.8 If constrained to zero length, no encoding
+	if ub != nil && *ub == 0 {
+		return nil
+	}
+
+	// 16.9 If fixed length <= 16 bits, place in bit-field (no length
+	// determinant)
+	if lb != nil && ub != nil && *lb == *ub && *ub <= 16 {
+		return e.WriteBits(value.Bytes, uint(*ub))
+	}
+
+	// 16.10 If fixed length > 16 bits but < 64K, place in bit-field
+	// octet-aligned (no length determinant)
+	if lb != nil && ub != nil && *lb == *ub && *ub < 65536 {
+		if e.aligned {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+		return e.WriteBits(value.Bytes, uint(*ub))
+	}
+
+	// 16.11 Otherwise, encode with length determinant (with fragmentation
+	// support)
+	if e.aligned {
+		if err := e.codec.Align(); err != nil {
+			return err
+		}
+	}
+	return e.EncodeBitStringFragments(value.Bytes, uint64(value.BitLength),
+		lb, ub)
+}
+
+func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
+	lb *uint64, ub *uint64) error {
+	if e.aligned {
+		if err := e.codec.Align(); err != nil {
+			return err
+		}
+	}
+
+	offset := uint64(0)
+
+	// Encode with length determinant and handle fragmentation
+	for offset < count {
+		remaining := count - offset
+		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+		if err != nil {
+			return err
+		}
+
+		// Determine how much to encode in this fragment
+		var length uint64
+		if pending == 0 {
+			// No pending length - encode everything remaining
+			length = remaining
+		} else {
+			// Fragmented - encode only what was encoded by length determinant
+			length = remaining - pending
+		}
+
+		// Write the fragment data
+		nbytes := offset / 8
+		if err := e.WriteBits(value[nbytes:], uint(length)); err != nil {
+			return err
+		}
+
+		offset = offset + length
+
+		// If no pending length, we're done
+		if pending == 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
 // 17 Encoding the octetstring type
 // |- NOTE - Octet strings of fixed length less than or equal to two octets are not
 // |  |  octet-aligned.
@@ -969,19 +1103,19 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 	// Encode with length determinant and handle fragmentation
 	for offset < n {
 		remaining := n - offset
-		fragment, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
 		if err != nil {
 			return err
 		}
 
 		// Determine how much to encode in this fragment
 		var length uint64
-		if fragment == 0 {
+		if pending == 0 {
 			// No pending length - encode everything remaining
 			length = remaining
 		} else {
 			// Fragmented - encode only what was encoded by length determinant
-			length = remaining - fragment
+			length = remaining - pending
 		}
 
 		// Write the fragment data
@@ -992,7 +1126,7 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 		offset += length
 
 		// If no pending length, we're done
-		if fragment == 0 {
+		if pending == 0 {
 			break
 		}
 	}
