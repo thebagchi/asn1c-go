@@ -888,16 +888,6 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 	return mantissa, exponent, 2
 }
 
-// bytesToUint64 converts a big-endian byte slice to uint64
-// The slice must be at most 8 bytes
-func bytesToUint64(b []byte) uint64 {
-	var result uint64
-	for _, v := range b {
-		result = (result << 8) | uint64(v)
-	}
-	return result
-}
-
 // EncodeReal encodes a real value (float64) following PER encoding rules per section 11.3
 // Uses IEEE 754 binary representation to extract mantissa and exponent
 func (e *Encoder) EncodeReal(value float64) error {
