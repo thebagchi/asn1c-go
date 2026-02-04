@@ -818,24 +818,99 @@ func (e *Encoder) EncodeEnumerated(value uint64, count uint64, extensible bool) 
 // |  |- 11.3.2.6 If the exponent has the value 0, it shall be written "+0", otherwise the
 // |  |  |  exponent's first digit shall not be zero, and PLUS SIGN shall not be used.
 
-// 8.5.8 Decimal encoding of real values
-// |- When decimal encoding is used (bits 8 to 7 = 00), all the contents octets following the
-// |  |  first contents octet form a field, as the term is used in ISO 6093, of a length chosen
-// |  |  by the sender, and encoded according to ISO 6093. The choice of ISO 6093 number
-// |  |  representation is specified by bits 6 to 1 of the first contents octet as follows:
-// |  |  Bits 6 to 1: Number representation
-// |  |  00 0001: ISO 6093 NR1 form
-// |  |  00 0010: ISO 6093 NR2 form
-// |  |  00 0011: ISO 6093 NR3 form
-// |  |  The remaining values of bits 6 to 1 are reserved for further editions of this
-// |  |  Recommendation | International Standard.
-// |- There shall be no use of scaling factors specified in accompanying documentation
-// |  |  (see ISO 6093).
-// |- NOTE 1 – The recommendations in ISO 6093 concerning the use of at least one digit to the
-// |  |  left of the decimal mark are also recommended in this Recommendation | International
-// |  |  Standard, but are not mandatory.
-// |- NOTE 2 – Use of the normalized form (see ISO 6093) is a sender's option, and has no
-// |  |  significance.
+// 8.5 Encoding of a real value
+// |- 8.5.1 The encoding of a real value shall be primitive.
+// |- 8.5.2 If the real value is the value plus zero, there shall be no contents octets in the encoding.
+// |- 8.5.3 If the real value is the value minus zero, then it shall be encoded as specified in 8.5.9.
+// |- 8.5.4 For a non-zero real value, if the base of the abstract value is 10, then the base of the
+// |  |  encoded value shall be 10, and if the base of the abstract value is 2 the base of the
+// |  |  encoded value shall be 2, 8 or 16 as a sender's option.
+// |- 8.5.5 If the real value is non-zero, then the base used for the encoding shall be B' as specified
+// |  |  in 8.5.4. If B' is 2, 8 or 16, a binary encoding, specified in 8.5.7, shall be used. If B' is
+// |  |  10, a character encoding, specified in 8.5.8, shall be used.
+// |- 8.5.6
+// |- Bit 8 of the first contents octet shall be set as follows:
+// |  |- a) if bit 8 = 1, then the binary encoding specified in 8.5.7 applies;
+// |  |- b) if bit 8 = 0 and bit 7 = 0, then the decimal encoding specified in 8.5.8 applies;
+// |  |- c) if bit 8 = 0 and bit 7 = 1, then either a "SpecialRealValue" (see Rec. ITU-T X.680 |
+// |  |  |  ISO/IEC 8824-1) or the value minus zero is encoded as specified in 8.5.9.
+// 8.5.7
+// |- When binary encoding is used (bit 8 = 1), then if the mantissa M is non-zero, it shall be
+// |  |  represented by a sign S, a positive integer value N and a binary scaling factor F, such that:
+// |  |  M = S × N × 2^F
+// |  |  0 ≤ F < 4
+// |  |  S = +1 or –1
+// |- NOTE – The binary scaling factor F is required under certain circumstances in order to align
+// |  |  the implied point of the mantissa to the position required by the encoding rules of this
+// |  |  subclause. This alignment cannot always be achieved by modification of the exponent E. If
+// |  |  the base B' used for encoding is 8 or 16, the implied point can only be moved in steps of
+// |  |  3 or 4 bits, respectively, by changing the component E. Therefore, values of the binary
+// |  |  scaling factor F other than zero may be required in order to move the implied point to the
+// |  |  required position.
+// 8.5.7.1
+// |- Bit 7 of the first contents octets shall be 1 if S is –1 and 0 otherwise.
+// 8.5.7.2
+// |- Bits 6 to 5 of the first contents octets shall encode the value of the base B' as follows:
+// |  |  Bits 6 to 5 | Base
+// |  |  00          | base 2
+// |  |  01          | base 8
+// |  |  10          | base 16
+// |  |  11          | Reserved for further editions of this Recommendation | International Standard.
+// 8.5.7.3
+// |- Bits 4 to 3 of the first contents octet shall encode the value of the binary scaling
+// |  |  factor F as an unsigned binary integer.
+// 8.5.7.4
+// |- (Encoding of the mantissa and exponent is specified in 8.5.7.5)
+// 8.5.7.5
+// |- Bits 2 to 1 of the first contents octet shall encode the format of the exponent as follows:
+// |  |- a) if bits 2 to 1 are 00, then the second contents octet encodes the value of the exponent
+// |  |  |  as a two's complement binary number;
+// |  |- b) if bits 2 to 1 are 01, then the second and third contents octets encode the value of
+// |  |  |  the exponent as a two's complement binary number;
+// |  |- c) if bits 2 to 1 are 10, then the second, third and fourth contents octets encode the
+// |  |  |  value of the exponent as a two's complement binary number;
+// |  |- d) if bits 2 to 1 are 11, then the second contents octet encodes the number of octets, X
+// |  |  |  say, (as an unsigned binary number) used to encode the value of the exponent, and the
+// |  |  |  third up to the (X plus 3)th (inclusive) contents octets encode the value of the
+// |  |  |  exponent as a two's complement binary number; the value of X shall be at least one; the
+// |  |  |  first nine bits of the transmitted exponent shall not be all zeros or all ones.
+// |- The remaining contents octets encode the value of the integer N (see 8.5.7) as an unsigned
+// |  |  binary number.
+// |- NOTE 1 – For non-canonical BER there is no requirement for floating point normalization of
+// |  |  the mantissa. This allows an implementer to transmit octets containing the mantissa without
+// |  |  performing shift functions on the mantissa in memory. In the Canonical Encoding Rules and
+// |  |  the Distinguished Encoding Rules normalization is specified and the mantissa (unless it is
+// |  |  0) needs to be repeatedly shifted until the least significant bit is a 1.
+// |- NOTE 2 – This representation of real numbers is very different from the formats normally
+// |  |  used in floating point hardware, but has been designed to be easily converted to and from
+// |  |  such formats (see Annex C).
+// |- 8.5.8 Decimal encoding of real values
+// |  |- When decimal encoding is used (bits 8 to 7 = 00), all the contents octets following the
+// |  |  |  first contents octet form a field, as the term is used in ISO 6093, of a length chosen
+// |  |  |  by the sender, and encoded according to ISO 6093. The choice of ISO 6093 number
+// |  |  |  representation is specified by bits 6 to 1 of the first contents octet as follows:
+// |  |  |  Bits 6 to 1: Number representation
+// |  |  |  00 0001: ISO 6093 NR1 form
+// |  |  |  00 0010: ISO 6093 NR2 form
+// |  |  |  00 0011: ISO 6093 NR3 form
+// |  |  |  The remaining values of bits 6 to 1 are reserved for further editions of this
+// |  |  |  Recommendation | International Standard.
+// |  |- There shall be no use of scaling factors specified in accompanying documentation
+// |  |  |  (see ISO 6093).
+// |  |- NOTE 1 – The recommendations in ISO 6093 concerning the use of at least one digit to the
+// |  |  |  left of the decimal mark are also recommended in this Recommendation | International
+// |  |  |  Standard, but are not mandatory.
+// |  |- NOTE 2 – Use of the normalized form (see ISO 6093) is a sender's option, and has no
+// |  |  |  significance.
+// |- 8.5.9 Special Real Values and minus zero encoding (bits 8 to 7 = 01):
+// |  |- When "SpecialRealValues" or minus zero are to be encoded (bits 8 to 7 = 01), there shall be
+// |  |  |  only one contents octet, with values as follows:
+// |  |  |    01000000 - Value is PLUS-INFINITY
+// |  |  |    01000001 - Value is MINUS-INFINITY
+// |  |  |    01000010 - Value is NOT-A-NUMBER
+// |  |  |    01000011 - Value is minus zero
+// |  |- All other values having bits 8 and 7 equal to 0 and 1 respectively are reserved for addenda
+// |  |  |  to this Recommendation | International Standard.
 
 // MakeReal extracts characteristics, mantissa, and exponent from a float64 value
 // Returns:
@@ -888,159 +963,151 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 	return mantissa, exponent, 2
 }
 
-// EncodeReal encodes a real value (float64) following PER encoding rules per section 11.3
-// Uses IEEE 754 binary representation to extract mantissa and exponent
+// EncodeReal encodes a real value (float64) following PER encoding rules per section 8.5
+// Based on pycrate reference implementation using ITU-T X.690 specifications
 func (e *Encoder) EncodeReal(value float64) error {
-	// Handle special case: zero
-	if value == 0.0 {
-		// Zero is encoded as a single octet with value 0x00
-		if err := e.EncodeUnconstrainedWholeNumber(0); err != nil {
+	// Section 8.5.9: Special real values (bits 7-6 = 01, bits 5-0 vary)
+	if math.IsNaN(value) {
+		// NOT-A-NUMBER: 0x42 = 01000010
+		if err := e.codec.Write(8, 0x42); err != nil {
+			return err
+		}
+		return nil
+	}
+	if math.IsInf(value, 1) {
+		// PLUS-INFINITY: 0x40 = 01000000
+		if err := e.codec.Write(8, 0x40); err != nil {
+			return err
+		}
+		return nil
+	}
+	if math.IsInf(value, -1) {
+		// MINUS-INFINITY: 0x41 = 01000001
+		if err := e.codec.Write(8, 0x41); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	// Handle special values: +INF and -INF
-	if math.IsInf(value, 1) {
-		// +INF: encode as single octet 0x40
-		if err := e.EncodeUnconstrainedWholeNumber(1); err != nil {
+	// Section 8.5.3: Minus zero is encoded as special value 0x43 = 01000011
+	if value == 0.0 && math.Signbit(value) {
+		if err := e.codec.Write(8, 0x43); err != nil {
 			return err
 		}
-		return e.codec.WriteBytes([]byte{0x40})
-	}
-	if math.IsInf(value, -1) {
-		// -INF: encode as single octet 0x41
-		if err := e.EncodeUnconstrainedWholeNumber(1); err != nil {
-			return err
-		}
-		return e.codec.WriteBytes([]byte{0x41})
+		return nil
 	}
 
-	// Use MakeReal to extract components
+	// Section 8.5.7: Binary encoding for non-zero values (base 2)
+	// Extract mantissa and exponent from IEEE 754 representation
 	mantissa, exponent, base := MakeReal(value)
 
-	// Create temporary codec for REAL contents encoding
+	// Section 8.5.4-8.5.5: Convert base 10 to base 2 if needed
+	// Since 10 = 2 × 5, we have: 10^e = 2^e × 5^e
+	// Therefore: m₁₀ × 10^e = (m₁₀ × 5^e) × 2^e
+	if base == 10 && exponent != 0 {
+		base = 2
+		// Calculate 5^|exponent|
+		pow5 := int64(math.Pow(5, math.Abs(float64(exponent))))
+
+		// Apply the power of 5 to mantissa
+		if exponent > 0 {
+			mantissa = mantissa * pow5
+		} else {
+			mantissa = mantissa / pow5
+		}
+	}
+
+	// Ensure mantissa is odd (per spec: mantissa = 0 or odd)
+	// This normalization ensures canonical encoding
+	var sign int64
+	if mantissa < 0 {
+		sign = -1
+		mantissa = -mantissa
+	} else {
+		sign = 1
+	}
+
+	// Right-shift mantissa while it's even, incrementing exponent each time
+	// Both mantissa and exponent are modified by this normalization
+	for mantissa > 0 && mantissa%2 == 0 {
+		mantissa >>= 1
+		exponent++
+	}
+
+	// Build first octet per section 8.5.6-8.5.7 using temporary bitbuffer
+	// Bit 7: Binary encoding flag (1 for binary, 0 for decimal)
+	// Bit 6: Sign bit S (1 if negative, 0 if positive)
+	// Bits 5-4: Base B (00=base2, 01=base8, 10=base16)
+	// Bits 3-2: Scaling factor F (always 0 in normalized form)
+	// Bits 1-0: Exponent format (0=1 octet, 1=2 octets, 2=3 octets, 3=length prefix)
 	temp := bitbuffer.CreateWriter()
 
-	// Build characteristics first octet bits sequentially
-	// ASN.1 REAL standard (X.690) supports only bases 2 and 10
+	// Write Bit 7: Binary encoding flag (always 1)
+	temp.Write(1, 1)
 
-	// Write base bit (bit 8): 1 for binary (base 2), 0 for decimal (base 10)
-	if base == 2 {
-		if err := temp.Write(1, 1); err != nil {
-			return err
-		}
+	// Write Bit 6: Sign bit
+	if sign < 0 {
+		temp.Write(1, 1)
 	} else {
-		if err := temp.Write(1, 0); err != nil {
-			return err
-		}
+		temp.Write(1, 0)
 	}
 
-	// Write scaling factor bits (bits 7-6): always 00 for minimum octets encoding
-	if err := temp.Write(2, 0); err != nil {
-		return err
-	}
+	// Write Bits 5-4: Base (always 00 for base 2)
+	temp.Write(2, 0)
 
-	// Determine and write exponent format bits (bits 5-3)
-	if exponent >= -128 && exponent <= 127 {
-		if err := temp.Write(3, 0x01); err != nil {
-			return err
-		}
-	} else if exponent >= -32768 && exponent <= 32767 {
-		if err := temp.Write(3, 0x02); err != nil {
-			return err
-		}
-	} else if exponent < 0 {
-		// Multi-octet negative exponent - determine length using bits.Len64
-		length := (bits.Len64(uint64(-exponent)) + 7) / 8
-		if length == 0 {
-			length = 1
-		}
-		if err := temp.Write(3, uint64(length)); err != nil {
-			return err
-		}
-	} else {
-		// Multi-octet positive exponent - determine length using bits.Len64
-		length := (bits.Len64(uint64(exponent)) + 7) / 8
-		if length == 0 {
-			length = 1
-		}
-		if err := temp.Write(3, uint64(length)); err != nil {
-			return err
-		}
-	}
+	// Write Bits 3-2: Scaling factor (always 00 for normalized form)
+	temp.Write(2, 0)
 
-	// Align to octet boundary
-	if err := temp.Align(); err != nil {
-		return err
-	}
-
-	// Encode and write exponent to temporary codec
-	if exponent >= -128 && exponent <= 127 {
-		// Single octet exponent
-		if err := temp.Write(8, uint64(byte(exponent))); err != nil {
-			return err
-		}
-	} else if exponent >= -32768 && exponent <= 32767 {
-		// Two octet exponent
-		if err := temp.Write(16, uint64(uint16(exponent))); err != nil {
-			return err
-		}
-	} else {
-		// Multi-octet exponent (two's complement)
-		var abs uint64
-		if exponent < 0 {
-			abs = uint64(-exponent)
-		} else {
-			abs = uint64(exponent)
-		}
-
-		// Calculate number of bytes needed using bits.Len64
-		length := (bits.Len64(abs) + 7) / 8
-		if length == 0 {
-			length = 1
-		}
-
-		// Apply two's complement for negative values
-		if exponent < 0 {
-			abs = (1 << uint(length*8)) - abs
-		}
-
-		// Write exponent in big-endian format
-		if err := temp.Write(uint8(length*8), abs); err != nil {
-			return err
-		}
-	}
 	{
-		// Encode and write mantissa to temporary codec
-		var abs uint64
-		if mantissa < 0 {
-			abs = uint64(-mantissa)
+		// Calculate exponent length in octets for first octet encoding
+		// Per Python reference: int_bytelen() returns minimum bytes needed
+		// Calculate exponent length using math and bits packages
+		length := max((bits.Len64(uint64(math.Abs(float64(exponent))))+1+7)/8, 1)
+		// Write Bits 1-0: Exponent format (actualExpLen-1, capped at 3 for length prefix)
+		if length > 3 {
+			temp.Write(2, 3)
 		} else {
-			abs = uint64(mantissa)
+			temp.Write(2, uint64(length-1))
 		}
 
-		// Calculate number of bytes needed using bits.Len64
-		length := (bits.Len64(abs) + 7) / 8
-		if length == 0 {
-			length = 1
-		}
+		// Encode exponent based on length format
+		switch length {
+		case 1:
+			// Single octet: encode as signed byte
+			temp.Write(8, uint64(int8(exponent)))
+		case 2:
+			// Two octets: encode as signed big-endian short
+			temp.Write(16, uint64(int16(exponent)))
+		case 3:
+			// Three octets: encode as signed big-endian (three bytes)
+			if exponent < 0 {
+				// Two's complement for negative values
+				temp.Write(24, uint64((1<<24)+exponent))
+			} else {
+				temp.Write(24, uint64(exponent))
+			}
+		default:
+			// Length prefix format: length octet followed by exponent octets
+			temp.Write(8, uint64(length))
 
-		// Apply two's complement for negative values
-		if mantissa < 0 {
-			abs = (1 << uint(length*8)) - abs
-		}
-
-		// Write mantissa in big-endian format
-		if err := temp.Write(uint8(length*8), abs); err != nil {
-			return err
+			// Encode exponent in actualExpLen octets as two's complement
+			if exponent < 0 {
+				temp.Write(uint8(length*8), uint64((1<<uint(length*8))+exponent))
+			} else {
+				temp.Write(uint8(length*8), uint64(exponent))
+			}
 		}
 	}
-	// Get the encoded REAL contents
-	data := temp.Bytes()
 
-	// Encode the real value octets with length determinant
-	return e.EncodeOctetString(data, nil, nil, false)
+	// Encode mantissa N as unsigned binary integer
+	// Convert mantissa to bytes (big-endian, minimum length)
+	if mantissa > 0 {
+		length := (bits.Len64(uint64(mantissa)) + 7) / 8
+		temp.Write(uint8(length*8), uint64(mantissa))
+	}
+
+	// Encode the contents with length determinant per section 11.9
+	return e.EncodeOctetString(temp.Bytes(), nil, nil, false)
 }
 
 // 16 Encoding the bitstring type
