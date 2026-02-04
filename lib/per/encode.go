@@ -2,6 +2,7 @@ package per
 
 import (
 	"encoding/asn1"
+	"math"
 	"math/bits"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
@@ -794,6 +795,263 @@ func (e *Encoder) EncodeEnumerated(value uint64, count uint64, extensible bool) 
 // |  |  The procedures of 11.9 shall be invoked to append this bit-field (octet-aligned in
 // |  |  the ALIGNED variant) of "n" octets to the field-list, preceded by an unconstrained
 // |  |  length determinant equal to "n".
+
+// 11.3 Real values
+// |- 11.3.1 If the encoding represents a real value whose base B is 2, then binary encoding
+// |  |  employing base 2 shall be used.
+// |  |  Before encoding, the mantissa M and exponent E are chosen so that M is either 0 or is odd.
+// |  |  NOTE – This is necessary because the same real value can be regarded as both {M, 2, E}
+// |  |  and {M', 2, E'} with M ≠ M' if, for some non-zero integer n:
+// |  |  M' = M  2–n
+// |  |  E' = E + n
+// |  |  In encoding the value, the binary scaling factor F shall be zero, and M and E shall
+// |  |  each be represented in the fewest octets necessary.
+// |- 11.3.2 If the encoding represents a real value whose base B is 10, then decimal encoding
+// |  |  shall be used. In forming the encoding, the following applies:
+// |  |- 11.3.2.1 The ISO 6093 NR3 form shall be used (see 8.5.8).
+// |  |- 11.3.2.2 SPACE shall not be used within the encoding.
+// |  |- 11.3.2.3 If the real value is negative, then it shall begin with a MINUS SIGN (–),
+// |  |  |  otherwise, it shall begin with a digit.
+// |  |- 11.3.2.4 Neither the first nor the last digit of the mantissa may be a 0.
+// |  |- 11.3.2.5 The last digit in the mantissa shall be immediately followed by FULL STOP (.),
+// |  |  |  followed by the exponent-mark "E".
+// |  |- 11.3.2.6 If the exponent has the value 0, it shall be written "+0", otherwise the
+// |  |  |  exponent's first digit shall not be zero, and PLUS SIGN shall not be used.
+
+// 8.5.8 Decimal encoding of real values
+// |- When decimal encoding is used (bits 8 to 7 = 00), all the contents octets following the
+// |  |  first contents octet form a field, as the term is used in ISO 6093, of a length chosen
+// |  |  by the sender, and encoded according to ISO 6093. The choice of ISO 6093 number
+// |  |  representation is specified by bits 6 to 1 of the first contents octet as follows:
+// |  |  Bits 6 to 1: Number representation
+// |  |  00 0001: ISO 6093 NR1 form
+// |  |  00 0010: ISO 6093 NR2 form
+// |  |  00 0011: ISO 6093 NR3 form
+// |  |  The remaining values of bits 6 to 1 are reserved for further editions of this
+// |  |  Recommendation | International Standard.
+// |- There shall be no use of scaling factors specified in accompanying documentation
+// |  |  (see ISO 6093).
+// |- NOTE 1 – The recommendations in ISO 6093 concerning the use of at least one digit to the
+// |  |  left of the decimal mark are also recommended in this Recommendation | International
+// |  |  Standard, but are not mandatory.
+// |- NOTE 2 – Use of the normalized form (see ISO 6093) is a sender's option, and has no
+// |  |  significance.
+
+// MakeReal extracts characteristics, mantissa, and exponent from a float64 value
+// Returns:
+//   - mantissa: normalized mantissa as int64 (odd for non-zero values)
+//   - exponent: unbiased exponent as int
+//   - base: encoding base (2 for binary)
+func MakeReal(value float64) (mantissa int64, exponent int, base int) {
+	// Handle special case: zero
+	if value == 0.0 {
+		return 0, 0, 2
+	}
+
+	// Extract IEEE 754 components from float64
+	bits := math.Float64bits(value)
+
+	// Extract sign, exponent, and frac
+	var (
+		sign = (bits >> 63) & 1
+		bexp = int((bits >> 52) & 0x7FF)
+		frac = bits & 0xFFFFFFFFFFFFF // 52-bit mantissa
+	)
+	// Handle special values (infinity, NaN) - let EncodeReal handle these
+	if bexp == 0x7FF {
+		return 0, 0, 2
+	}
+
+	// Handle subnormal numbers (exponent == 0)
+	if bexp == 0 {
+		// Subnormal: exponent is -1022, mantissa is 0.fraction
+		mantissa = int64(frac)
+		exponent = -1022 - 52 // Account for 52-bit fraction
+	} else {
+		// Normal: exponent is biased by 1023, mantissa is 1.fraction
+		mantissa = int64((1 << 52) | frac)
+		exponent = bexp - 1023 - 52 // Unbias and account for 52-bit fraction
+	}
+
+	// Apply sign
+	if sign == 1 {
+		mantissa = -mantissa
+	}
+
+	// Normalize mantissa to be odd (per section 11.3.1)
+	// Remove trailing zeros from mantissa
+	for mantissa != 0 && mantissa%2 == 0 {
+		mantissa = mantissa / 2
+		exponent = exponent + 1
+	}
+
+	return mantissa, exponent, 2
+}
+
+// bytesToUint64 converts a big-endian byte slice to uint64
+// The slice must be at most 8 bytes
+func bytesToUint64(b []byte) uint64 {
+	var result uint64
+	for _, v := range b {
+		result = (result << 8) | uint64(v)
+	}
+	return result
+}
+
+// EncodeReal encodes a real value (float64) following PER encoding rules per section 11.3
+// Uses IEEE 754 binary representation to extract mantissa and exponent
+func (e *Encoder) EncodeReal(value float64) error {
+	// Handle special case: zero
+	if value == 0.0 {
+		// Zero is encoded as a single octet with value 0x00
+		if err := e.EncodeUnconstrainedWholeNumber(0); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Handle special values: +INF and -INF
+	if math.IsInf(value, 1) {
+		// +INF: encode as single octet 0x40
+		if err := e.EncodeUnconstrainedWholeNumber(1); err != nil {
+			return err
+		}
+		return e.codec.WriteBytes([]byte{0x40})
+	}
+	if math.IsInf(value, -1) {
+		// -INF: encode as single octet 0x41
+		if err := e.EncodeUnconstrainedWholeNumber(1); err != nil {
+			return err
+		}
+		return e.codec.WriteBytes([]byte{0x41})
+	}
+
+	// Use MakeReal to extract components
+	mantissa, exponent, base := MakeReal(value)
+
+	// Create temporary codec for REAL contents encoding
+	temp := bitbuffer.CreateWriter()
+
+	// Build characteristics first octet bits sequentially
+	// ASN.1 REAL standard (X.690) supports only bases 2 and 10
+
+	// Write base bit (bit 8): 1 for binary (base 2), 0 for decimal (base 10)
+	if base == 2 {
+		if err := temp.Write(1, 1); err != nil {
+			return err
+		}
+	} else {
+		if err := temp.Write(1, 0); err != nil {
+			return err
+		}
+	}
+
+	// Write scaling factor bits (bits 7-6): always 00 for minimum octets encoding
+	if err := temp.Write(2, 0); err != nil {
+		return err
+	}
+
+	// Determine and write exponent format bits (bits 5-3)
+	if exponent >= -128 && exponent <= 127 {
+		if err := temp.Write(3, 0x01); err != nil {
+			return err
+		}
+	} else if exponent >= -32768 && exponent <= 32767 {
+		if err := temp.Write(3, 0x02); err != nil {
+			return err
+		}
+	} else if exponent < 0 {
+		// Multi-octet negative exponent - determine length using bits.Len64
+		length := (bits.Len64(uint64(-exponent)) + 7) / 8
+		if length == 0 {
+			length = 1
+		}
+		if err := temp.Write(3, uint64(length)); err != nil {
+			return err
+		}
+	} else {
+		// Multi-octet positive exponent - determine length using bits.Len64
+		length := (bits.Len64(uint64(exponent)) + 7) / 8
+		if length == 0 {
+			length = 1
+		}
+		if err := temp.Write(3, uint64(length)); err != nil {
+			return err
+		}
+	}
+
+	// Align to octet boundary
+	if err := temp.Align(); err != nil {
+		return err
+	}
+
+	// Encode and write exponent to temporary codec
+	if exponent >= -128 && exponent <= 127 {
+		// Single octet exponent
+		if err := temp.Write(8, uint64(byte(exponent))); err != nil {
+			return err
+		}
+	} else if exponent >= -32768 && exponent <= 32767 {
+		// Two octet exponent
+		if err := temp.Write(16, uint64(uint16(exponent))); err != nil {
+			return err
+		}
+	} else {
+		// Multi-octet exponent (two's complement)
+		var abs uint64
+		if exponent < 0 {
+			abs = uint64(-exponent)
+		} else {
+			abs = uint64(exponent)
+		}
+
+		// Calculate number of bytes needed using bits.Len64
+		length := (bits.Len64(abs) + 7) / 8
+		if length == 0 {
+			length = 1
+		}
+
+		// Apply two's complement for negative values
+		if exponent < 0 {
+			abs = (1 << uint(length*8)) - abs
+		}
+
+		// Write exponent in big-endian format
+		if err := temp.Write(uint8(length*8), abs); err != nil {
+			return err
+		}
+	}
+	{
+		// Encode and write mantissa to temporary codec
+		var abs uint64
+		if mantissa < 0 {
+			abs = uint64(-mantissa)
+		} else {
+			abs = uint64(mantissa)
+		}
+
+		// Calculate number of bytes needed using bits.Len64
+		length := (bits.Len64(abs) + 7) / 8
+		if length == 0 {
+			length = 1
+		}
+
+		// Apply two's complement for negative values
+		if mantissa < 0 {
+			abs = (1 << uint(length*8)) - abs
+		}
+
+		// Write mantissa in big-endian format
+		if err := temp.Write(uint8(length*8), abs); err != nil {
+			return err
+		}
+	}
+	// Get the encoded REAL contents
+	data := temp.Bytes()
+
+	// Encode the real value octets with length determinant
+	return e.EncodeOctetString(data, nil, nil, false)
+}
 
 // 16 Encoding the bitstring type
 // |- NOTE - (Tutorial) Bitstrings constrained to a fixed length less than or equal to 16
