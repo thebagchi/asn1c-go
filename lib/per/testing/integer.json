@@ -161,6 +161,466 @@
   },
   {
     "input": {
+      "value": 10,
+      "lb": 10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0100",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": 10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0100",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 100,
+      "lb": 10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "015a",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 100,
+      "lb": 10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "015a",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0100",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0100",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 255,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "01ff",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 255,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "01ff",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 256,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "020100",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 256,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "020100",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": -5,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0105",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": -5,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0105",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "010a",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "010a",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0114",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": -10,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0114",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 1000,
+      "lb": 100,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "020384",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 1000,
+      "lb": 100,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "020384",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 65535,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "02ffff",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 65535,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "02ffff",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 65536,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03010000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 65536,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03010000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 131072,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03020000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 131072,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03020000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 262144,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03040000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 262144,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03040000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 524288,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03080000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 524288,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03080000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 1048576,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03100000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 1048576,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03100000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 2097152,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03200000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 2097152,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03200000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 4194304,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03400000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 4194304,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03400000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 8388608,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03800000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 8388608,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "03800000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 16777216,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0401000000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 16777216,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0401000000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 33554432,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0402000000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 33554432,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0402000000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 67108864,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0404000000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 67108864,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0404000000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 134217728,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0408000000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 134217728,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0408000000",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 268435456,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0410000000",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 268435456,
+      "lb": 0,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "0410000000",
+    "aligned": false
+  },
+  {
+    "input": {
       "value": 0,
       "lb": 0,
       "ub": 1,
