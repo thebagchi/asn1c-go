@@ -52,23 +52,23 @@ func TestBitsTwosComplementBinaryInteger(t *testing.T) {
 	test(4, 4, "positive 4 (0100)")
 	test(7, 4, "positive 7 (0111)")
 	test(8, 5, "positive 8 (01000)")
-	// Negative values
+	// Negative values (using spec 11.4.6 logic: bits.Len64(^value) + 1)
 	test(-1, 1, "negative -1 (1)")
 	test(-2, 2, "negative -2 (10)")
-	test(-3, 2, "negative -3 (11)")
+	test(-3, 3, "negative -3 (101 with sign extension)")
 	test(-4, 3, "negative -4 (100)")
-	test(-5, 3, "negative -5 (101)")
+	test(-5, 4, "negative -5 (1011 with sign extension)")
 	test(-8, 4, "negative -8 (1000)")
 }
 
-// TestOctetsTwosComplementBinaryIntegerLength validates the calculation
+// TestOctetsTwosComplementBinaryInteger validates the calculation
 // for 2's complement signed integer encoding
-func TestOctetsTwosComplementBinaryIntegerLength(t *testing.T) {
+func TestOctetsTwosComplementBinaryInteger(t *testing.T) {
 	test := func(value int64, expected int, description string) {
 		t.Run(description, func(t *testing.T) {
-			result := OctetsTwosComplementBinaryIntegerLength(value)
+			result := OctetsTwosComplementBinaryInteger(value)
 			if result != expected {
-				t.Errorf("OctetsTwosComplementBinaryIntegerLength(%d) = %d, want %d", value, result, expected)
+				t.Errorf("OctetsTwosComplementBinaryInteger(%d) = %d, want %d", value, result, expected)
 			}
 		})
 	}

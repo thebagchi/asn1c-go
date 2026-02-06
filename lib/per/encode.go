@@ -109,10 +109,12 @@ func BitsTwosComplementBinaryInteger(value int64) int {
 	if value > 0 {
 		return bits.Len64(uint64(value)) + 1
 	}
-	return bits.Len64(uint64(-value))
+	// For negative values, ensure "leading nine bits shall not all be ones" per spec 11.4.6
+	// Use bitwise NOT to find minimum bits, then +1 for proper sign extension
+	return bits.Len64(uint64(^value)) + 1
 }
 
-func OctetsTwosComplementBinaryIntegerLength(value int64) int {
+func OctetsTwosComplementBinaryInteger(value int64) int {
 	bits := BitsTwosComplementBinaryInteger(value)
 	return (bits + 7) >> 3
 }
@@ -199,13 +201,16 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 	}
 
 	if !e.aligned {
-		bits := BitsNonNegativeBinaryInteger(uint64(vr))
+		bits := BitsNonNegativeBinaryInteger(uint64(vr - 1))
 		value := uint64(n - lb)
 		return e.codec.Write(uint8(bits), value)
 	}
 
 	value := uint64(n - lb)
 	if vr <= 0xFF {
+		if err := e.codec.Align(); nil != err {
+			return err
+		}
 		var bits int
 		switch {
 		case vr == 0x02:
@@ -239,7 +244,31 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 		}
 		return e.codec.Write(16, value)
 	}
-	return e.EncodeUnconstrainedWholeNumber(int64(value))
+	// For ranges > 0x10000, use constrained encoding with length determinant
+	// Per ITU-T X.691 section 13.2.6(a): use constrained length determinant
+	// where lb=1 and ub=octets needed to hold the range
+	if err := e.codec.Align(); nil != err {
+		return err
+	}
+	octets := OctetsNonNegativeBinaryIntegerLength(value)
+	if octets == 0 {
+		octets = 1
+	}
+	// Calculate constrained length bounds per spec 13.2.6(a)
+	var (
+		octetsRange = OctetsNonNegativeBinaryIntegerLength(uint64(ub - lb))
+		lbRange     = uint64(1)
+		ubRange     = uint64(octetsRange)
+	)
+	_, err := e.EncodeLengthDeterminant(uint64(octets), &lbRange, &ubRange)
+	if err != nil {
+		return err
+	}
+	// Align after length determinant before writing the value
+	if err := e.codec.Align(); nil != err {
+		return err
+	}
+	return e.codec.Write(uint8(octets*8), value)
 }
 
 // 11.6 Encoding of a normally small non-negative whole number
@@ -324,7 +353,7 @@ func (e *Encoder) EncodeSemiConstrainedWholeNumber(lb, n int64) error {
 // |  |  an encoding of the length.
 
 func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
-	octets := OctetsTwosComplementBinaryIntegerLength(n)
+	octets := OctetsTwosComplementBinaryInteger(n)
 	if octets == 0 {
 		octets = 1
 	}
@@ -715,10 +744,6 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 	}
 
 	if lb != nil && ub != nil {
-		bound := uint64(*ub - *lb + 1)
-		if bound > 65536 {
-			return e.EncodeSemiConstrainedWholeNumber(*lb, value)
-		}
 		return e.EncodeConstrainedWholeNumber(*lb, *ub, value)
 	} else if lb != nil && ub == nil {
 		return e.EncodeSemiConstrainedWholeNumber(*lb, value)
