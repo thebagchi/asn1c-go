@@ -5,11 +5,11 @@ from binascii import hexlify
 from pycrate_asn1rt.asnobj_basic import BOOL  # type: ignore
 
 
-def encode_per(object, aligned=True):
+def encode_per(obj, aligned=True):
     if aligned:
-        return object.to_aper()
+        return obj.to_aper()
     else:
-        return object.to_uper()
+        return obj.to_uper()
 
 
 def encode_boolean(value, aligned=True):
@@ -19,32 +19,28 @@ def encode_boolean(value, aligned=True):
 
 
 def main():
-    # Create array of test results
     results = []
-
-    # Test cases: all combinations of value and alignment
-    test_cases = [
-        (True, True),  # value=True, aligned=True
-        (True, False),  # value=True, aligned=False
-        (False, True),  # value=False, aligned=True
-        (False, False),  # value=False, aligned=False
+    cases = [
+        {"value": True, "aligned": True},
+        {"value": True, "aligned": False},
+        {"value": False, "aligned": True},
+        {"value": False, "aligned": False},
     ]
-
-    for value, aligned in test_cases:
+    for case in cases:
+        value = case["value"]
+        aligned = case["aligned"]
+        data = encode_boolean(value, aligned)
+        output = hexlify(data).decode("ascii")
         result = {
             "input": value,
             "aligned": aligned,
-            "output": hexlify(encode_boolean(value, aligned)).decode("ascii"),
+            "output": output,
         }
         results.append(result)
 
-    json_str = json.dumps(results, indent=2)
-    print(json_str)  # Keep console output for verification
-
-    # Save to file
+    content = json.dumps(results, indent=2)
     with open("bool.json", "w") as f:
-        f.write(json_str)
-
+        f.write(content)
     pass
 
 

@@ -1,0 +1,142 @@
+[
+  {
+    "input": {
+      "value": 10,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "14",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "14",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "0a",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "0a",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": null,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "010a",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 10,
+      "lb": null,
+      "ub": null,
+      "extensible": false
+    },
+    "output": "010a",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "00",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "00",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "00",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 0,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "00",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 100,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "c8",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 100,
+      "lb": 0,
+      "ub": 100,
+      "extensible": false
+    },
+    "output": "c8",
+    "aligned": false
+  },
+  {
+    "input": {
+      "value": 200,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "c8",
+    "aligned": true
+  },
+  {
+    "input": {
+      "value": 200,
+      "lb": 0,
+      "ub": 200,
+      "extensible": false
+    },
+    "output": "c8",
+    "aligned": false
+  }
+]
