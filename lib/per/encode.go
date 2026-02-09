@@ -207,10 +207,8 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 	}
 
 	value := uint64(n - lb)
+	// 11.5.7.1: Bit-field case (range <= 255) - NO alignment, just encode in minimum bits
 	if vr <= 0xFF {
-		if err := e.codec.Align(); nil != err {
-			return err
-		}
 		var bits int
 		switch {
 		case vr == 0x02:
@@ -232,24 +230,24 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 		}
 		return e.codec.Write(uint8(bits), value)
 	}
+	// 11.5.7.2: One-octet case (range = 256) - octet-aligned
 	if vr == 0x100 {
 		if err := e.codec.Align(); nil != err {
 			return err
 		}
 		return e.codec.Write(8, value)
 	}
+	// 11.5.7.3: Two-octet case (range 257-64K) - octet-aligned
 	if vr >= 0x101 && vr <= 0x10000 {
 		if err := e.codec.Align(); nil != err {
 			return err
 		}
 		return e.codec.Write(16, value)
 	}
+	// 11.5.7.4: Indefinite length case (range > 64K)
 	// For ranges > 0x10000, use constrained encoding with length determinant
 	// Per ITU-T X.691 section 13.2.6(a): use constrained length determinant
 	// where lb=1 and ub=octets needed to hold the range
-	if err := e.codec.Align(); nil != err {
-		return err
-	}
 	octets := OctetsNonNegativeBinaryIntegerLength(value)
 	if octets == 0 {
 		octets = 1
@@ -260,11 +258,12 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 		lbRange     = uint64(1)
 		ubRange     = uint64(octetsRange)
 	)
+	// Encode length determinant (constrained whole number, handles its own alignment per 11.5)
 	_, err := e.EncodeLengthDeterminant(uint64(octets), &lbRange, &ubRange)
 	if err != nil {
 		return err
 	}
-	// Align after length determinant before writing the value
+	// 11.5.7.4: Value is octet-aligned
 	if err := e.codec.Align(); nil != err {
 		return err
 	}
@@ -288,7 +287,7 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 func (e *Encoder) EncodeNormallySmallNonNegativeWholeNumber(n uint64) error {
 	if n <= 63 {
 		// 11.6.1: bit set to 0, followed by 6-bit encoding of n
-		if err := e.codec.Write(0, 1); err != nil {
+		if err := e.codec.Write(1, 0); err != nil {
 			return err
 		}
 		return e.codec.Write(6, n)
@@ -326,8 +325,11 @@ func (e *Encoder) EncodeSemiConstrainedWholeNumber(lb, n int64) error {
 	if octets == 0 {
 		octets = 1
 	}
-	if err := e.codec.Align(); nil != err {
-		return err
+	// 11.7.4: octet-aligned in the ALIGNED variant only
+	if e.aligned {
+		if err := e.codec.Align(); nil != err {
+			return err
+		}
 	}
 	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
 	if err != nil {
@@ -357,8 +359,11 @@ func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
 	if octets == 0 {
 		octets = 1
 	}
-	if err := e.codec.Align(); nil != err {
-		return err
+	// 11.8.3: octet-aligned in the ALIGNED variant only
+	if e.aligned {
+		if err := e.codec.Align(); nil != err {
+			return err
+		}
 	}
 	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
 	if err != nil {
@@ -563,7 +568,8 @@ func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
 
 func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uint64, error) {
 	const K64 = 65536 // 64K
-	if ub != nil && lb != nil && (*ub-*lb+1) < K64 {
+	// 11.9.3.3 / 11.9.4.1: constrained when "ub" is less than 64K
+	if ub != nil && lb != nil && *ub < K64 {
 		err := e.EncodeConstrainedWholeNumber(int64(*lb), int64(*ub), int64(n))
 		if err != nil {
 			return 0, err
@@ -992,34 +998,40 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 // Based on pycrate reference implementation using ITU-T X.690 specifications
 func (e *Encoder) EncodeReal(value float64) error {
 	// Section 8.5.9: Special real values (bits 7-6 = 01, bits 5-0 vary)
-	if math.IsNaN(value) {
-		// NOT-A-NUMBER: 0x42 = 01000010
-		if err := e.codec.Write(8, 0x42); err != nil {
+	// Per section 15.2, content octets are preceded by an unconstrained length determinant.
+	// For these trivial cases (length 0 or 1) we write the length and value directly.
+	if math.IsNaN(value) || math.IsInf(value, 0) || (value == 0.0 && math.Signbit(value)) {
+		if e.aligned {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+		// Unconstrained length determinant: single octet, value 1 (bit 8 = 0)
+		if err := e.codec.Write(8, 1); err != nil {
 			return err
 		}
-		return nil
-	}
-	if math.IsInf(value, 1) {
-		// PLUS-INFINITY: 0x40 = 01000000
-		if err := e.codec.Write(8, 0x40); err != nil {
-			return err
+		var octet uint64
+		switch {
+		case math.IsNaN(value):
+			octet = 0x42 // NOT-A-NUMBER
+		case math.IsInf(value, 1):
+			octet = 0x40 // PLUS-INFINITY
+		case math.IsInf(value, -1):
+			octet = 0x41 // MINUS-INFINITY
+		default:
+			octet = 0x43 // Minus zero
 		}
-		return nil
-	}
-	if math.IsInf(value, -1) {
-		// MINUS-INFINITY: 0x41 = 01000001
-		if err := e.codec.Write(8, 0x41); err != nil {
-			return err
-		}
-		return nil
+		return e.codec.Write(8, octet)
 	}
 
-	// Section 8.5.3: Minus zero is encoded as special value 0x43 = 01000011
-	if value == 0.0 && math.Signbit(value) {
-		if err := e.codec.Write(8, 0x43); err != nil {
-			return err
+	// Section 8.5.2: Plus zero has no contents octets (length = 0)
+	if value == 0.0 {
+		if e.aligned {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
 		}
-		return nil
+		return e.codec.Write(8, 0) // unconstrained length determinant = 0
 	}
 
 	// Section 8.5.7: Binary encoding for non-zero values (base 2)
@@ -1087,7 +1099,7 @@ func (e *Encoder) EncodeReal(value float64) error {
 		// Calculate exponent length in octets for first octet encoding
 		// Per Python reference: int_bytelen() returns minimum bytes needed
 		// Calculate exponent length using math and bits packages
-		length := max((bits.Len64(uint64(math.Abs(float64(exponent))))+1+7)/8, 1)
+		length := OctetsTwosComplementBinaryInteger(int64(exponent))
 		// Write Bits 1-0: Exponent format (actualExpLen-1, capped at 3 for length prefix)
 		if length > 3 {
 			temp.Write(2, 3)
@@ -1292,6 +1304,12 @@ func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
 		}
 	}
 
+	// Handle empty value: still need to encode length determinant of 0
+	if count == 0 {
+		_, err := e.EncodeLengthDeterminant(0, lb, ub)
+		return err
+	}
+
 	offset := uint64(0)
 
 	// Encode with length determinant and handle fragmentation
@@ -1438,6 +1456,13 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 	}
 
 	n := uint64(len(value))
+
+	// Handle empty value: still need to encode length determinant of 0
+	if n == 0 {
+		_, err := e.EncodeLengthDeterminant(0, lb, ub)
+		return err
+	}
+
 	offset := uint64(0)
 
 	// Encode with length determinant and handle fragmentation
