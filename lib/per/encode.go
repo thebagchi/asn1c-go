@@ -4,6 +4,7 @@ import (
 	"encoding/asn1"
 	"math"
 	"math/bits"
+	"unsafe"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
 )
@@ -1511,3 +1512,406 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 func (e *Encoder) EncodeNull() error {
 	return nil
 }
+
+// 24 Encoding the object identifier type
+// |- NOTE - (Tutorial) An object identifier type encoding uses the contents octets of BER preceded by a length determinant that will
+// |  |  in practice be a single octet.
+// |  |  The encoding specified for BER shall be applied to give a bit-field (octet-aligned in the ALIGNED variant) which is the
+// |  |  contents octets of the BER encoding. The contents octets of this BER encoding consists of "n" (say) octets and is placed
+// |  |  in a bit-field (octet-aligned in the ALIGNED variant) of "n" octets. The procedures of 11.9 shall be invoked to append
+// |  |  this bit-field (octet-aligned in the ALIGNED variant) to the field-list, preceded by a length determinant equal to "n" as a
+// |  |  semi-constrained whole number octet count.
+
+// EncodeObjectIdentifier encodes an OBJECT IDENTIFIER value per section 24 of ITU-T X.691.
+// The OID is encoded as an octet string containing the DER value octets.
+func (e *Encoder) EncodeObjectIdentifier(oid asn1.ObjectIdentifier) error {
+	// Marshal the OID to DER encoding using Go's encoding/asn1 package
+	// DER format: tag (0x06) + length + value octets
+	data, err := asn1.Marshal(oid)
+	if err != nil {
+		return err
+	}
+
+	// Extract value octets by parsing the DER structure
+	if data[1]&0x80 == 0 {
+		// Short form: length in low 7 bits
+		data = data[2:]
+	} else {
+		// Long form: next (data[1] & 0x7f) bytes contain the length
+		data = data[2+int(data[1]&0x7f):]
+	}
+
+	// Encode the value octets as an unconstrained octet string
+	return e.EncodeOctetString(data, nil, nil, false)
+}
+
+// 25 Encoding the relative object identifier type
+// |- NOTE - (Tutorial) A relative object identifier type encoding uses the contents octets of BER preceded by a length determinant that
+// |  |  will in practice be a single octet. The following text is identical to that of clause 24.
+// |  |  The encoding specified for BER shall be applied to give a bit-field (octet-aligned in the ALIGNED variant) which is the
+// |  |  contents octets of the BER encoding. The contents octets of this BER encoding consists of "n" (say) octets and is placed
+// |  |  in a bit-field (octet-aligned in the ALIGNED variant) of "n" octets. The procedures of 11.9 shall be invoked to append
+// |  |  this bit-field (octet-aligned in the ALIGNED variant) to the field-list, preceded by a length determinant equal to "n" as a
+// |  |  semi-constrained whole number octet count.
+
+// 30 Encoding the restricted character string types
+// |- NOTE 1 - (Tutorial ALIGNED variant) Character strings of fixed length less than or equal
+// |  |  to two octets are not octet-aligned. Character strings of variable length that are
+// |  |  constrained to have a maximum length of less than two octets are not octet-aligned. All
+// |  |  other character strings are octet-aligned in the ALIGNED variant. Fixed length character
+// |  |  strings encode with no length octets if they are shorter than 64K characters. For
+// |  |  unconstrained character strings or constrained character strings longer than 64K-1, the
+// |  |  length is explicitly encoded (with fragmentation if necessary). Each NumericString,
+// |  |  PrintableString, VisibleString (ISO646String), IA5String, BMPString and UniversalString
+// |  |  character is encoded into the number of bits that is the smallest power of two that can
+// |  |  accommodate all characters allowed by the effective permitted-alphabet constraint.
+// |- NOTE 2 - (Tutorial UNALIGNED variant) Character strings are not octet-aligned. If there
+// |  |  is only one possible length value there is no length encoding if they are shorter than
+// |  |  64K characters. For unconstrained character strings or constrained character strings
+// |  |  longer than 64K-1, the length is explicitly encoded (with fragmentation if necessary).
+// |  |  Each NumericString, PrintableString, VisibleString (ISO646String), IA5String, BMPString
+// |  |  and UniversalString character is encoded into the number of bits that is the smallest
+// |  |  that can accommodate all characters allowed by the effective permitted-alphabet
+// |  |  constraint.
+// |- NOTE 3 - (Tutorial on size of each encoded character) Encoding of each character depends
+// |  |  on the effective permitted-alphabet constraint (see 10.3.12), which defines the alphabet
+// |  |  in use for the type. Suppose this alphabet consists of a set of characters ALPHA (say).
+// |  |  For each of the known-multiplier character string types (see 3.7.16), there is an
+// |  |  integer value associated with each character, obtained by reference to some code table
+// |  |  associated with the restricted character string type. The set of values BETA (say)
+// |  |  corresponding to the set of characters ALPHA is used to determine the encoding to be
+// |  |  used, as follows: the number of bits for the encoding of each character is determined
+// |  |  solely by the number of elements, N, in the set BETA (or ALPHA). For the UNALIGNED
+// |  |  variant is the smallest number of bits that can encode the value N - 1 as a non-negative
+// |  |  binary integer. For the ALIGNED variant this is the smallest number of bits that is a
+// |  |  power of two and that can encode the value N - 1. Suppose the selected number of bits
+// |  |  is B. Then if every value in the set BETA can be encoded (with no transformation) in B
+// |  |  bits, then the value in set BETA is used to represent the corresponding characters in
+// |  |  the set ALPHA. Otherwise, the values in set BETA are taken in ascending order and
+// |  |  replaced by values 0, 1, 2, and so on up to N - 1, and it is these values that are used
+// |  |  to represent the corresponding character. In summary: minimum bits (taken to the next
+// |  |  power of two for the ALIGNED variant) are always used. Preference is then given to using
+// |  |  the value normally associated with the character, but if any of these values cannot be
+// |  |  encoded in the minimum number of bits a compaction is applied. The following restricted
+// |  |  character string types are known-multiplier character string types: NumericString,
+// |  |  PrintableString, VisibleString (ISO646String), IA5String, BMPString, and UniversalString.
+// |  |  Effective permitted-alphabet constraints are PER-visible only for these types.
+// |- 30.1 The effective size constraint notation may determine an upper bound "aub" for the
+// |  |  length of the abstract character string. Otherwise, "aub" is unset.
+// |- 30.2 The effective size constraint notation may determine a non-zero lower bound "alb"
+// |  |  for the length of the abstract character string. Otherwise, "alb" is zero.
+// |  |- NOTE - PER-visible constraints only apply to known-multiplier character string types.
+// |  |  For other restricted character string types "aub" will be unset and "alb" will be zero.
+// |- 30.3 If the type is extensible for PER encodings (see 10.3.18), then a bit-field
+// |  |  consisting of a single bit shall be added to the field-list. The single bit shall be set
+// |  |  to zero if the value is within the range of the extension root, and to one otherwise. If
+// |  |  the value is outside the range of the extension root, then the following encoding shall be
+// |  |  as if there was no effective size constraint, and shall have the effective
+// |  |  permitted-alphabet constraint specified in 10.3.12.
+// |  |- NOTE 1 - Only the known-multiplier character string types can be extensible for PER
+// |  |  encodings. Extensibility markers on other character string types do not affect the PER
+// |  |  encoding.
+// |  |- NOTE 2 - Effective permitted-alphabet constraints can never be extensible, as
+// |  |  extensible permitted-alphabet constraints are not PER-visible (see 10.3.11).
+// |- 30.4 This subclause applies to known-multiplier character strings. Encoding of the other
+// |  |  restricted character string types is specified in 30.5.
+// |  |- 30.4.1 The effective permitted alphabet is defined to be that alphabet permitted by
+// |  |  |  the permitted-alphabet constraint, or the entire alphabet of the built-in type if there
+// |  |  |  is no PermittedAlphabet constraint.
+// |  |- 30.4.2 Let N be the number of characters in the effective permitted alphabet. Let B be
+// |  |  |  the smallest integer such that 2 to the power B is greater than or equal to N. Let B2 be
+// |  |  |  the smallest power of 2 that is greater than or equal to B. Then in the ALIGNED variant,
+// |  |  |  each character shall encode into B2 bits, and in the UNALIGNED variant into B bits. Let
+// |  |  |  the number of bits identified by this rule be "b".
+// |  |- 30.4.3 A numerical value "v" is associated with each character by reference to Rec.
+// |  |  |  ITU-T X.680 | ISO/IEC 8824-1, clause 43 as follows. For UniversalString, the value is
+// |  |  |  that used to determine the canonical order in Rec. ITU-T X.680 | ISO/IEC 8824-1, 43.3
+// |  |  |  (the value is in the range 0 to 232 - 1). For BMPString, the value is that used to
+// |  |  |  determine the canonical order in Rec. ITU-T X.680 | ISO/IEC 8824-1, 43.3 (the value is
+// |  |  |  in the range 0 to 216 - 1). For NumericString and PrintableString and VisibleString
+// |  |  |  and IA5String the value is that defined for the ISO/IEC 646 encoding of the
+// |  |  |  corresponding character. (For IA5String the range is 0 to 127, for VisibleString it is
+// |  |  |  32 to 126, for NumericString it is 32 to 57, and for PrintableString it is 32 to 122.
+// |  |  |  For IA5String and VisibleString all values in the range are present, but for
+// |  |  |  NumericString and PrintableString not all values in the range are in use.)
+// |  |- 30.4.4 Let the smallest value in the range for the set of characters in the permitted
+// |  |  |  alphabet be "lb" and the largest value be "ub". Then the encoding of a character into
+// |  |  |  "b" bits is the non-negative-binary-integer encoding of the value "v" identified as
+// |  |  |  follows: a) if "ub" is less than or equal to 2b - 1, then "v" is the value specified in
+// |  |  |  above; otherwise b) the characters are placed in the canonical order defined in Rec.
+// |  |  |  ITU-T X.680 | ISO/IEC 8824-1, clause 43. The first is assigned the value zero and the
+// |  |  |  next in canonical order is assigned a value that is one greater than the value assigned
+// |  |  |  to the previous character in the canonical order. These are the values "v". NOTE - Item
+// |  |  |  a) above can never apply to a constrained or unconstrained NumericString character,
+// |  |  |  which always encodes into four bits or less using b).
+// |  |- 30.4.5 The encoding of the entire character string shall be obtained by encoding each
+// |  |  |  character (using an appropriate value "v") as a non-negative-binary-integer into "b"
+// |  |  |  bits which shall be concatenated to form a bit-field that is a multiple of "b" bits.
+// |  |- 30.4.6 If "aub" equals "alb" and is less than 64K, then the bit-field shall be added
+// |  |  |  to the field-list as a field (octet-aligned in the ALIGNED variant) if "aub" times "b"
+// |  |  |  is greater than 16, but shall otherwise be added as a bit-field that is not
+// |  |  |  octet-aligned. This completes the procedures of this subclause.
+// |  |- 30.4.7 If "aub" does not equal "alb" or is greater than or equal to 64K, then 11.9
+// |  |  |  shall be invoked to add the bit-field preceded by a length determinant with "n" as a
+// |  |  |  count of the characters in the character string with a lower bound for the length
+// |  |  |  determinant of "alb" and an upper bound of "aub". The bit-field shall be added as a
+// |  |  |  field (octet-aligned in the ALIGNED variant) if "aub" times "b" is greater than or equal
+// |  |  |  to 16, but shall otherwise be added as a bit-field that is not octet-aligned. This
+// |  |  |  completes the procedures of this subclause. NOTE - Both 30.4.6 and 30.4.7 specify no
+// |  |  |  alignment if "aub" times "b" is less than 16, and alignment if the product is greater
+// |  |  |  than 16. For a value exactly equal to 16, 30.4.6 specifies no alignment and 30.4.7
+// |  |  |  specifies alignment.
+// |- 30.5 This subclause applies to character strings that are not known-multiplier character
+// |  |  |  strings. In this case, constraints are never PER-visible, and the type can never be
+// |  |  |  extensible for PER encoding.
+// |  |- 30.5.1 For BASIC-PER, reference below to "base encoding" means production of the
+// |  |  |  octet string specified in Rec. ITU-T X.690 | ISO/IEC 8825-1, 8.23.5. For CANONICAL-PER
+// |  |  |  it means the production of the same octet string subject to the restrictions specified
+// |  |  |  for CER and DER in Rec. ITU-T X.690 | ISO/IEC 8825-1, 11.4.
+// |  |- 30.5.2 The "base encoding" shall be applied to the character string to give a field of
+// |  |  |  "n" octets.
+// |  |- 30.5.3 Subclause 11.9 shall be invoked to add the field of "n" octets as a bit-field
+// |  |  |  (octet-aligned in the ALIGNED variant), preceded by an unconstrained length determinant
+// |  |  |  with "n" as a count in octets, completing the procedures of this subclause.
+
+// 31 Encoding the unrestricted character string type
+// |- 31.1 There are two ways in which an unrestricted character string type can be encoded:
+// |  |  a) the syntaxes alternative of the unrestricted character string type is constrained
+// |  |  with a PER-visible inner type constraint to a single value or identification is
+// |  |  constrained with a PER-visible inner type constraint to the fixed alternative, in which
+// |  |  case only the string-value shall be encoded; this is called the "predefined" case; b) an
+// |  |  inner type constraint is not employed to constrain the syntaxes alternative to a single
+// |  |  value, nor to constrain identification to the fixed alternative, in which case both the
+// |  |  identification and string-value shall be encoded; this is called the "general" case.
+// |- 31.2 For the "predefined" case, the encoding of the value of the CHARACTER STRING type
+// |  |  shall be the PER-encoding of a value of the OCTET STRING type. The value of the OCTET
+// |  |  STRING shall be the octets which form the complete encoding of the character string
+// |  |  value referenced in Rec. ITU-T X.680 | ISO/IEC 8824-1, 44.3 a).
+// |- 31.3 In the "general" case, the encoding of a value of the unrestricted character string
+// |  |  type shall be the PER encoding of the type defined in Rec. ITU-T X.680 | ISO/IEC
+// |  |  8824-1, 44.5, with the data-value-descriptor component removed (that is, there shall be
+// |  |  no OPTIONAL bit-map at the head of the encoding of the SEQUENCE). The value of the
+// |  |  string-value component of type OCTET STRING shall be the octets which form the complete
+// |  |  encoding of the character string value referenced in Rec. ITU-T X.680 | ISO/IEC 8824-1,
+// |  |  44.3 a).
+
+func (e *Encoder) EncodeString(value string, lb *uint64, ub *uint64, extensible bool) error {
+	// This is suitable for restricted character string types that use a full byte (or more)
+	// per character in their native encoding, where PER treats the value as an opaque
+	// octet string with no per-character bit optimization:
+	//   - VisibleString    (ISO 646, 1 byte/char, unconstrained alphabet)
+	//   - IA5String        (ISO 646, 1 byte/char, unconstrained alphabet)
+	//   - PrintableString  (ISO 646 subset, 1 byte/char, unconstrained alphabet)
+	return e.EncodeOctetString(unsafe.Slice(unsafe.StringData(value), len(value)), lb, ub, extensible)
+}
+
+// TODO - EncodeNumericString (section 30.4) - known-multiplier character string
+// Input: string, lb, ub, extensible
+// Implements per-character bit-packing with 4 bits per character for permitted alphabet
+
+// TODO - EncodeBMPString (section 30.4) - known-multiplier character string
+// Input: string, lb, ub, extensible
+// Implements per-character bit-packing with 16 bits per character for UCS-2 alphabet
+
+// TODO - EncodeUniversalString (section 30.4) - known-multiplier character string
+// Input: string, lb, ub, extensible
+// Implements per-character bit-packing with 32 bits per character for UCS-4 alphabet
+
+// TODO - EncodeTeletexString (section 30.5) - non-known-multiplier character string
+// Input: []byte, lb, ub, extensible
+// Requires BER encoding as intermediate step per X.690 8.23.5
+
+// TODO - EncodeVideotexString (section 30.5) - non-known-multiplier character string
+// Input: []byte, lb, ub, extensible
+// Requires BER encoding as intermediate step per X.690 8.23.5
+
+// TODO - EncodeGraphicString (section 30.5) - non-known-multiplier character string
+// Input: []byte, lb, ub, extensible
+// Requires BER encoding as intermediate step per X.690 8.23.5
+
+// TODO - EncodeGeneralString (section 30.5) - non-known-multiplier character string
+// Input: []byte, lb, ub, extensible
+// Requires BER encoding as intermediate step per X.690 8.23.5
+
+// TODO - EncodeUnrestrictedCharacterString (section 31) - unrestricted character string
+// Per ITU-T X.680 clause 44, the CHARACTER STRING type is:
+//
+//   CHARACTER STRING ::= SEQUENCE {
+//       identification Identification,
+//       string-value   OCTET STRING
+//   }
+//
+// Where Identification is a CHOICE with the following alternatives:
+//   Identification ::= CHOICE {
+//       syntaxes [0]            SEQUENCE { abstract PrintableString,
+//                                          transfer PrintableString },
+//       syntax [1]              OBJECT IDENTIFIER,
+//       presentation-context-id [2] INTEGER,
+//       context-negotiation [3] SEQUENCE { presentation-context-id INTEGER,
+//                                          transfer-syntax OBJECT IDENTIFIER },
+//       transfer-syntax [4]     OBJECT IDENTIFIER,
+//       fixed [5]               NULL
+//   }
+//
+// Input: struct with identification (CHOICE) and string-value (OCTET STRING)
+// Requires PER encoding of SEQUENCE type per X.680 44.5 (data-value-descriptor removed)
+
+// 19 Encoding the sequence type
+// |- NOTE - (Tutorial) A sequence type begins with a preamble which is a bit-map. If the
+// |  |  sequence type has no extension marker, then the bit-map merely records the presence
+// |  |  or absence of default and optional components in the type, encoded as a fixed length
+// |  |  bit-field. If the sequence type does have an extension marker, then the bit-map is
+// |  |  preceded by a single bit that says whether values of extension additions are actually
+// |  |  present in the encoding. The preamble is encoded without any length determinant
+// |  |  provided it is less than 64K bits long, otherwise a length determinant is encoded to
+// |  |  obtain fragmentation. The preamble is followed by the fields that encode each of the
+// |  |  components, taken in turn. If there are extension additions, then immediately before
+// |  |  the first one is encoded there is the encoding (as a normally small length) of a count
+// |  |  of the number of extension additions in the type being encoded, followed by a bit-map
+// |  |  equal in length to this count which records the presence or absence of values of each
+// |  |  extension addition. This is followed by the encodings of the extension additions as if
+// |  |  each one was the value of an open type field.
+// |- 19.1 If the sequence type has an extension marker in the "ComponentTypeLists" or in the
+// |  |  "SequenceType" productions, then a single bit shall first be added to the field-list in
+// |  |  a bit-field of length one. The bit shall be one if values of extension additions are
+// |  |  present in this encoding, and zero otherwise. (This bit is called the "extension bit" in
+// |  |  the following text.) If there is no extension marker in the "ComponentTypeLists" or in
+// |  |  the "SequenceType" productions, there shall be no extension bit added.
+// |- 19.2 If the sequence type has "n" components in the extension root that are marked
+// |  |  OPTIONAL or DEFAULT, then a single bit-field with "n" bits shall be produced for
+// |  |  addition to the field-list. The bits of the bit-field shall, taken in order, encode
+// |  |  the presence or absence of an encoding of each optional or default component in the
+// |  |  sequence type. A bit value of 1 shall encode the presence of the encoding of the
+// |  |  component, and a bit value of 0 shall encode the absence of the encoding of the
+// |  |  component. The leading bit in the preamble shall encode the presence or absence of the
+// |  |  first optional or default component, and the trailing bit shall encode the presence or
+// |  |  absence of the last optional or default component.
+// |- 19.3 If "n" is less than 64K, the bit-field shall be appended to the field-list. If "n"
+// |  |  is greater than or equal to 64K, then the procedures of 11.9 shall be invoked to add
+// |  |  this bit-field of "n" bits to the field-list, preceded by a length determinant equal
+// |  |  to "n" bits as a constrained whole number with "ub" and "lb" both set to "n".
+// |  |- NOTE - In this case, "ub" and "lb" will be ignored by the length procedures. These
+// |  |  |  procedures are invoked here in order to provide fragmentation of a large preamble.
+// |  |  |  The situation is expected to arise only rarely.
+// |- 19.4 The preamble shall be followed by the field-lists of each of the components of the
+// |  |  sequence value which are present, taken in turn.
+// |- 19.5 For CANONICAL-PER, encodings of components marked DEFAULT shall always be absent if
+// |  |  the value to be encoded is the default value. For BASIC-PER, encodings of components
+// |  |  marked DEFAULT shall always be absent if the value to be encoded is the default value
+// |  |  of a simple type (see 3.7.25), otherwise it is a sender's option whether or not to
+// |  |  encode it.
+// |- 19.6 This completes the encoding if the extension bit is absent or is zero. If the
+// |  |  extension bit is present and set to one, then the following procedures apply.
+// |- 19.7 Let the number of extension additions in the type being encoded be "n", then a
+// |  |  bit-field with "n" bits shall be produced for addition to the field-list. The bits of
+// |  |  the bit-field shall, taken in order, encode the presence or absence of an encoding of
+// |  |  each extension addition in the type being encoded. A bit value of 1 shall encode the
+// |  |  presence of the encoding of the extension addition, and a bit value of 0 shall encode
+// |  |  the absence of the encoding of the extension addition. The leading bit in the bit-field
+// |  |  shall encode the presence or absence of the first extension addition, and the trailing
+// |  |  bit shall encode the presence or absence of the last extension addition.
+// |  |- NOTE - If conformance is claimed to a particular version of a specification, then the
+// |  |  |  value "n" is always equal to the number of extension additions in that version.
+// |- 19.8 The procedures of 11.9 shall be invoked to add this bit-field of "n" bits to the
+// |  |  field-list, preceded by a length determinant equal to "n" as a normally small length.
+// |  |- NOTE - "n" cannot be zero, as this procedure is only invoked if there is at least one
+// |  |  |  extension addition being encoded.
+// |- 19.9 This shall be followed by field-lists containing the encodings of each extension
+// |  |  addition that is present, taken in turn. Each extension addition that is a
+// |  |  "ComponentType" (i.e., not an "ExtensionAdditionGroup") shall be encoded as if it were
+// |  |  the value of an open type field as specified in 11.2.1. Each extension addition that
+// |  |  is an "ExtensionAdditionGroup" shall be encoded as a sequence type as specified in
+// |  |  19.2 to 19.6, which is then encoded as if it were the value of an open type field as
+// |  |  specified in 11.2.1. If all components values of the "ExtensionAdditionGroup" are
+// |  |  missing then, the "ExtensionAdditionGroup" shall be encoded as a missing extension
+// |  |  addition (i.e., the corresponding bit in the bit-field described in 19.7 shall be set
+// |  |  to 0).
+// |  |- NOTE 1 - If an "ExtensionAdditionGroup" contains components marked OPTIONAL or
+// |  |  |  DEFAULT, then the "ExtensionAdditionGroup" is prefixed with a bit-map that indicates
+// |  |  |  the presence/absence of values for each component marked OPTIONAL or DEFAULT.
+// |  |- NOTE 2 - "RootComponentTypeList" components that are defined after the extension
+// |  |  |  marker pair are encoded as if they were defined immediately before the extension
+// |  |  |  marker pair.
+
+// 20 Encoding the sequence-of type
+// |- 20.1 PER-visible constraints can constrain the number of components of the sequence-of
+// |  |  type.
+// |- 20.2 Let the maximum number of components in the sequence-of (as determined by
+// |  |  PER-visible constraints) be "ub" components and the minimum number of components be
+// |  |  "lb". If there is no finite maximum or "ub" is greater than or equal to 64K we say
+// |  |  that "ub" is unset. If there is no constraint on the minimum, then "lb" has the value
+// |  |  zero. Let the number of components in the actual sequence-of value to be encoded be
+// |  |  "n" components.
+// |- 20.3 The encoding of each component of the sequence-of will generate a number of fields
+// |  |  to be appended to the field-list for the sequence-of type.
+// |- 20.4 If there is a PER-visible constraint and an extension marker is present in it, a
+// |  |  single bit shall be added to the field-list in a bit-field of length one. The bit
+// |  |  shall be set to 1 if the number of components in this encoding is not within the range
+// |  |  of the extension root, and zero otherwise. In the former case 11.9 shall be invoked to
+// |  |  add the length determinant as a semi-constrained whole number to the field-list,
+// |  |  followed by the component values. In the latter case the length and value shall be
+// |  |  encoded as if the extension marker is not present.
+// |- 20.5 If the number of components is fixed ("ub" equals "lb") and "ub" is less than 64K,
+// |  |  then there shall be no length determinant for the sequence-of, and the fields of each
+// |  |  component shall be appended in turn to the field-list of the sequence-of.
+// |- 20.6 Otherwise, the procedures of 11.9 shall be invoked to add the list of fields
+// |  |  generated by the "n" components to the field-list, preceded by a length determinant
+// |  |  equal to "n" components as a constrained whole number if "ub" is set, and as a
+// |  |  semi-constrained whole number if "ub" is unset. "lb" is as determined above.
+// |  |- NOTE 1 - The fragmentation procedures may apply after 16K, 32K, 48K, or 64K
+// |  |  |  components.
+// |  |- NOTE 2 - The break-points for fragmentation are between fields. The number of bits
+// |  |  |  prior to a break-point are not necessarily a multiple of eight.
+
+// 23 Encoding the choice type
+// |- NOTE - (Tutorial) A choice type is encoded by encoding an index specifying the chosen
+// |  |  alternative. This is encoded as for a constrained integer (unless the extension marker
+// |  |  is present in the choice type, in which case it is a normally small non-negative whole
+// |  |  number) and would therefore typically occupy a fixed length bit-field of the minimum
+// |  |  number of bits needed to encode the index. (Although it could in principle be
+// |  |  arbitrarily large.) This is followed by the encoding of the chosen alternative, with
+// |  |  alternatives that are extension additions encoded as if they were the value of an open
+// |  |  type field. Where the choice has only one alternative, there is no encoding for the
+// |  |  index.
+// |- 23.1 Encoding of choice types are not affected by PER-visible constraints.
+// |- 23.2 Each component of a choice has an index associated with it which has the value zero
+// |  |  for the first alternative in the root of the choice (taking the alternatives in the
+// |  |  canonical order specified in Rec. ITU-T X.680 | ISO/IEC 8824-1, 8.6), one for the
+// |  |  second, and so on up to the last component in the extension root of the choice. An
+// |  |  index value is similarly assigned to each "NamedType" within the
+// |  |  "ExtensionAdditionAlternativesList", starting with 0 just as with the components of
+// |  |  the extension root. Let "n" be the value of the largest index in the root.
+// |  |- NOTE - Rec. ITU-T X.680 | ISO/IEC 8824-1, 29.7, requires that each successive
+// |  |  |  extension addition shall have a greater tag value than the last added to the
+// |  |  |  "ExtensionAdditionAlternativesList".
+// |- 23.3 For the purposes of canonical ordering of choice alternatives that contain an
+// |  |  untagged choice, each untagged choice type shall be ordered as though it has a tag
+// |  |  equal to that of the smallest tag in the extension root of either that choice type or
+// |  |  any untagged choice types nested within.
+// |- 23.4 If the choice has only one alternative in the extension root, there shall be no
+// |  |  encoding for the index if that alternative is chosen.
+// |- 23.5 If the choice type has an extension marker in the "AlternativeTypeLists"
+// |  |  production, then a single bit shall first be added to the field-list in a bit-field of
+// |  |  length one. The bit shall be 1 if a value of an extension addition is present in the
+// |  |  encoding, and zero otherwise. (This bit is called the "extension bit" in the following
+// |  |  text.) If there is no extension marker in the "AlternativeTypeLists" production, there
+// |  |  shall be no extension bit added.
+// |- 23.6 If the extension bit is absent, then the choice index of the chosen alternative
+// |  |  shall be encoded into a field according to the procedures of clause 13 as if it were a
+// |  |  value of an integer type (with no extension marker in its subtype constraint)
+// |  |  constrained to the range 0 to "n", and that field shall be appended to the field-list.
+// |  |  This shall then be followed by the fields of the chosen alternative, completing the
+// |  |  procedures of this clause.
+// |- 23.7 If the extension bit is present and the chosen alternative lies within the
+// |  |  extension root, the choice index of the chosen alternative shall be encoded as if the
+// |  |  extension marker is absent, according to the procedure of clause 13. This shall then
+// |  |  be followed by the fields of the chosen alternative, completing the procedures of this
+// |  |  clause.
+// |- 23.8 If the extension bit is present and the chosen alternative does not lie within the
+// |  |  extension root, the choice index of the chosen alternative shall be encoded as a
+// |  |  normally small non-negative whole number with "lb" set to 0 and that field shall be
+// |  |  appended to the field-list. This shall then be followed by a field-list containing the
+// |  |  encoding of the chosen alternative encoded as if it were the value of an open type
+// |  |  field as specified in 11.2, completing the procedures of this clause.
+// |  |- NOTE - Version brackets in the definition of choice extension additions have no effect
+// |  |  |  on how "ExtensionAdditionAlternatives" are encoded.
