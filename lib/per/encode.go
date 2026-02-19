@@ -568,9 +568,8 @@ func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
 // |  |  |  |  determinant is the same as it would be if the length were unconstrained.
 
 func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uint64, error) {
-	const K64 = 65536 // 64K
-	// 11.9.3.3 / 11.9.4.1: constrained when "ub" is less than 64K
-	if ub != nil && lb != nil && *ub < K64 {
+	// 11.9.3.3 / 11.9.4.1: constrained when "ub" is less than MAX_CONSTRAINED_LENGTH
+	if ub != nil && lb != nil && *ub < MAX_CONSTRAINED_LENGTH {
 		err := e.EncodeConstrainedWholeNumber(int64(*lb), int64(*ub), int64(n))
 		if err != nil {
 			return 0, err
@@ -581,8 +580,6 @@ func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uin
 }
 
 func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
-	const K = 16384 // 16K = 16 * 1024
-
 	if e.aligned {
 		if err := e.codec.Align(); err != nil {
 			return 0, err
@@ -596,7 +593,7 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 		return 0, nil
 	}
 
-	if n < K {
+	if n < FRAGMENT_SIZE {
 		value := (1 << 15) | n
 		if err := e.codec.Write(16, value); err != nil {
 			return 0, err
@@ -605,7 +602,7 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	}
 
 	m := CalculateFragmentSize(n)
-	k := m / K
+	k := m / FRAGMENT_SIZE
 
 	value := (3 << 6) | k
 	if err := e.codec.Write(8, value); err != nil {
@@ -632,16 +629,14 @@ func (e *Encoder) EncodeNormallySmallLength(n uint64) (uint64, error) {
 }
 
 func CalculateFragmentSize(n uint64) uint64 {
-	const K = 16384 // 16K = 16 * 1024
-
-	if n >= 4*K {
-		return 4 * K // 64K
-	} else if n >= 3*K {
-		return 3 * K // 48K
-	} else if n >= 2*K {
-		return 2 * K // 32K
+	if n >= 4*FRAGMENT_SIZE {
+		return 4 * FRAGMENT_SIZE // 64K
+	} else if n >= 3*FRAGMENT_SIZE {
+		return 3 * FRAGMENT_SIZE // 48K
+	} else if n >= 2*FRAGMENT_SIZE {
+		return 2 * FRAGMENT_SIZE // 32K
 	} else {
-		return K // 16K
+		return FRAGMENT_SIZE // 16K
 	}
 }
 
