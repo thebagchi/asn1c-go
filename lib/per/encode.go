@@ -995,6 +995,10 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 	return mantissa, exponent, 2
 }
 
+func MakeFloat64(mantissa int64, exponent int, base int) float64 {
+	return math.Pow(float64(base), float64(exponent)) * float64(mantissa)
+}
+
 // EncodeReal encodes a real value (float64) following PER encoding rules per section 8.5
 // Based on pycrate reference implementation using ITU-T X.690 specifications
 func (e *Encoder) EncodeReal(value float64) error {

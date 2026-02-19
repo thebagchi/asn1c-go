@@ -1,6 +1,7 @@
 package per
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -11,7 +12,10 @@ func TestMinimumOctetNonNegativeBinaryIntegerLength(t *testing.T) {
 		t.Run(description, func(t *testing.T) {
 			result := OctetsNonNegativeBinaryIntegerLength(value)
 			if result != expected {
-				t.Errorf("OctetsNonNegativeBinaryIntegerLength(%d) = %d, want %d", value, result, expected)
+				t.Errorf(
+					"OctetsNonNegativeBinaryIntegerLength(%d) = %d, want %d",
+					value, result, expected,
+				)
 			}
 		})
 	}
@@ -39,7 +43,10 @@ func TestBitsTwosComplementBinaryInteger(t *testing.T) {
 		t.Run(description, func(t *testing.T) {
 			result := BitsTwosComplementBinaryInteger(value)
 			if result != expected {
-				t.Errorf("BitsTwosComplementBinaryInteger(%d) = %d, want %d", value, result, expected)
+				t.Errorf(
+					"BitsTwosComplementBinaryInteger(%d) = %d, want %d",
+					value, result, expected,
+				)
 			}
 		})
 	}
@@ -68,7 +75,10 @@ func TestOctetsTwosComplementBinaryInteger(t *testing.T) {
 		t.Run(description, func(t *testing.T) {
 			result := OctetsTwosComplementBinaryInteger(value)
 			if result != expected {
-				t.Errorf("OctetsTwosComplementBinaryInteger(%d) = %d, want %d", value, result, expected)
+				t.Errorf(
+					"OctetsTwosComplementBinaryInteger(%d) = %d, want %d",
+					value, result, expected,
+				)
 			}
 		})
 	}
@@ -102,4 +112,11 @@ func TestOctetsTwosComplementBinaryInteger(t *testing.T) {
 	test(-2147483648, 4, "negative -2147483648 (0x80000000 - min int32)")
 	test(-2147483649, 5, "negative -2147483649 (needs 5 octets)")
 	test(-9223372036854775808, 8, "negative -9223372036854775808 (min int64)")
+}
+
+func TestMakeReal(t *testing.T) {
+	mantissa, exponent, base := MakeReal(3.14)
+	fmt.Println(mantissa, exponent, base)
+	value := MakeFloat64(mantissa, exponent, base)
+	fmt.Println(value)
 }
