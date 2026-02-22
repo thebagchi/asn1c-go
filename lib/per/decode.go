@@ -275,9 +275,9 @@ func (d *Decoder) DecodeUnconstrainedLength() (uint64, bool, error) {
 	fragments := first & 0x3F
 	length := uint64(fragments) * FRAGMENT_SIZE
 
-	// If fragments == 63, there are more fragment octets following
-	more := (fragments == 63)
-	return length, more, nil
+	// Fragmentation marker always means more length determinants follow
+	// (either another fragment or a terminating length <= 16383)
+	return length, true, nil
 }
 
 // DecodeNormallySmallLength decodes a normally small length determinant.
@@ -656,6 +656,13 @@ func (d *Decoder) DecodeBitStringFragments(lb *uint64, ub *uint64) (*asn1.BitStr
 			return nil, err
 		}
 
+		// In ALIGNED variant, octet-align before reading data
+		if d.aligned {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+
 		// Read the bits for this fragment
 		fragment, err := d.ReadBits(uint(length))
 		if err != nil {
@@ -669,13 +676,6 @@ func (d *Decoder) DecodeBitStringFragments(lb *uint64, ub *uint64) (*asn1.BitStr
 		// If no more fragments, we're done
 		if !more {
 			break
-		}
-
-		// Align for next fragment
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
 		}
 	}
 
@@ -757,6 +757,13 @@ func (d *Decoder) DecodeOctetStringFragments(lb *uint64, ub *uint64) ([]byte, er
 			return nil, err
 		}
 
+		// In ALIGNED variant, octet-align before reading data
+		if d.aligned {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+
 		// Read the bytes for this fragment
 		fragment, err := d.codec.ReadBytes(int(length))
 		if err != nil {
@@ -769,13 +776,6 @@ func (d *Decoder) DecodeOctetStringFragments(lb *uint64, ub *uint64) ([]byte, er
 		// If no more fragments, we're done
 		if !more {
 			break
-		}
-
-		// Align for next fragment
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
 		}
 	}
 
