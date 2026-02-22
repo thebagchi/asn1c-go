@@ -146,3 +146,86 @@ func TestWriteInteger(t *testing.T) {
 		})
 	}
 }
+
+// OCT_STR represents a single octet string test case from the JSON file
+type OCT_STR struct {
+	Input struct {
+		Length     uint64  `json:"length"`
+		Lb         *uint64 `json:"lb"`
+		Ub         *uint64 `json:"ub"`
+		Extensible *bool   `json:"extensible"`
+	} `json:"input"`
+	Output  string `json:"output"`
+	Aligned bool   `json:"aligned"`
+}
+
+func GenOctetString(length uint64) []byte {
+	pattern := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+	result := make([]byte, length)
+	for i := range length {
+		result[i] = pattern[i%uint64(len(pattern))]
+	}
+	return result
+}
+
+func TestWriteOctetString(t *testing.T) {
+	// Load test data from testing/octet_string.json
+	path := filepath.Join("testing", "octet_string.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []OCT_STR
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		name := strings.ToUpper(fmt.Sprintf("OCTET_STRING_LENGTH_%d_LB_%s_UB_%s_ALIGNED_%v_EXTENSIBLE_%s",
+			tc.Input.Length, dref(tc.Input.Lb), dref(tc.Input.Ub), tc.Aligned, dref(tc.Input.Extensible)))
+		t.Run(name, func(t *testing.T) {
+			// Decode expected output from hex string
+			expected, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode expected output hex: %v", err)
+			}
+
+			// Create encoder
+			encoder := NewEncoder(tc.Aligned)
+
+			// Handle nullable Extensible field - treat null as false
+			extensible := false
+			if tc.Input.Extensible != nil {
+				extensible = *tc.Input.Extensible
+			}
+
+			// Generate the octet string value
+			value := GenOctetString(tc.Input.Length)
+
+			// Encode the octet string value with constraints
+			err = encoder.EncodeOctetString(value, tc.Input.Lb, tc.Input.Ub, extensible)
+			if err != nil {
+				t.Errorf("EncodeOctetString() error = %v", err)
+				return
+			}
+
+			// Get the encoded bytes
+			result := encoder.Bytes()
+
+			// Compare with expected output
+			if len(result) != len(expected) {
+				t.Errorf("EncodeOctetString() returned %d bytes, expected %d", len(result), len(expected))
+				t.Logf("Expected: %x", expected)
+				t.Logf("Got:      %x", result)
+				return
+			}
+
+			for i := range result {
+				if result[i] != expected[i] {
+					t.Errorf("EncodeOctetString() at position %d = %02x, expected %02x", i, result[i], expected[i])
+				}
+			}
+		})
+	}
+}

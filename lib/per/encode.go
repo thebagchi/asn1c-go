@@ -1330,6 +1330,13 @@ func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
 			length = remaining - pending
 		}
 
+		// In ALIGNED variant, octet-align before writing data
+		if e.aligned {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+
 		// Write the fragment data
 		nbytes := offset / 8
 		if err := e.WriteBits(value[nbytes:], uint(length)); err != nil {
@@ -1338,10 +1345,21 @@ func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
 
 		offset = offset + length
 
-		// If no pending length, we're done
-		if pending == 0 {
-			break
+		if pending != 0 {
+			continue
 		}
+
+		// Per section 11.9.3.8: if fragmentation was used (remaining >= FRAGMENT_SIZE
+		// in unconstrained mode) and all data fit exactly, a trailing 0-length
+		// determinant is needed to terminate the fragmentation sequence.
+		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
+			if remaining >= FRAGMENT_SIZE {
+				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
+					return err
+				}
+			}
+		}
+		break
 	}
 
 	return nil
@@ -1483,6 +1501,13 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 			length = remaining - pending
 		}
 
+		// In ALIGNED variant, octet-align before writing data (section 17.8)
+		if e.aligned {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+
 		// Write the fragment data
 		if err := e.codec.WriteBytes(value[offset : offset+length]); err != nil {
 			return err
@@ -1490,10 +1515,21 @@ func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint6
 
 		offset += length
 
-		// If no pending length, we're done
-		if pending == 0 {
-			break
+		if pending != 0 {
+			continue
 		}
+
+		// Per section 11.9.3.8: if fragmentation was used (remaining >= FRAGMENT_SIZE
+		// in unconstrained mode) and all data fit exactly, a trailing 0-length
+		// determinant is needed to terminate the fragmentation sequence.
+		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
+			if remaining >= FRAGMENT_SIZE {
+				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
+					return err
+				}
+			}
+		}
+		break
 	}
 
 	return nil
