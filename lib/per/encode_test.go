@@ -1,9 +1,11 @@
 package per
 
 import (
+	"encoding/asn1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -160,12 +162,32 @@ type OCT_STR struct {
 }
 
 func GenOctetString(length uint64) []byte {
-	pattern := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+	pattern := make([]byte, 256)
+	for i := range pattern {
+		pattern[i] = byte(i)
+	}
 	result := make([]byte, length)
 	for i := range length {
 		result[i] = pattern[i%uint64(len(pattern))]
 	}
 	return result
+}
+
+func GenBitString(length uint64) *asn1.BitString {
+	// Generate alternating bits: 0, 1, 0, 1, ...
+	num := new(big.Int)
+	buf := make([]byte, (length+7)/8)
+	for i := range length {
+		num.Lsh(num, 1)
+		num.SetBit(num, 0, uint(i%2))
+	}
+	// Left-align: BitString.Bytes stores bits at MSB, so pad right
+	num.Lsh(num, uint((8-length%8)%8))
+	num.FillBytes(buf)
+	return &asn1.BitString{
+		Bytes:     buf,
+		BitLength: int(length),
+	}
 }
 
 func TestWriteOctetString(t *testing.T) {
@@ -224,6 +246,80 @@ func TestWriteOctetString(t *testing.T) {
 			for i := range result {
 				if result[i] != expected[i] {
 					t.Errorf("EncodeOctetString() at position %d = %02x, expected %02x", i, result[i], expected[i])
+				}
+			}
+		})
+	}
+}
+
+// BIT_STR represents a single bit string test case from the JSON file
+type BIT_STR struct {
+	Input struct {
+		Length     uint64  `json:"length"`
+		Lb         *uint64 `json:"lb"`
+		Ub         *uint64 `json:"ub"`
+		Extensible *bool   `json:"extensible"`
+	} `json:"input"`
+	Output  string `json:"output"`
+	Aligned bool   `json:"aligned"`
+}
+
+func TestWriteBitString(t *testing.T) {
+	// Load test data from testing/bit_string.json
+	path := filepath.Join("testing", "bit_string.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []BIT_STR
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		name := strings.ToUpper(fmt.Sprintf("BIT_STRING_LENGTH_%d_LB_%s_UB_%s_ALIGNED_%v_EXTENSIBLE_%s",
+			tc.Input.Length, dref(tc.Input.Lb), dref(tc.Input.Ub), tc.Aligned, dref(tc.Input.Extensible)))
+		t.Run(name, func(t *testing.T) {
+			// Decode expected output from hex string
+			expected, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode expected output hex: %v", err)
+			}
+
+			// Create encoder
+			encoder := NewEncoder(tc.Aligned)
+
+			// Handle nullable Extensible field - treat null as false
+			extensible := false
+			if tc.Input.Extensible != nil {
+				extensible = *tc.Input.Extensible
+			}
+
+			// Generate the bit string value
+			value := GenBitString(tc.Input.Length)
+
+			// Encode the bit string value with constraints
+			err = encoder.EncodeBitString(value, tc.Input.Lb, tc.Input.Ub, extensible)
+			if err != nil {
+				t.Errorf("EncodeBitString() error = %v", err)
+				return
+			}
+
+			// Get the encoded bytes
+			result := encoder.Bytes()
+
+			// Compare with expected output
+			if len(result) != len(expected) {
+				t.Errorf("EncodeBitString() returned %d bytes, expected %d", len(result), len(expected))
+				t.Logf("Expected: %x", expected)
+				t.Logf("Got:      %x", result)
+				return
+			}
+
+			for i := range result {
+				if result[i] != expected[i] {
+					t.Errorf("EncodeBitString() at position %d = %02x, expected %02x", i, result[i], expected[i])
 				}
 			}
 		})

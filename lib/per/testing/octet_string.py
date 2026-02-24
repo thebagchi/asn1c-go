@@ -16,7 +16,7 @@ def make_octet_string(length, lb=None, ub=None, extensible=False):
 
 
 def gen_octet_string(length):
-    pattern = bytes(range(0x00, 0x10))
+    pattern = bytes(range(0x00, 0x100))
     full, rem = divmod(length, len(pattern))
     return (pattern * full) + pattern[:rem]
 
