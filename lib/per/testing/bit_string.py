@@ -11,6 +11,26 @@
 # For cases >= 131072 bits, encoding is done via encode_bitstring.erl using
 # Erlang/OTP which correctly implements PER fragmentation.
 
+#
+# Erlang/OTP ASN.1 encoder bug (tested on OTP 25 / asn1 5.0.21.1):
+# For extensible BIT STRING types (SIZE (lb..ub, ...)), when the value
+# exceeds the constraint upper bound AND the encoded length triggers
+# multi-fragment PER encoding (length >= 131072 bits = 8 * 16K), the
+# Erlang encoder drops the leading extension bit, producing output
+# identical to the unconstrained encoding path instead of prepending
+# the '1' extension bit.
+# For example, encoding 131072 bits with SIZE(0..65536, ...):
+#   Expected: 80 C4 55 55 ...  (extension bit '1' + fragmented payload)
+#   Erlang:      C4 55 55 ...  (missing extension bit, same as unconstrained)
+# Compare with the passing case of 65536 bits with SIZE(0..32768, ...):
+#   Erlang:   80 C4 55 55 ...  (correctly includes extension bit)
+#
+# The following 4 extensible cases are excluded due to this bug:
+#   make_bit_string(131072, 0, 65536, True)
+#   make_bit_string(262144, 0, 131072, True)
+#   make_bit_string(524288, 0, 262144, True)
+#   make_bit_string(1048576, 0, 524288, True)
+
 import json
 import os
 import subprocess
@@ -238,10 +258,8 @@ def main():
         make_bit_string(16384, 0, 8192, True),
         make_bit_string(32768, 0, 16384, True),
         make_bit_string(65536, 0, 32768, True),
-        make_bit_string(131072, 0, 65536, True),
-        make_bit_string(262144, 0, 131072, True),
-        make_bit_string(524288, 0, 262144, True),
-        make_bit_string(1048576, 0, 524288, True),
+        # Extensible cases >= 131072 bits excluded due to Erlang/OTP bug
+        # (see comment above).
     ]
     for case in erlang_cases:
         length = case["length"]
@@ -251,11 +269,13 @@ def main():
         type_name = asn1_type_name(lb, ub, extensible)
         for aligned in [True, False]:
             output = encode_bitstring_erl(type_name, length, aligned)
-            results.append({
-                "input": case,
-                "output": output,
-                "aligned": aligned,
-            })
+            results.append(
+                {
+                    "input": case,
+                    "output": output,
+                    "aligned": aligned,
+                }
+            )
 
     with open("bit_string.json", "w") as f:
         json.dump(results, f, indent=2)
@@ -283,8 +303,10 @@ def encode_bitstring_erl(type_name, length, aligned):
         cmd.append("-aligned")
     result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Erlang encode error for {type_name} length={length} aligned={aligned}:",
-              file=sys.stderr)
+        print(
+            f"Erlang encode error for {type_name} length={length} aligned={aligned}:",
+            file=sys.stderr,
+        )
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
     return result.stdout.strip().lower()
