@@ -1,2 +1,7 @@
 *.iml
 .idea
+
+# Erlang ASN.1 compiler generated outputs
+*.beam
+*.asn1db
+erl_crash.dump
