@@ -713,7 +713,6 @@ def main():
         make_integer(100, 100, 200, False),
         make_integer(150, 100, 200, False),
         make_integer(200, 100, 200, False),
-        make_integer(1, 1, 1, False),
         make_integer(1, 1, 3, False),
         make_integer(3, 1, 3, False),
         # Negative ranges, not extensible

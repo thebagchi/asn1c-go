@@ -153,3 +153,66 @@ func TestReadOctetString(t *testing.T) {
 		})
 	}
 }
+
+func TestReadBitString(t *testing.T) {
+	// Load test data from testing/bit_string.json
+	path := filepath.Join("testing", "bit_string.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []BIT_STR
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		name := strings.ToUpper(fmt.Sprintf("BIT_STRING_LENGTH_%d_LB_%s_UB_%s_ALIGNED_%v_EXTENSIBLE_%s",
+			tc.Input.Length, dref(tc.Input.Lb), dref(tc.Input.Ub), tc.Aligned, dref(tc.Input.Extensible)))
+		t.Run(name, func(t *testing.T) {
+			// Decode hex string to bytes
+			encodedData, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode hex string: %v", err)
+			}
+
+			// Create decoder
+			decoder := NewDecoder(encodedData, tc.Aligned)
+
+			// Handle nullable Extensible field - treat null as false
+			extensible := false
+			if tc.Input.Extensible != nil {
+				extensible = *tc.Input.Extensible
+			}
+
+			// Decode the bit string value with constraints
+			result, err := decoder.DecodeBitString(tc.Input.Lb, tc.Input.Ub, extensible)
+			if err != nil {
+				t.Errorf("DecodeBitString() error = %v", err)
+				return
+			}
+
+			// Generate expected bit string value
+			expected := GenBitString(tc.Input.Length)
+
+			// Compare bit length
+			if result.BitLength != expected.BitLength {
+				t.Errorf("DecodeBitString() returned BitLength %d, expected %d", result.BitLength, expected.BitLength)
+				return
+			}
+
+			// Compare bytes
+			if len(result.Bytes) != len(expected.Bytes) {
+				t.Errorf("DecodeBitString() returned %d bytes, expected %d", len(result.Bytes), len(expected.Bytes))
+				return
+			}
+
+			for i := range result.Bytes {
+				if result.Bytes[i] != expected.Bytes[i] {
+					t.Errorf("DecodeBitString() at position %d = %02x, expected %02x", i, result.Bytes[i], expected.Bytes[i])
+				}
+			}
+		})
+	}
+}

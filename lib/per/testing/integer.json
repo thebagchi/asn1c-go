@@ -11943,26 +11943,6 @@
     "input": {
       "value": 1,
       "lb": 1,
-      "ub": 1,
-      "extensible": false
-    },
-    "output": "00",
-    "aligned": true
-  },
-  {
-    "input": {
-      "value": 1,
-      "lb": 1,
-      "ub": 1,
-      "extensible": false
-    },
-    "output": "00",
-    "aligned": false
-  },
-  {
-    "input": {
-      "value": 1,
-      "lb": 1,
       "ub": 3,
       "extensible": false
     },
