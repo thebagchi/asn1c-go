@@ -5,3 +5,6 @@
 *.beam
 *.asn1db
 erl_crash.dump
+
+# Rust build artifacts
+lib/per/testing/rust/target/

@@ -1,0 +1,19 @@
+[package]
+name = "asn1-per-encoders"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "encode-bitstring"
+path = "src/bin/encode_bitstring.rs"
+
+[[bin]]
+name = "encode-octetstring"
+path = "src/bin/encode_octetstring.rs"
+
+[[bin]]
+name = "encode-integer"
+path = "src/bin/encode_integer.rs"
+
+[dependencies]
+rasn = "0.28.8"
