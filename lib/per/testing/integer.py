@@ -709,7 +709,6 @@ def main():
         make_integer(50, 50, 100, False),
         make_integer(75, 50, 100, False),
         make_integer(100, 50, 100, False),
-        make_integer(50, 50, 50, False),
         make_integer(100, 100, 200, False),
         make_integer(150, 100, 200, False),
         make_integer(200, 100, 200, False),

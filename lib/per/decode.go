@@ -161,9 +161,11 @@ func (d *Decoder) DecodeSemiConstrainedWholeNumber(lb int64) (uint64, error) {
 		return 0, err
 	}
 
-	// Must align before reading the value
-	if err := d.codec.Advance(); err != nil {
-		return 0, err
+	// 11.7.4: octet-aligned in the ALIGNED variant only
+	if d.aligned {
+		if err := d.codec.Advance(); err != nil {
+			return 0, err
+		}
 	}
 
 	// Read the value (octets * 8 bits)

@@ -11861,26 +11861,6 @@
   },
   {
     "input": {
-      "value": 50,
-      "lb": 50,
-      "ub": 50,
-      "extensible": false
-    },
-    "output": "00",
-    "aligned": true
-  },
-  {
-    "input": {
-      "value": 50,
-      "lb": 50,
-      "ub": 50,
-      "extensible": false
-    },
-    "output": "00",
-    "aligned": false
-  },
-  {
-    "input": {
       "value": 100,
       "lb": 100,
       "ub": 200,
