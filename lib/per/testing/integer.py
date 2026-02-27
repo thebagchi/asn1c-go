@@ -188,6 +188,29 @@ def main():
         make_integer(33554432, 0, 67108864, False),
         make_integer(67108864, 0, 134217728, False),
         make_integer(134217728, 0, 268435456, False),
+        # 29-31 bit and 32-bit ranges
+        make_integer(0, 0, 536870911, False),
+        make_integer(536870911, 0, 536870911, False),
+        make_integer(268435456, 0, 536870911, False),
+        make_integer(0, 0, 1073741823, False),
+        make_integer(1073741823, 0, 1073741823, False),
+        make_integer(536870912, 0, 1073741823, False),
+        make_integer(0, 0, 2147483647, False),
+        make_integer(2147483647, 0, 2147483647, False),
+        make_integer(1073741824, 0, 2147483647, False),
+        make_integer(0, 0, 4294967295, False),
+        make_integer(4294967295, 0, 4294967295, False),
+        make_integer(2147483648, 0, 4294967295, False),
+        # Signed byte range (-128..127)
+        make_integer(-128, -128, 127, False),
+        make_integer(0, -128, 127, False),
+        make_integer(127, -128, 127, False),
+        make_integer(-1, -128, 127, False),
+        # Full 32-bit signed range
+        make_integer(-2147483648, -2147483648, 2147483647, False),
+        make_integer(0, -2147483648, 2147483647, False),
+        make_integer(2147483647, -2147483648, 2147483647, False),
+        make_integer(-1, -2147483648, 2147483647, False),
         make_integer(0, 0, 1, True),
         make_integer(1, 0, 1, True),
         make_integer(0, 0, 2, True),
@@ -275,6 +298,29 @@ def main():
         make_integer(33554432, 0, 67108864, True),
         make_integer(67108864, 0, 134217728, True),
         make_integer(134217728, 0, 268435456, True),
+        # 29-31 bit and 32-bit extensible ranges
+        make_integer(0, 0, 536870911, True),
+        make_integer(536870911, 0, 536870911, True),
+        make_integer(536870912, 0, 536870911, True),
+        make_integer(0, 0, 1073741823, True),
+        make_integer(1073741823, 0, 1073741823, True),
+        make_integer(1073741824, 0, 1073741823, True),
+        make_integer(0, 0, 2147483647, True),
+        make_integer(2147483647, 0, 2147483647, True),
+        make_integer(2147483648, 0, 2147483647, True),
+        make_integer(0, 0, 4294967295, True),
+        make_integer(4294967295, 0, 4294967295, True),
+        make_integer(4294967296, 0, 4294967295, True),
+        # Signed byte extensible
+        make_integer(-128, -128, 127, True),
+        make_integer(127, -128, 127, True),
+        make_integer(-129, -128, 127, True),
+        make_integer(128, -128, 127, True),
+        # Full 32-bit signed extensible
+        make_integer(-2147483648, -2147483648, 2147483647, True),
+        make_integer(2147483647, -2147483648, 2147483647, True),
+        make_integer(-2147483649, -2147483648, 2147483647, True),
+        make_integer(2147483648, -2147483648, 2147483647, True),
         make_integer(2, 0, 1, True),
         make_integer(3, 0, 2, True),
         make_integer(5, 0, 4, True),
@@ -699,6 +745,22 @@ def main():
         # Constrained (0..268435456)
         make_integer(0, 0, 268435456, False),
         make_integer(268435456, 0, 268435456, False),
+        # Constrained (0..536870911) -- 29-bit range
+        make_integer(0, 0, 536870911, False),
+        make_integer(268435456, 0, 536870911, False),
+        make_integer(536870911, 0, 536870911, False),
+        # Constrained (0..1073741823) -- 30-bit range
+        make_integer(0, 0, 1073741823, False),
+        make_integer(536870912, 0, 1073741823, False),
+        make_integer(1073741823, 0, 1073741823, False),
+        # Constrained (0..2147483647) -- 31-bit range
+        make_integer(0, 0, 2147483647, False),
+        make_integer(1073741824, 0, 2147483647, False),
+        make_integer(2147483647, 0, 2147483647, False),
+        # Constrained (0..4294967295) -- unsigned 32-bit
+        make_integer(0, 0, 4294967295, False),
+        make_integer(2147483648, 0, 4294967295, False),
+        make_integer(4294967295, 0, 4294967295, False),
         # Other ranges (non-negative), not extensible
         make_integer(10, 10, 150, False),
         make_integer(80, 10, 150, False),
@@ -731,6 +793,16 @@ def main():
         make_integer(0, -10, 10, False),
         make_integer(-10, -10, 10, False),
         make_integer(10, -10, 10, False),
+        # Constrained (-128..127)
+        make_integer(-128, -128, 127, False),
+        make_integer(0, -128, 127, False),
+        make_integer(127, -128, 127, False),
+        make_integer(-1, -128, 127, False),
+        # Constrained (-2147483648..2147483647) -- full signed 32-bit
+        make_integer(-2147483648, -2147483648, 2147483647, False),
+        make_integer(0, -2147483648, 2147483647, False),
+        make_integer(2147483647, -2147483648, 2147483647, False),
+        make_integer(-1, -2147483648, 2147483647, False),
         # Extensible constrained (0..X, ...)
         make_integer(0, 0, 1, True),
         make_integer(1, 0, 1, True),
@@ -847,6 +919,22 @@ def main():
         make_integer(0, 0, 268435456, True),
         make_integer(268435456, 0, 268435456, True),
         make_integer(268435457, 0, 268435456, True),
+        # Extensible (0..536870911)
+        make_integer(0, 0, 536870911, True),
+        make_integer(536870911, 0, 536870911, True),
+        make_integer(536870912, 0, 536870911, True),
+        # Extensible (0..1073741823)
+        make_integer(0, 0, 1073741823, True),
+        make_integer(1073741823, 0, 1073741823, True),
+        make_integer(1073741824, 0, 1073741823, True),
+        # Extensible (0..2147483647)
+        make_integer(0, 0, 2147483647, True),
+        make_integer(2147483647, 0, 2147483647, True),
+        make_integer(2147483648, 0, 2147483647, True),
+        # Extensible (0..4294967295)
+        make_integer(0, 0, 4294967295, True),
+        make_integer(4294967295, 0, 4294967295, True),
+        make_integer(4294967296, 0, 4294967295, True),
         # Extensible other ranges
         make_integer(9, 10, 150, True),
         make_integer(10, 10, 150, True),
@@ -899,6 +987,18 @@ def main():
         make_integer(-10, -10, 10, True),
         make_integer(10, -10, 10, True),
         make_integer(11, -10, 10, True),
+        # Extensible (-128..127)
+        make_integer(-128, -128, 127, True),
+        make_integer(0, -128, 127, True),
+        make_integer(127, -128, 127, True),
+        make_integer(-129, -128, 127, True),
+        make_integer(128, -128, 127, True),
+        # Extensible (-2147483648..2147483647)
+        make_integer(-2147483648, -2147483648, 2147483647, True),
+        make_integer(0, -2147483648, 2147483647, True),
+        make_integer(2147483647, -2147483648, 2147483647, True),
+        make_integer(-2147483649, -2147483648, 2147483647, True),
+        make_integer(2147483648, -2147483648, 2147483647, True),
         # In-range mid-values
         make_integer(1, 0, 2, False),
         make_integer(2, 0, 4, False),

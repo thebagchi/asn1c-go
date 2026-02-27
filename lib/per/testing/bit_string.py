@@ -137,6 +137,18 @@ def main():
         make_bit_string(65536, None, None, False),
         make_bit_string(65536, 0, None, False),
         make_bit_string(65536, 0, 131072, False),
+        # Fixed size (lb==ub)
+        make_bit_string(1, 1, 1, False),
+        make_bit_string(8, 8, 8, False),
+        make_bit_string(16, 16, 16, False),
+        make_bit_string(32, 32, 32, False),
+        make_bit_string(64, 64, 64, False),
+        make_bit_string(128, 128, 128, False),
+        # Semi-constrained lb=1
+        make_bit_string(1, 1, None, False),
+        make_bit_string(8, 1, None, False),
+        make_bit_string(64, 1, None, False),
+        make_bit_string(256, 1, None, False),
         make_bit_string(1, 0, 0, True),
         make_bit_string(2, 0, 1, True),
         make_bit_string(4, 0, 2, True),
@@ -154,6 +166,19 @@ def main():
         make_bit_string(16384, 0, 8192, True),
         make_bit_string(32768, 0, 16384, True),
         make_bit_string(65536, 0, 32768, True),
+        # Fixed size extensible (lb==ub)
+        make_bit_string(1, 1, 1, True),
+        make_bit_string(2, 1, 1, True),
+        make_bit_string(8, 8, 8, True),
+        make_bit_string(16, 8, 8, True),
+        make_bit_string(16, 16, 16, True),
+        make_bit_string(32, 16, 16, True),
+        make_bit_string(32, 32, 32, True),
+        make_bit_string(64, 32, 32, True),
+        make_bit_string(64, 64, 64, True),
+        make_bit_string(128, 64, 64, True),
+        make_bit_string(128, 128, 128, True),
+        make_bit_string(256, 128, 128, True),
     ]
     for case in cases:
         length = case["length"]
@@ -260,6 +285,31 @@ def main():
         make_bit_string(65536, 0, 32768, True),
         # Extensible cases >= 131072 bits excluded due to Erlang/OTP bug
         # (see comment above).
+        # Fixed size (lb==ub), not extensible
+        make_bit_string(1, 1, 1, False),
+        make_bit_string(8, 8, 8, False),
+        make_bit_string(16, 16, 16, False),
+        make_bit_string(32, 32, 32, False),
+        make_bit_string(64, 64, 64, False),
+        make_bit_string(128, 128, 128, False),
+        # Fixed size (lb==ub), extensible
+        make_bit_string(1, 1, 1, True),
+        make_bit_string(2, 1, 1, True),
+        make_bit_string(8, 8, 8, True),
+        make_bit_string(16, 8, 8, True),
+        make_bit_string(16, 16, 16, True),
+        make_bit_string(32, 16, 16, True),
+        make_bit_string(32, 32, 32, True),
+        make_bit_string(64, 32, 32, True),
+        make_bit_string(64, 64, 64, True),
+        make_bit_string(128, 64, 64, True),
+        make_bit_string(128, 128, 128, True),
+        make_bit_string(256, 128, 128, True),
+        # Semi-constrained lb=1
+        make_bit_string(1, 1, None, False),
+        make_bit_string(8, 1, None, False),
+        make_bit_string(64, 1, None, False),
+        make_bit_string(256, 1, None, False),
     ]
     for case in erlang_cases:
         length = case["length"]

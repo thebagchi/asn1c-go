@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -212,6 +213,99 @@ func TestReadBitString(t *testing.T) {
 				if result.Bytes[i] != expected.Bytes[i] {
 					t.Errorf("DecodeBitString() at position %d = %02x, expected %02x", i, result.Bytes[i], expected.Bytes[i])
 				}
+			}
+		})
+	}
+}
+
+func TestReadEnumerated(t *testing.T) {
+	path := filepath.Join("testing", "enumerated.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []ENUM
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		name := strings.ToUpper(fmt.Sprintf("ENUMERATED_VALUE_%d_COUNT_%d_ALIGNED_%v_EXTENSIBLE_%v",
+			tc.Input.Value, tc.Input.Count, tc.Aligned, tc.Input.Extensible))
+		t.Run(name, func(t *testing.T) {
+			encodedData, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode hex string: %v", err)
+			}
+
+			decoder := NewDecoder(encodedData, tc.Aligned)
+
+			result, err := decoder.DecodeEnumerated(tc.Input.Count, tc.Input.Extensible)
+			if err != nil {
+				t.Errorf("DecodeEnumerated() error = %v", err)
+				return
+			}
+
+			if result != tc.Input.Value {
+				t.Errorf("DecodeEnumerated() = %d, expected %d", result, tc.Input.Value)
+			}
+		})
+	}
+}
+
+func TestReadReal(t *testing.T) {
+	path := filepath.Join("testing", "real.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []REAL_TC
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		label := realValueLabel(tc.Input.Value)
+		name := strings.ToUpper(fmt.Sprintf("REAL_VALUE_%s_ALIGNED_%v", label, tc.Aligned))
+		t.Run(name, func(t *testing.T) {
+			encodedData, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode hex string: %v", err)
+			}
+
+			expectedValue, err := parseRealValue(tc.Input.Value)
+			if err != nil {
+				t.Fatalf("Failed to parse real value: %v", err)
+			}
+
+			decoder := NewDecoder(encodedData, tc.Aligned)
+
+			result, err := decoder.DecodeReal()
+			if err != nil {
+				t.Errorf("DecodeReal() error = %v", err)
+				return
+			}
+
+			// Special comparison for NaN (NaN != NaN in IEEE 754)
+			if math.IsNaN(expectedValue) {
+				if !math.IsNaN(result) {
+					t.Errorf("DecodeReal() = %v, expected NaN", result)
+				}
+				return
+			}
+
+			// Special comparison for -0 (check sign bit)
+			if expectedValue == 0 && math.Signbit(expectedValue) {
+				if result != 0 || !math.Signbit(result) {
+					t.Errorf("DecodeReal() = %v (signbit=%v), expected -0", result, math.Signbit(result))
+				}
+				return
+			}
+
+			if result != expectedValue {
+				t.Errorf("DecodeReal() = %v, expected %v", result, expectedValue)
 			}
 		})
 	}

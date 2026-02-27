@@ -1467,9 +1467,21 @@ func (e *Encoder) EncodeOctetString(value []byte, lb *uint64, ub *uint64, extens
 // EncodeOctetStringFragments encodes an octet string with length determinant,
 // supporting fragmentation for lengths >= 16K per section 11.9.3.8
 func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint64) error {
+	// Only align at entry for unconstrained/semi-constrained length determinant paths
+	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), EncodeConstrainedWholeNumber
+	// handles its own alignment per section 11.5.
 	if e.aligned {
-		if err := e.codec.Align(); err != nil {
-			return err
+		if ub == nil || lb == nil {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+		if ub != nil && lb != nil {
+			if *ub >= MAX_CONSTRAINED_LENGTH {
+				if err := e.codec.Align(); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

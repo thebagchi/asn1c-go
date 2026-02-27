@@ -744,9 +744,21 @@ func (d *Decoder) DecodeOctetString(lb *uint64, ub *uint64, extensible bool) ([]
 // DecodeOctetStringFragments decodes an octet string that may be fragmented.
 // This handles the indefinite-length case where the octet string is split into fragments.
 func (d *Decoder) DecodeOctetStringFragments(lb *uint64, ub *uint64) ([]byte, error) {
+	// Only align at entry for unconstrained/semi-constrained length determinant paths
+	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), DecodeConstrainedWholeNumber
+	// handles its own alignment per section 11.5.
 	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return nil, err
+		if ub == nil || lb == nil {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+		if ub != nil && lb != nil {
+			if *ub >= MAX_CONSTRAINED_LENGTH {
+				if err := d.codec.Advance(); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 

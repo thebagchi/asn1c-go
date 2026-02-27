@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -320,6 +321,165 @@ func TestWriteBitString(t *testing.T) {
 			for i := range result {
 				if result[i] != expected[i] {
 					t.Errorf("EncodeBitString() at position %d = %02x, expected %02x", i, result[i], expected[i])
+				}
+			}
+		})
+	}
+}
+
+// ENUM represents a single enumerated test case from the JSON file
+type ENUM struct {
+	Input struct {
+		Value      uint64 `json:"value"`
+		Count      uint64 `json:"count"`
+		Extensible bool   `json:"extensible"`
+	} `json:"input"`
+	Output  string `json:"output"`
+	Aligned bool   `json:"aligned"`
+}
+
+func TestWriteEnumerated(t *testing.T) {
+	path := filepath.Join("testing", "enumerated.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []ENUM
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		name := strings.ToUpper(fmt.Sprintf("ENUMERATED_VALUE_%d_COUNT_%d_ALIGNED_%v_EXTENSIBLE_%v",
+			tc.Input.Value, tc.Input.Count, tc.Aligned, tc.Input.Extensible))
+		t.Run(name, func(t *testing.T) {
+			expected, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode expected output hex: %v", err)
+			}
+
+			encoder := NewEncoder(tc.Aligned)
+
+			err = encoder.EncodeEnumerated(tc.Input.Value, tc.Input.Count, tc.Input.Extensible)
+			if err != nil {
+				t.Errorf("EncodeEnumerated() error = %v", err)
+				return
+			}
+
+			result := encoder.Bytes()
+
+			if len(result) != len(expected) {
+				t.Errorf("EncodeEnumerated() returned %d bytes, expected %d", len(result), len(expected))
+				t.Logf("Expected: %x", expected)
+				t.Logf("Got:      %x", result)
+				return
+			}
+
+			for i := range result {
+				if result[i] != expected[i] {
+					t.Errorf("EncodeEnumerated() at position %d = %02x, expected %02x", i, result[i], expected[i])
+				}
+			}
+		})
+	}
+}
+
+// REAL_TC represents a single real test case from the JSON file.
+// The Value field may be a float64 or a string for special values (NaN, Inf, -Inf, -0).
+type REAL_TC struct {
+	Input struct {
+		Value json.RawMessage `json:"value"`
+	} `json:"input"`
+	Output  string `json:"output"`
+	Aligned bool   `json:"aligned"`
+}
+
+// parseRealValue parses a REAL test case value which can be a float64 or a string.
+func parseRealValue(raw json.RawMessage) (float64, error) {
+	// Try parsing as a string first (for special values)
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		switch s {
+		case "Inf":
+			return math.Inf(1), nil
+		case "-Inf":
+			return math.Inf(-1), nil
+		case "NaN":
+			return math.NaN(), nil
+		case "-0":
+			return math.Copysign(0, -1), nil
+		default:
+			return 0, fmt.Errorf("unknown special value: %s", s)
+		}
+	}
+
+	// Parse as float64
+	var f float64
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return 0, err
+	}
+	return f, nil
+}
+
+func realValueLabel(raw json.RawMessage) string {
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return fmt.Sprintf("%g", f)
+	}
+	return string(raw)
+}
+
+func TestWriteReal(t *testing.T) {
+	path := filepath.Join("testing", "real.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var tests []REAL_TC
+	if err := json.Unmarshal(data, &tests); err != nil {
+		t.Fatalf("Failed to parse test data: %v", err)
+	}
+
+	for _, tc := range tests {
+		label := realValueLabel(tc.Input.Value)
+		name := strings.ToUpper(fmt.Sprintf("REAL_VALUE_%s_ALIGNED_%v", label, tc.Aligned))
+		t.Run(name, func(t *testing.T) {
+			expected, err := hex.DecodeString(tc.Output)
+			if err != nil {
+				t.Fatalf("Failed to decode expected output hex: %v", err)
+			}
+
+			value, err := parseRealValue(tc.Input.Value)
+			if err != nil {
+				t.Fatalf("Failed to parse real value: %v", err)
+			}
+
+			encoder := NewEncoder(tc.Aligned)
+
+			err = encoder.EncodeReal(value)
+			if err != nil {
+				t.Errorf("EncodeReal() error = %v", err)
+				return
+			}
+
+			result := encoder.Bytes()
+
+			if len(result) != len(expected) {
+				t.Errorf("EncodeReal() returned %d bytes, expected %d", len(result), len(expected))
+				t.Logf("Expected: %x", expected)
+				t.Logf("Got:      %x", result)
+				return
+			}
+
+			for i := range result {
+				if result[i] != expected[i] {
+					t.Errorf("EncodeReal() at position %d = %02x, expected %02x", i, result[i], expected[i])
 				}
 			}
 		})

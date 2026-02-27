@@ -18,7 +18,14 @@
 -export([
 'enc_BITSTRING-NULL-NULL-FALSE'/1,
 'enc_BITSTRING-0-NULL-FALSE'/1,
+'enc_BITSTRING-1-NULL-FALSE'/1,
 'enc_BITSTRING-10-NULL-FALSE'/1,
+'enc_BITSTRING-1-1-FALSE'/1,
+'enc_BITSTRING-8-8-FALSE'/1,
+'enc_BITSTRING-16-16-FALSE'/1,
+'enc_BITSTRING-32-32-FALSE'/1,
+'enc_BITSTRING-64-64-FALSE'/1,
+'enc_BITSTRING-128-128-FALSE'/1,
 'enc_BITSTRING-0-2-FALSE'/1,
 'enc_BITSTRING-0-4-FALSE'/1,
 'enc_BITSTRING-0-8-FALSE'/1,
@@ -61,13 +68,26 @@
 'enc_BITSTRING-0-65536-TRUE'/1,
 'enc_BITSTRING-0-131072-TRUE'/1,
 'enc_BITSTRING-0-262144-TRUE'/1,
-'enc_BITSTRING-0-524288-TRUE'/1
+'enc_BITSTRING-0-524288-TRUE'/1,
+'enc_BITSTRING-1-1-TRUE'/1,
+'enc_BITSTRING-8-8-TRUE'/1,
+'enc_BITSTRING-16-16-TRUE'/1,
+'enc_BITSTRING-32-32-TRUE'/1,
+'enc_BITSTRING-64-64-TRUE'/1,
+'enc_BITSTRING-128-128-TRUE'/1
 ]).
 
 -export([
 'dec_BITSTRING-NULL-NULL-FALSE'/1,
 'dec_BITSTRING-0-NULL-FALSE'/1,
+'dec_BITSTRING-1-NULL-FALSE'/1,
 'dec_BITSTRING-10-NULL-FALSE'/1,
+'dec_BITSTRING-1-1-FALSE'/1,
+'dec_BITSTRING-8-8-FALSE'/1,
+'dec_BITSTRING-16-16-FALSE'/1,
+'dec_BITSTRING-32-32-FALSE'/1,
+'dec_BITSTRING-64-64-FALSE'/1,
+'dec_BITSTRING-128-128-FALSE'/1,
 'dec_BITSTRING-0-2-FALSE'/1,
 'dec_BITSTRING-0-4-FALSE'/1,
 'dec_BITSTRING-0-8-FALSE'/1,
@@ -110,7 +130,13 @@
 'dec_BITSTRING-0-65536-TRUE'/1,
 'dec_BITSTRING-0-131072-TRUE'/1,
 'dec_BITSTRING-0-262144-TRUE'/1,
-'dec_BITSTRING-0-524288-TRUE'/1
+'dec_BITSTRING-0-524288-TRUE'/1,
+'dec_BITSTRING-1-1-TRUE'/1,
+'dec_BITSTRING-8-8-TRUE'/1,
+'dec_BITSTRING-16-16-TRUE'/1,
+'dec_BITSTRING-32-32-TRUE'/1,
+'dec_BITSTRING-64-64-TRUE'/1,
+'dec_BITSTRING-128-128-TRUE'/1
 ]).
 
 -export([info/0]).
@@ -155,7 +181,14 @@ end.
 
 encode_disp('BITSTRING-NULL-NULL-FALSE', Data) -> 'enc_BITSTRING-NULL-NULL-FALSE'(Data);
 encode_disp('BITSTRING-0-NULL-FALSE', Data) -> 'enc_BITSTRING-0-NULL-FALSE'(Data);
+encode_disp('BITSTRING-1-NULL-FALSE', Data) -> 'enc_BITSTRING-1-NULL-FALSE'(Data);
 encode_disp('BITSTRING-10-NULL-FALSE', Data) -> 'enc_BITSTRING-10-NULL-FALSE'(Data);
+encode_disp('BITSTRING-1-1-FALSE', Data) -> 'enc_BITSTRING-1-1-FALSE'(Data);
+encode_disp('BITSTRING-8-8-FALSE', Data) -> 'enc_BITSTRING-8-8-FALSE'(Data);
+encode_disp('BITSTRING-16-16-FALSE', Data) -> 'enc_BITSTRING-16-16-FALSE'(Data);
+encode_disp('BITSTRING-32-32-FALSE', Data) -> 'enc_BITSTRING-32-32-FALSE'(Data);
+encode_disp('BITSTRING-64-64-FALSE', Data) -> 'enc_BITSTRING-64-64-FALSE'(Data);
+encode_disp('BITSTRING-128-128-FALSE', Data) -> 'enc_BITSTRING-128-128-FALSE'(Data);
 encode_disp('BITSTRING-0-2-FALSE', Data) -> 'enc_BITSTRING-0-2-FALSE'(Data);
 encode_disp('BITSTRING-0-4-FALSE', Data) -> 'enc_BITSTRING-0-4-FALSE'(Data);
 encode_disp('BITSTRING-0-8-FALSE', Data) -> 'enc_BITSTRING-0-8-FALSE'(Data);
@@ -199,11 +232,24 @@ encode_disp('BITSTRING-0-65536-TRUE', Data) -> 'enc_BITSTRING-0-65536-TRUE'(Data
 encode_disp('BITSTRING-0-131072-TRUE', Data) -> 'enc_BITSTRING-0-131072-TRUE'(Data);
 encode_disp('BITSTRING-0-262144-TRUE', Data) -> 'enc_BITSTRING-0-262144-TRUE'(Data);
 encode_disp('BITSTRING-0-524288-TRUE', Data) -> 'enc_BITSTRING-0-524288-TRUE'(Data);
+encode_disp('BITSTRING-1-1-TRUE', Data) -> 'enc_BITSTRING-1-1-TRUE'(Data);
+encode_disp('BITSTRING-8-8-TRUE', Data) -> 'enc_BITSTRING-8-8-TRUE'(Data);
+encode_disp('BITSTRING-16-16-TRUE', Data) -> 'enc_BITSTRING-16-16-TRUE'(Data);
+encode_disp('BITSTRING-32-32-TRUE', Data) -> 'enc_BITSTRING-32-32-TRUE'(Data);
+encode_disp('BITSTRING-64-64-TRUE', Data) -> 'enc_BITSTRING-64-64-TRUE'(Data);
+encode_disp('BITSTRING-128-128-TRUE', Data) -> 'enc_BITSTRING-128-128-TRUE'(Data);
 encode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 decode_disp('BITSTRING-NULL-NULL-FALSE', Data) -> 'dec_BITSTRING-NULL-NULL-FALSE'(Data);
 decode_disp('BITSTRING-0-NULL-FALSE', Data) -> 'dec_BITSTRING-0-NULL-FALSE'(Data);
+decode_disp('BITSTRING-1-NULL-FALSE', Data) -> 'dec_BITSTRING-1-NULL-FALSE'(Data);
 decode_disp('BITSTRING-10-NULL-FALSE', Data) -> 'dec_BITSTRING-10-NULL-FALSE'(Data);
+decode_disp('BITSTRING-1-1-FALSE', Data) -> 'dec_BITSTRING-1-1-FALSE'(Data);
+decode_disp('BITSTRING-8-8-FALSE', Data) -> 'dec_BITSTRING-8-8-FALSE'(Data);
+decode_disp('BITSTRING-16-16-FALSE', Data) -> 'dec_BITSTRING-16-16-FALSE'(Data);
+decode_disp('BITSTRING-32-32-FALSE', Data) -> 'dec_BITSTRING-32-32-FALSE'(Data);
+decode_disp('BITSTRING-64-64-FALSE', Data) -> 'dec_BITSTRING-64-64-FALSE'(Data);
+decode_disp('BITSTRING-128-128-FALSE', Data) -> 'dec_BITSTRING-128-128-FALSE'(Data);
 decode_disp('BITSTRING-0-2-FALSE', Data) -> 'dec_BITSTRING-0-2-FALSE'(Data);
 decode_disp('BITSTRING-0-4-FALSE', Data) -> 'dec_BITSTRING-0-4-FALSE'(Data);
 decode_disp('BITSTRING-0-8-FALSE', Data) -> 'dec_BITSTRING-0-8-FALSE'(Data);
@@ -247,6 +293,12 @@ decode_disp('BITSTRING-0-65536-TRUE', Data) -> 'dec_BITSTRING-0-65536-TRUE'(Data
 decode_disp('BITSTRING-0-131072-TRUE', Data) -> 'dec_BITSTRING-0-131072-TRUE'(Data);
 decode_disp('BITSTRING-0-262144-TRUE', Data) -> 'dec_BITSTRING-0-262144-TRUE'(Data);
 decode_disp('BITSTRING-0-524288-TRUE', Data) -> 'dec_BITSTRING-0-524288-TRUE'(Data);
+decode_disp('BITSTRING-1-1-TRUE', Data) -> 'dec_BITSTRING-1-1-TRUE'(Data);
+decode_disp('BITSTRING-8-8-TRUE', Data) -> 'dec_BITSTRING-8-8-TRUE'(Data);
+decode_disp('BITSTRING-16-16-TRUE', Data) -> 'dec_BITSTRING-16-16-TRUE'(Data);
+decode_disp('BITSTRING-32-32-TRUE', Data) -> 'dec_BITSTRING-32-32-TRUE'(Data);
+decode_disp('BITSTRING-64-64-TRUE', Data) -> 'dec_BITSTRING-64-64-TRUE'(Data);
+decode_disp('BITSTRING-128-128-TRUE', Data) -> 'dec_BITSTRING-128-128-TRUE'(Data);
 decode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 info() ->
@@ -313,6 +365,32 @@ end,
 {V1@V8,V1@Buf9}
 end.
 
+'enc_BITSTRING-1-NULL-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits < 128 ->
+[Enc1@bits|Val];
+Enc1@bits < 16384 ->
+[<<2:2,Enc1@bits:14>>|Val];
+true ->
+encode_fragmented(Val, 1)
+end.
+
+
+'dec_BITSTRING-1-NULL-FALSE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:7,V1@V5:V1@V3/binary-unit:1,V1@Buf6/bitstring>> ->
+{V1@V5,V1@Buf6};
+<<1:1,0:1,V1@V4:14,V1@V6:V1@V4/binary-unit:1,V1@Buf7/bitstring>> ->
+{V1@V6,V1@Buf7};
+<<1:1,1:1,V1@V4:6,V1@Buf5/bitstring>> ->
+{V1@V6,V1@Buf7}  = decode_fragmented(V1@V4, V1@Buf5, 1),
+{V1@V6,V1@Buf7}
+end,
+{V1@V8,V1@Buf9}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V8,V1@Buf9}
+end.
+
 'enc_BITSTRING-10-NULL-FALSE'(Val) ->
 Enc1@bits = bit_size(Val),
 if Enc1@bits < 128 ->
@@ -337,6 +415,90 @@ begin
 end,
 {V1@V8,V1@Buf9}  = {list_to_bitstring([V1@V0]),V1@Buf1},
 {V1@V8,V1@Buf9}
+end.
+
+'enc_BITSTRING-1-1-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 1 ->
+Val
+end.
+
+
+'dec_BITSTRING-1-1-FALSE'(Bytes) ->
+begin
+<<V1@V0:1/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
+end.
+
+'enc_BITSTRING-8-8-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 8 ->
+Val
+end.
+
+
+'dec_BITSTRING-8-8-FALSE'(Bytes) ->
+begin
+<<V1@V0:8/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
+end.
+
+'enc_BITSTRING-16-16-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 16 ->
+Val
+end.
+
+
+'dec_BITSTRING-16-16-FALSE'(Bytes) ->
+begin
+<<V1@V0:16/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
+end.
+
+'enc_BITSTRING-32-32-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 32 ->
+Val
+end.
+
+
+'dec_BITSTRING-32-32-FALSE'(Bytes) ->
+begin
+<<V1@V0:32/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
+end.
+
+'enc_BITSTRING-64-64-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 64 ->
+Val
+end.
+
+
+'dec_BITSTRING-64-64-FALSE'(Bytes) ->
+begin
+<<V1@V0:64/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
+end.
+
+'enc_BITSTRING-128-128-FALSE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 128 ->
+Val
+end.
+
+
+'dec_BITSTRING-128-128-FALSE'(Bytes) ->
+begin
+<<V1@V0:128/binary-unit:1,V1@Buf1/bitstring>> = Bytes,
+{V1@V2,V1@Buf3}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V2,V1@Buf3}
 end.
 
 'enc_BITSTRING-0-2-FALSE'(Val) ->
@@ -1377,6 +1539,210 @@ begin
 end,
 {V1@V8,V1@Buf9}  = {list_to_bitstring([V1@V0]),V1@Buf1},
 {V1@V8,V1@Buf9}
+end.
+
+'enc_BITSTRING-1-1-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 1 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-1-1-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:1/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
+end.
+
+'enc_BITSTRING-8-8-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 8 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-8-8-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:8/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
+end.
+
+'enc_BITSTRING-16-16-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 16 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-16-16-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:16/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
+end.
+
+'enc_BITSTRING-32-32-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 32 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-32-32-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:32/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
+end.
+
+'enc_BITSTRING-64-64-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 64 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-64-64-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:64/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
+end.
+
+'enc_BITSTRING-128-128-TRUE'(Val) ->
+Enc1@bits = bit_size(Val),
+if Enc1@bits =:= 128 ->
+[<<0:1>>|Val];
+Enc1@bits < 128 ->
+[<<1:1,Enc1@bits:8>>|Val];
+Enc1@bits < 16384 ->
+[<<1:1,2:2,Enc1@bits:14>>|Val];
+true ->
+[<<1:1>>|encode_fragmented(Val, 1)]
+end.
+
+
+'dec_BITSTRING-128-128-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:128/binary-unit:1,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@V8:V1@V6/binary-unit:1,V1@Buf9/bitstring>> ->
+{V1@V8,V1@Buf9};
+<<1:1,0:1,V1@V7:14,V1@V9:V1@V7/binary-unit:1,V1@Buf10/bitstring>> ->
+{V1@V9,V1@Buf10};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> ->
+{V1@V9,V1@Buf10}  = decode_fragmented(V1@V7, V1@Buf8, 1),
+{V1@V9,V1@Buf10}
+end,
+{V1@V3,V1@Buf4}
+end,
+{V1@V11,V1@Buf12}  = {list_to_bitstring([V1@V0]),V1@Buf1},
+{V1@V11,V1@Buf12}
 end.
 
 

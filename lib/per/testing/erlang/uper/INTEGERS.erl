@@ -74,6 +74,10 @@
 'enc_INTEGER-0-67108864-FALSE'/1,
 'enc_INTEGER-0-134217728-FALSE'/1,
 'enc_INTEGER-0-268435456-FALSE'/1,
+'enc_INTEGER-0-536870911-FALSE'/1,
+'enc_INTEGER-0-1073741823-FALSE'/1,
+'enc_INTEGER-0-2147483647-FALSE'/1,
+'enc_INTEGER-0-4294967295-FALSE'/1,
 'enc_INTEGER-10-150-FALSE'/1,
 'enc_INTEGER-20-40-FALSE'/1,
 'enc_INTEGER-50-100-FALSE'/1,
@@ -86,6 +90,8 @@
 'enc_INTEGER-N100-N10-FALSE'/1,
 'enc_INTEGER-N50-50-FALSE'/1,
 'enc_INTEGER-N10-10-FALSE'/1,
+'enc_INTEGER-N128-127-FALSE'/1,
+'enc_INTEGER-N2147483648-2147483647-FALSE'/1,
 'enc_INTEGER-0-1-TRUE'/1,
 'enc_INTEGER-0-2-TRUE'/1,
 'enc_INTEGER-0-4-TRUE'/1,
@@ -124,6 +130,10 @@
 'enc_INTEGER-0-67108864-TRUE'/1,
 'enc_INTEGER-0-134217728-TRUE'/1,
 'enc_INTEGER-0-268435456-TRUE'/1,
+'enc_INTEGER-0-536870911-TRUE'/1,
+'enc_INTEGER-0-1073741823-TRUE'/1,
+'enc_INTEGER-0-2147483647-TRUE'/1,
+'enc_INTEGER-0-4294967295-TRUE'/1,
 'enc_INTEGER-10-150-TRUE'/1,
 'enc_INTEGER-20-40-TRUE'/1,
 'enc_INTEGER-50-100-TRUE'/1,
@@ -138,7 +148,9 @@
 'enc_INTEGER-N100-100-TRUE'/1,
 'enc_INTEGER-N100-N10-TRUE'/1,
 'enc_INTEGER-N50-50-TRUE'/1,
-'enc_INTEGER-N10-10-TRUE'/1
+'enc_INTEGER-N10-10-TRUE'/1,
+'enc_INTEGER-N128-127-TRUE'/1,
+'enc_INTEGER-N2147483648-2147483647-TRUE'/1
 ]).
 
 -export([
@@ -200,6 +212,10 @@
 'dec_INTEGER-0-67108864-FALSE'/1,
 'dec_INTEGER-0-134217728-FALSE'/1,
 'dec_INTEGER-0-268435456-FALSE'/1,
+'dec_INTEGER-0-536870911-FALSE'/1,
+'dec_INTEGER-0-1073741823-FALSE'/1,
+'dec_INTEGER-0-2147483647-FALSE'/1,
+'dec_INTEGER-0-4294967295-FALSE'/1,
 'dec_INTEGER-10-150-FALSE'/1,
 'dec_INTEGER-20-40-FALSE'/1,
 'dec_INTEGER-50-100-FALSE'/1,
@@ -212,6 +228,8 @@
 'dec_INTEGER-N100-N10-FALSE'/1,
 'dec_INTEGER-N50-50-FALSE'/1,
 'dec_INTEGER-N10-10-FALSE'/1,
+'dec_INTEGER-N128-127-FALSE'/1,
+'dec_INTEGER-N2147483648-2147483647-FALSE'/1,
 'dec_INTEGER-0-1-TRUE'/1,
 'dec_INTEGER-0-2-TRUE'/1,
 'dec_INTEGER-0-4-TRUE'/1,
@@ -250,6 +268,10 @@
 'dec_INTEGER-0-67108864-TRUE'/1,
 'dec_INTEGER-0-134217728-TRUE'/1,
 'dec_INTEGER-0-268435456-TRUE'/1,
+'dec_INTEGER-0-536870911-TRUE'/1,
+'dec_INTEGER-0-1073741823-TRUE'/1,
+'dec_INTEGER-0-2147483647-TRUE'/1,
+'dec_INTEGER-0-4294967295-TRUE'/1,
 'dec_INTEGER-10-150-TRUE'/1,
 'dec_INTEGER-20-40-TRUE'/1,
 'dec_INTEGER-50-100-TRUE'/1,
@@ -264,7 +286,9 @@
 'dec_INTEGER-N100-100-TRUE'/1,
 'dec_INTEGER-N100-N10-TRUE'/1,
 'dec_INTEGER-N50-50-TRUE'/1,
-'dec_INTEGER-N10-10-TRUE'/1
+'dec_INTEGER-N10-10-TRUE'/1,
+'dec_INTEGER-N128-127-TRUE'/1,
+'dec_INTEGER-N2147483648-2147483647-TRUE'/1
 ]).
 
 -export([info/0]).
@@ -365,6 +389,10 @@ encode_disp('INTEGER-0-33554432-FALSE', Data) -> 'enc_INTEGER-0-33554432-FALSE'(
 encode_disp('INTEGER-0-67108864-FALSE', Data) -> 'enc_INTEGER-0-67108864-FALSE'(Data);
 encode_disp('INTEGER-0-134217728-FALSE', Data) -> 'enc_INTEGER-0-134217728-FALSE'(Data);
 encode_disp('INTEGER-0-268435456-FALSE', Data) -> 'enc_INTEGER-0-268435456-FALSE'(Data);
+encode_disp('INTEGER-0-536870911-FALSE', Data) -> 'enc_INTEGER-0-536870911-FALSE'(Data);
+encode_disp('INTEGER-0-1073741823-FALSE', Data) -> 'enc_INTEGER-0-1073741823-FALSE'(Data);
+encode_disp('INTEGER-0-2147483647-FALSE', Data) -> 'enc_INTEGER-0-2147483647-FALSE'(Data);
+encode_disp('INTEGER-0-4294967295-FALSE', Data) -> 'enc_INTEGER-0-4294967295-FALSE'(Data);
 encode_disp('INTEGER-10-150-FALSE', Data) -> 'enc_INTEGER-10-150-FALSE'(Data);
 encode_disp('INTEGER-20-40-FALSE', Data) -> 'enc_INTEGER-20-40-FALSE'(Data);
 encode_disp('INTEGER-50-100-FALSE', Data) -> 'enc_INTEGER-50-100-FALSE'(Data);
@@ -377,6 +405,8 @@ encode_disp('INTEGER-N100-100-FALSE', Data) -> 'enc_INTEGER-N100-100-FALSE'(Data
 encode_disp('INTEGER-N100-N10-FALSE', Data) -> 'enc_INTEGER-N100-N10-FALSE'(Data);
 encode_disp('INTEGER-N50-50-FALSE', Data) -> 'enc_INTEGER-N50-50-FALSE'(Data);
 encode_disp('INTEGER-N10-10-FALSE', Data) -> 'enc_INTEGER-N10-10-FALSE'(Data);
+encode_disp('INTEGER-N128-127-FALSE', Data) -> 'enc_INTEGER-N128-127-FALSE'(Data);
+encode_disp('INTEGER-N2147483648-2147483647-FALSE', Data) -> 'enc_INTEGER-N2147483648-2147483647-FALSE'(Data);
 encode_disp('INTEGER-0-1-TRUE', Data) -> 'enc_INTEGER-0-1-TRUE'(Data);
 encode_disp('INTEGER-0-2-TRUE', Data) -> 'enc_INTEGER-0-2-TRUE'(Data);
 encode_disp('INTEGER-0-4-TRUE', Data) -> 'enc_INTEGER-0-4-TRUE'(Data);
@@ -415,6 +445,10 @@ encode_disp('INTEGER-0-33554432-TRUE', Data) -> 'enc_INTEGER-0-33554432-TRUE'(Da
 encode_disp('INTEGER-0-67108864-TRUE', Data) -> 'enc_INTEGER-0-67108864-TRUE'(Data);
 encode_disp('INTEGER-0-134217728-TRUE', Data) -> 'enc_INTEGER-0-134217728-TRUE'(Data);
 encode_disp('INTEGER-0-268435456-TRUE', Data) -> 'enc_INTEGER-0-268435456-TRUE'(Data);
+encode_disp('INTEGER-0-536870911-TRUE', Data) -> 'enc_INTEGER-0-536870911-TRUE'(Data);
+encode_disp('INTEGER-0-1073741823-TRUE', Data) -> 'enc_INTEGER-0-1073741823-TRUE'(Data);
+encode_disp('INTEGER-0-2147483647-TRUE', Data) -> 'enc_INTEGER-0-2147483647-TRUE'(Data);
+encode_disp('INTEGER-0-4294967295-TRUE', Data) -> 'enc_INTEGER-0-4294967295-TRUE'(Data);
 encode_disp('INTEGER-10-150-TRUE', Data) -> 'enc_INTEGER-10-150-TRUE'(Data);
 encode_disp('INTEGER-20-40-TRUE', Data) -> 'enc_INTEGER-20-40-TRUE'(Data);
 encode_disp('INTEGER-50-100-TRUE', Data) -> 'enc_INTEGER-50-100-TRUE'(Data);
@@ -430,6 +464,8 @@ encode_disp('INTEGER-N100-100-TRUE', Data) -> 'enc_INTEGER-N100-100-TRUE'(Data);
 encode_disp('INTEGER-N100-N10-TRUE', Data) -> 'enc_INTEGER-N100-N10-TRUE'(Data);
 encode_disp('INTEGER-N50-50-TRUE', Data) -> 'enc_INTEGER-N50-50-TRUE'(Data);
 encode_disp('INTEGER-N10-10-TRUE', Data) -> 'enc_INTEGER-N10-10-TRUE'(Data);
+encode_disp('INTEGER-N128-127-TRUE', Data) -> 'enc_INTEGER-N128-127-TRUE'(Data);
+encode_disp('INTEGER-N2147483648-2147483647-TRUE', Data) -> 'enc_INTEGER-N2147483648-2147483647-TRUE'(Data);
 encode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 decode_disp('INTEGER-NULL-NULL-FALSE', Data) -> 'dec_INTEGER-NULL-NULL-FALSE'(Data);
@@ -490,6 +526,10 @@ decode_disp('INTEGER-0-33554432-FALSE', Data) -> 'dec_INTEGER-0-33554432-FALSE'(
 decode_disp('INTEGER-0-67108864-FALSE', Data) -> 'dec_INTEGER-0-67108864-FALSE'(Data);
 decode_disp('INTEGER-0-134217728-FALSE', Data) -> 'dec_INTEGER-0-134217728-FALSE'(Data);
 decode_disp('INTEGER-0-268435456-FALSE', Data) -> 'dec_INTEGER-0-268435456-FALSE'(Data);
+decode_disp('INTEGER-0-536870911-FALSE', Data) -> 'dec_INTEGER-0-536870911-FALSE'(Data);
+decode_disp('INTEGER-0-1073741823-FALSE', Data) -> 'dec_INTEGER-0-1073741823-FALSE'(Data);
+decode_disp('INTEGER-0-2147483647-FALSE', Data) -> 'dec_INTEGER-0-2147483647-FALSE'(Data);
+decode_disp('INTEGER-0-4294967295-FALSE', Data) -> 'dec_INTEGER-0-4294967295-FALSE'(Data);
 decode_disp('INTEGER-10-150-FALSE', Data) -> 'dec_INTEGER-10-150-FALSE'(Data);
 decode_disp('INTEGER-20-40-FALSE', Data) -> 'dec_INTEGER-20-40-FALSE'(Data);
 decode_disp('INTEGER-50-100-FALSE', Data) -> 'dec_INTEGER-50-100-FALSE'(Data);
@@ -502,6 +542,8 @@ decode_disp('INTEGER-N100-100-FALSE', Data) -> 'dec_INTEGER-N100-100-FALSE'(Data
 decode_disp('INTEGER-N100-N10-FALSE', Data) -> 'dec_INTEGER-N100-N10-FALSE'(Data);
 decode_disp('INTEGER-N50-50-FALSE', Data) -> 'dec_INTEGER-N50-50-FALSE'(Data);
 decode_disp('INTEGER-N10-10-FALSE', Data) -> 'dec_INTEGER-N10-10-FALSE'(Data);
+decode_disp('INTEGER-N128-127-FALSE', Data) -> 'dec_INTEGER-N128-127-FALSE'(Data);
+decode_disp('INTEGER-N2147483648-2147483647-FALSE', Data) -> 'dec_INTEGER-N2147483648-2147483647-FALSE'(Data);
 decode_disp('INTEGER-0-1-TRUE', Data) -> 'dec_INTEGER-0-1-TRUE'(Data);
 decode_disp('INTEGER-0-2-TRUE', Data) -> 'dec_INTEGER-0-2-TRUE'(Data);
 decode_disp('INTEGER-0-4-TRUE', Data) -> 'dec_INTEGER-0-4-TRUE'(Data);
@@ -540,6 +582,10 @@ decode_disp('INTEGER-0-33554432-TRUE', Data) -> 'dec_INTEGER-0-33554432-TRUE'(Da
 decode_disp('INTEGER-0-67108864-TRUE', Data) -> 'dec_INTEGER-0-67108864-TRUE'(Data);
 decode_disp('INTEGER-0-134217728-TRUE', Data) -> 'dec_INTEGER-0-134217728-TRUE'(Data);
 decode_disp('INTEGER-0-268435456-TRUE', Data) -> 'dec_INTEGER-0-268435456-TRUE'(Data);
+decode_disp('INTEGER-0-536870911-TRUE', Data) -> 'dec_INTEGER-0-536870911-TRUE'(Data);
+decode_disp('INTEGER-0-1073741823-TRUE', Data) -> 'dec_INTEGER-0-1073741823-TRUE'(Data);
+decode_disp('INTEGER-0-2147483647-TRUE', Data) -> 'dec_INTEGER-0-2147483647-TRUE'(Data);
+decode_disp('INTEGER-0-4294967295-TRUE', Data) -> 'dec_INTEGER-0-4294967295-TRUE'(Data);
 decode_disp('INTEGER-10-150-TRUE', Data) -> 'dec_INTEGER-10-150-TRUE'(Data);
 decode_disp('INTEGER-20-40-TRUE', Data) -> 'dec_INTEGER-20-40-TRUE'(Data);
 decode_disp('INTEGER-50-100-TRUE', Data) -> 'dec_INTEGER-50-100-TRUE'(Data);
@@ -555,6 +601,8 @@ decode_disp('INTEGER-N100-100-TRUE', Data) -> 'dec_INTEGER-N100-100-TRUE'(Data);
 decode_disp('INTEGER-N100-N10-TRUE', Data) -> 'dec_INTEGER-N100-N10-TRUE'(Data);
 decode_disp('INTEGER-N50-50-TRUE', Data) -> 'dec_INTEGER-N50-50-TRUE'(Data);
 decode_disp('INTEGER-N10-10-TRUE', Data) -> 'dec_INTEGER-N10-10-TRUE'(Data);
+decode_disp('INTEGER-N128-127-TRUE', Data) -> 'dec_INTEGER-N128-127-TRUE'(Data);
+decode_disp('INTEGER-N2147483648-2147483647-TRUE', Data) -> 'dec_INTEGER-N2147483648-2147483647-TRUE'(Data);
 decode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 info() ->
@@ -1677,6 +1725,62 @@ begin
 {V1@V0,V1@Buf1}
 end.
 
+'enc_INTEGER-0-536870911-FALSE'(Val) ->
+if Val bsr 29 =:= 0 ->
+<<Val:29>>;
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-0-536870911-FALSE'(Bytes) ->
+begin
+<<V1@V0:29,V1@Buf1/bitstring>> = Bytes,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-1073741823-FALSE'(Val) ->
+if Val bsr 30 =:= 0 ->
+<<Val:30>>;
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-0-1073741823-FALSE'(Bytes) ->
+begin
+<<V1@V0:30,V1@Buf1/bitstring>> = Bytes,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-2147483647-FALSE'(Val) ->
+if Val bsr 31 =:= 0 ->
+<<Val:31>>;
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-0-2147483647-FALSE'(Bytes) ->
+begin
+<<V1@V0:31,V1@Buf1/bitstring>> = Bytes,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-4294967295-FALSE'(Val) ->
+if Val bsr 32 =:= 0 ->
+<<Val:32>>;
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-0-4294967295-FALSE'(Bytes) ->
+begin
+<<V1@V0:32,V1@Buf1/bitstring>> = Bytes,
+{V1@V0,V1@Buf1}
+end.
+
 'enc_INTEGER-10-150-FALSE'(Val) ->
 Val@sub = Val - 10,
 if 0 =< Val@sub, Val@sub < 141 ->
@@ -1864,6 +1968,38 @@ end.
 begin
 <<V1@V0:5,V1@Buf1/bitstring>> = Bytes,
 V1@Add2 = V1@V0 + -10,
+{V1@Add2,V1@Buf1}
+end.
+
+'enc_INTEGER-N128-127-FALSE'(Val) ->
+Val@sub = Val - -128,
+if Val@sub bsr 8 =:= 0 ->
+[Val@sub];
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-N128-127-FALSE'(Bytes) ->
+begin
+<<V1@V0:8,V1@Buf1/bitstring>> = Bytes,
+V1@Add2 = V1@V0 + -128,
+{V1@Add2,V1@Buf1}
+end.
+
+'enc_INTEGER-N2147483648-2147483647-FALSE'(Val) ->
+Val@sub = Val - -2147483648,
+if Val@sub bsr 32 =:= 0 ->
+<<Val@sub:32>>;
+true ->
+exit({error,{asn1,{illegal_integer,Val}}})
+end.
+
+
+'dec_INTEGER-N2147483648-2147483647-FALSE'(Bytes) ->
+begin
+<<V1@V0:32,V1@Buf1/bitstring>> = Bytes,
+V1@Add2 = V1@V0 + -2147483648,
 {V1@Add2,V1@Buf1}
 end.
 
@@ -2969,6 +3105,122 @@ end,
 {V1@V0,V1@Buf1}
 end.
 
+'enc_INTEGER-0-536870911-TRUE'(Val) ->
+if Val bsr 29 =:= 0 ->
+<<0:1,Val:29>>;
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-0-536870911-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:29,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-1073741823-TRUE'(Val) ->
+if Val bsr 30 =:= 0 ->
+<<0:1,Val:30>>;
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-0-1073741823-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:30,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-2147483647-TRUE'(Val) ->
+if Val bsr 31 =:= 0 ->
+<<0:1,Val:31>>;
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-0-2147483647-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:31,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-0-4294967295-TRUE'(Val) ->
+if Val bsr 32 =:= 0 ->
+<<0:1,Val:32>>;
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-0-4294967295-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:32,V1@Buf4/bitstring>> ->
+{V1@V3,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
 'enc_INTEGER-10-150-TRUE'(Val) ->
 Val@sub = Val - 10,
 if 0 =< Val@sub, Val@sub < 141 ->
@@ -3413,6 +3665,68 @@ begin
 {V1@V0,V1@Buf1} = case Bytes of
 <<0:1,V1@V3:5,V1@Buf4/bitstring>> ->
 V1@Add5 = V1@V3 + -10,
+{V1@Add5,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-N128-127-TRUE'(Val) ->
+Val@sub = Val - -128,
+if Val@sub bsr 8 =:= 0 ->
+[<<0:1,Val@sub:8>>];
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-N128-127-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:8,V1@Buf4/bitstring>> ->
+V1@Add5 = V1@V3 + -128,
+{V1@Add5,V1@Buf4};
+<<1:1,V1@Buf2/bitstring>> ->
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<0:1,V1@V6:7,V1@Buf7/bitstring>> when V1@V6 =/= 0 ->
+{V1@V6,V1@Buf7};
+<<1:1,0:1,V1@V7:14,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+{V1@V7,V1@Buf8};
+<<1:1,1:1,V1@V7:6,V1@Buf8/bitstring>> when V1@V7 =/= 0 ->
+V1@Mul9 = V1@V7 * 16384,
+{V1@Mul9,V1@Buf8}
+end,
+<<V1@V10:V1@V3/signed-unit:8,V1@Buf11/bitstring>> = V1@Buf4,
+{V1@V10,V1@Buf11}
+end,
+{V1@V0,V1@Buf1}
+end.
+
+'enc_INTEGER-N2147483648-2147483647-TRUE'(Val) ->
+Val@sub = Val - -2147483648,
+if Val@sub bsr 32 =:= 0 ->
+<<0:1,Val@sub:32>>;
+true ->
+[<<1:1>>|encode_unconstrained_number(Val)]
+end.
+
+
+'dec_INTEGER-N2147483648-2147483647-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:32,V1@Buf4/bitstring>> ->
+V1@Add5 = V1@V3 + -2147483648,
 {V1@Add5,V1@Buf4};
 <<1:1,V1@Buf2/bitstring>> ->
 {V1@V3,V1@Buf4} = case V1@Buf2 of
