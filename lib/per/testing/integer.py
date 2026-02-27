@@ -527,6 +527,79 @@ def main():
         make_integer(-10, -10, 10, False),
         make_integer(-11, -10, 10, True),
         make_integer(11, -10, 10, True),
+        # ---- Negative lb with large range (Longitude-like, range > 64K) ----
+        # lb=-1799999999, ub=1800000001, range=3600000001 (needs 4 bytes)
+        make_integer(-1799999999, -1799999999, 1800000001, False),
+        make_integer(0, -1799999999, 1800000001, False),
+        make_integer(10, -1799999999, 1800000001, False),
+        make_integer(-10, -1799999999, 1800000001, False),
+        make_integer(1800000001, -1799999999, 1800000001, False),
+        make_integer(1000000000, -1799999999, 1800000001, False),
+        make_integer(-1000000000, -1799999999, 1800000001, False),
+        # Same constraint, extensible
+        make_integer(-1799999999, -1799999999, 1800000001, True),
+        make_integer(0, -1799999999, 1800000001, True),
+        make_integer(10, -1799999999, 1800000001, True),
+        make_integer(1800000001, -1799999999, 1800000001, True),
+        # Extension values outside root
+        make_integer(-1800000000, -1799999999, 1800000001, True),
+        make_integer(1800000002, -1799999999, 1800000001, True),
+        make_integer(2000000000, -1799999999, 1800000001, True),
+        # ---- Extensible constrained "Sv2-like" (small range, extensible) ----
+        # lb=2, ub=17, extensible, range=16 (4 bits)
+        make_integer(2, 2, 17, True),
+        make_integer(3, 2, 17, True),
+        make_integer(10, 2, 17, True),
+        make_integer(17, 2, 17, True),
+        # Extension values
+        make_integer(1, 2, 17, True),
+        make_integer(0, 2, 17, True),
+        make_integer(-5, 2, 17, True),
+        make_integer(18, 2, 17, True),
+        make_integer(100, 2, 17, True),
+        # ---- Negative lb, positive ub, large range, non-extensible ----
+        # lb=-500000, ub=500000, range=1000001 (needs 3 bytes in >64K path)
+        make_integer(-500000, -500000, 500000, False),
+        make_integer(0, -500000, 500000, False),
+        make_integer(500000, -500000, 500000, False),
+        make_integer(250000, -500000, 500000, False),
+        make_integer(-250000, -500000, 500000, False),
+        # Same, extensible with extension values
+        make_integer(0, -500000, 500000, True),
+        make_integer(-500001, -500000, 500000, True),
+        make_integer(500001, -500000, 500000, True),
+        # ---- Large unconstrained values (5-8 byte encoding paths) ----
+        # 5 bytes (> 2^32)
+        make_integer(4294967296, None, None, False),
+        make_integer(-4294967296, None, None, False),
+        make_integer(4294967295, None, None, False),
+        make_integer(-4294967295, None, None, False),
+        # 6 bytes (> 2^40)
+        make_integer(1099511627776, None, None, False),
+        make_integer(-1099511627776, None, None, False),
+        # 7 bytes (> 2^48)
+        make_integer(281474976710656, None, None, False),
+        make_integer(-281474976710656, None, None, False),
+        # 8 bytes (> 2^56)
+        make_integer(72057594037927936, None, None, False),
+        make_integer(-72057594037927936, None, None, False),
+        # Near int64 boundaries
+        make_integer(9223372036854775807, None, None, False),
+        make_integer(-9223372036854775808, None, None, False),
+        # ---- Constrained range > 64K needing 3-4 byte encoding ----
+        # range = 16777216 (exactly 3 bytes, 0..16777215)
+        make_integer(0, 0, 16777215, False),
+        make_integer(8388608, 0, 16777215, False),
+        make_integer(16777215, 0, 16777215, False),
+        # range = 16777217 (just over 3 bytes, needs 4 bytes in APER)
+        make_integer(0, 0, 16777216, False),
+        make_integer(16777216, 0, 16777216, False),
+        # ---- Semi-constrained with value exactly at lb ----
+        make_integer(-200, -200, None, False),
+        make_integer(100, 100, None, False),
+        # ---- Extensible semi-constrained, value below lb ----
+        make_integer(-201, -200, None, True),
+        make_integer(99, 100, None, True),
     ]
     for case in cases:
         value = case["value"]
@@ -1066,6 +1139,19 @@ def main():
         make_integer(100000, 0, 1000, True),
         make_integer(10000000, 0, 65536, True),
         make_integer(-1000, 0, 1000, True),
+        # Large unconstrained values (5-8 byte encoding)
+        make_integer(4294967296, None, None, False),
+        make_integer(-4294967296, None, None, False),
+        make_integer(4294967295, None, None, False),
+        make_integer(-4294967295, None, None, False),
+        make_integer(1099511627776, None, None, False),
+        make_integer(-1099511627776, None, None, False),
+        make_integer(281474976710656, None, None, False),
+        make_integer(-281474976710656, None, None, False),
+        make_integer(72057594037927936, None, None, False),
+        make_integer(-72057594037927936, None, None, False),
+        make_integer(9223372036854775807, None, None, False),
+        make_integer(-9223372036854775808, None, None, False),
     ]
     for case in erlang_cases:
         value = case["value"]

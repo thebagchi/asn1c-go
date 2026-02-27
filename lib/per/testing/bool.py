@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
 import json
+import os
+import subprocess
+import sys
 from binascii import hexlify
+
 from pycrate_asn1rt.asnobj_basic import BOOL  # type: ignore
 
 
@@ -38,10 +42,51 @@ def main():
         }
         results.append(result)
 
+    # --- Erlang cross-validation ---
+    erlang_cases = [
+        {"value": True},
+        {"value": False},
+    ]
+    for case in erlang_cases:
+        value = case["value"]
+        for aligned in [True, False]:
+            output = encode_boolean_erl(value, aligned)
+            results.append(
+                {
+                    "input": value,
+                    "aligned": aligned,
+                    "output": output,
+                }
+            )
+
     content = json.dumps(results, indent=2)
     with open("bool.json", "w") as f:
         f.write(content)
-    pass
+
+    print(f"Generated {len(results)} boolean test cases")
+
+
+# ---------------------------------------------------------------------------
+# Erlang-based encoder (calls encode_boolean.erl for cross-validation).
+# ---------------------------------------------------------------------------
+
+_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
+
+
+def encode_boolean_erl(value, aligned):
+    script = os.path.join(_ERLANG_DIR_, "encode_boolean.erl")
+    cmd = ["escript", script, "-value", "true" if value else "false"]
+    if aligned:
+        cmd.append("-aligned")
+    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(
+            f"Erlang encode error for BOOL value={value} aligned={aligned}:",
+            file=sys.stderr,
+        )
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+    return result.stdout.strip().lower()
 
 
 if __name__ == "__main__":

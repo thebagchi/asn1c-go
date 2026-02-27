@@ -71,4 +71,14 @@ BITSTRING-32-32-TRUE      ::= BIT STRING (SIZE (32, ...))
 BITSTRING-64-64-TRUE      ::= BIT STRING (SIZE (64, ...))
 BITSTRING-128-128-TRUE    ::= BIT STRING (SIZE (128, ...))
 
+-- lb > 0 constrained, not extensible
+BITSTRING-4-16-FALSE      ::= BIT STRING (SIZE (4..16))
+BITSTRING-8-32-FALSE      ::= BIT STRING (SIZE (8..32))
+BITSTRING-16-64-FALSE     ::= BIT STRING (SIZE (16..64))
+
+-- lb > 0 constrained, extensible
+BITSTRING-4-16-TRUE       ::= BIT STRING (SIZE (4..16, ...))
+BITSTRING-8-32-TRUE       ::= BIT STRING (SIZE (8..32, ...))
+BITSTRING-16-64-TRUE      ::= BIT STRING (SIZE (16..64, ...))
+
 END

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Compile BITSTRINGS.asn1, OCTETSTRINGS.asn1, and INTEGERS.asn1 using Erlang asn1ct
-into aper/ and uper/ directories.
+Compile ASN.1 modules using Erlang asn1ct into aper/ and uper/ directories.
 """
 
 import subprocess
@@ -9,7 +8,7 @@ import sys
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ASN1_MODULES = ["BITSTRINGS", "OCTETSTRINGS", "INTEGERS"]
+ASN1_MODULES = ["BITSTRINGS", "OCTETSTRINGS", "INTEGERS", "BOOLEANS", "ENUMERATEDS", "REALS"]
 
 ENCODINGS = [
     ("per", os.path.join(SCRIPT_DIR, "aper")),

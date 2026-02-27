@@ -18,5 +18,25 @@
     "input": false,
     "aligned": false,
     "output": "00"
+  },
+  {
+    "input": true,
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": true,
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": false,
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": false,
+    "aligned": false,
+    "output": "00"
   }
 ]

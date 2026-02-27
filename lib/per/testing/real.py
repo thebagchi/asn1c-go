@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import struct
+import subprocess
+import sys
 from binascii import hexlify
 
 from pycrate_asn1rt.asnobj_basic import REAL  # type: ignore
@@ -124,6 +127,9 @@ def main():
         make_real(2.2250738585072014e-308),
         # Smallest subnormal
         make_real(5e-324),
+        # Negative edge cases
+        make_real(-5e-324),
+        make_real(-2.2250738585072014e-308),
     ]
 
     for case in cases:
@@ -161,11 +167,99 @@ def main():
             }
             results.append(result)
 
+    # --- Erlang cross-validation ---
+    # Only non-special, non-zero floats (Erlang can't encode 0, Inf, NaN, -0 via tuples)
+    erlang_cases = [
+        make_real(1.0),
+        make_real(2.0),
+        make_real(3.0),
+        make_real(-1.0),
+        make_real(-2.0),
+        make_real(-3.0),
+        make_real(0.5),
+        make_real(0.25),
+        make_real(0.125),
+        make_real(4.0),
+        make_real(8.0),
+        make_real(16.0),
+        make_real(256.0),
+        make_real(1024.0),
+        make_real(65536.0),
+        make_real(1.5),
+        make_real(2.5),
+        make_real(3.75),
+        make_real(-0.5),
+        make_real(-1.5),
+        make_real(-3.75),
+        make_real(10.0),
+        make_real(100.0),
+        make_real(1000.0),
+        make_real(-10.0),
+        make_real(-100.0),
+        make_real(1e-10),
+        make_real(1e-20),
+        make_real(-1e-10),
+        make_real(1e10),
+        make_real(1e20),
+        make_real(1e50),
+        make_real(-1e10),
+        make_real(-1e20),
+        make_real(1e100),
+        make_real(1e200),
+        make_real(1e-100),
+        make_real(1e-200),
+        make_real(-1e100),
+        make_real(3.141592653589793),
+        make_real(2.718281828459045),
+        make_real(-3.141592653589793),
+        make_real(1.7976931348623157e308),
+        make_real(-1.7976931348623157e308),
+        make_real(2.2250738585072014e-308),
+        make_real(5e-324),
+        # Additional edge cases
+        make_real(-5e-324),
+        make_real(-2.2250738585072014e-308),
+    ]
+    for case in erlang_cases:
+        value = case["value"]
+        for aligned in [True, False]:
+            output = encode_real_erl(value, aligned)
+            results.append(
+                {
+                    "input": case,
+                    "aligned": aligned,
+                    "output": output,
+                }
+            )
+
     content = json.dumps(results, indent=2)
     with open("real.json", "w") as f:
         f.write(content)
 
     print(f"Generated {len(results)} real test cases")
+
+
+# ---------------------------------------------------------------------------
+# Erlang-based encoder (calls encode_real.erl for cross-validation).
+# ---------------------------------------------------------------------------
+
+_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
+
+
+def encode_real_erl(value, aligned):
+    script = os.path.join(_ERLANG_DIR_, "encode_real.erl")
+    cmd = ["escript", script, "-value", f"{value:.20e}"]
+    if aligned:
+        cmd.append("-aligned")
+    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(
+            f"Erlang encode error for REAL value={value} aligned={aligned}:",
+            file=sys.stderr,
+        )
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+    return result.stdout.strip().lower()
 
 
 if __name__ == "__main__":

@@ -646,5 +646,2075 @@
     },
     "aligned": false,
     "output": "83"
+  },
+  {
+    "input": {
+      "value": 66,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "be"
+  },
+  {
+    "input": {
+      "value": 66,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "be"
+  },
+  {
+    "input": {
+      "value": 67,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "bf"
+  },
+  {
+    "input": {
+      "value": 67,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "bf"
+  },
+  {
+    "input": {
+      "value": 68,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "c00140"
+  },
+  {
+    "input": {
+      "value": 68,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "c05000"
+  },
+  {
+    "input": {
+      "value": 69,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "c00141"
+  },
+  {
+    "input": {
+      "value": 69,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "c05040"
+  },
+  {
+    "input": {
+      "value": 131,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "c0017f"
+  },
+  {
+    "input": {
+      "value": 131,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "c05fc0"
+  },
+  {
+    "input": {
+      "value": 132,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "c00180"
+  },
+  {
+    "input": {
+      "value": 132,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "c06000"
+  },
+  {
+    "input": {
+      "value": 259,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "c001ff"
+  },
+  {
+    "input": {
+      "value": 259,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "c07fc0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "a0"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "a0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 9,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "90"
+  },
+  {
+    "input": {
+      "value": 9,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "90"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 14,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 14,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 32,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 32,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 64,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 64,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 254,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 254,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 17,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 17,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 18,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 18,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "4000"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "4000"
+  },
+  {
+    "input": {
+      "value": 129,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 129,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 130,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 130,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 2,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 2,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 2,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 2,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 4,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 4,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 4,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 4,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 8,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 8,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 8,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 8,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 16,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 16,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 15,
+      "count": 16,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "f0"
+  },
+  {
+    "input": {
+      "value": 15,
+      "count": 16,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "f0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 128,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 128,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 127,
+      "count": 128,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 127,
+      "count": 128,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 256,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 256,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 255,
+      "count": 256,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "ff"
+  },
+  {
+    "input": {
+      "value": 255,
+      "count": 256,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "ff"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 5,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "a0"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 6,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "a0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 9,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 9,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "90"
+  },
+  {
+    "input": {
+      "value": 9,
+      "count": 10,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "90"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 14,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 14,
+      "count": 15,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "e0"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 32,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 32,
+      "count": 33,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 64,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 64,
+      "count": 65,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 254,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": true,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 254,
+      "count": 255,
+      "extensible": false
+    },
+    "aligned": false,
+    "output": "fe"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 6,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "60"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 16,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "value": 127,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "7f"
+  },
+  {
+    "input": {
+      "value": 127,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "7f"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "value": 0,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "4000"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "4000"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 1,
+      "count": 1,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 2,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 2,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 3,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 3,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 4,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 5,
+      "count": 4,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 7,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 8,
+      "count": 7,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 17,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 17,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 18,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 18,
+      "count": 17,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 128,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 131,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "83"
+  },
+  {
+    "input": {
+      "value": 131,
+      "count": 128,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "83"
+  },
+  {
+    "input": {
+      "value": 129,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 129,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "80"
+  },
+  {
+    "input": {
+      "value": 130,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": true,
+    "output": "81"
+  },
+  {
+    "input": {
+      "value": 130,
+      "count": 129,
+      "extensible": true
+    },
+    "aligned": false,
+    "output": "81"
   }
 ]

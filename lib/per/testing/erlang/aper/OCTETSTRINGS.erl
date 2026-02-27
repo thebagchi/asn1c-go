@@ -80,7 +80,13 @@
 'enc_OCTETSTRING-1-127-TRUE'/1,
 'enc_OCTETSTRING-1-128-TRUE'/1,
 'enc_OCTETSTRING-1-255-TRUE'/1,
-'enc_OCTETSTRING-1-256-TRUE'/1
+'enc_OCTETSTRING-1-256-TRUE'/1,
+'enc_OCTETSTRING-4-16-FALSE'/1,
+'enc_OCTETSTRING-8-32-FALSE'/1,
+'enc_OCTETSTRING-16-64-FALSE'/1,
+'enc_OCTETSTRING-4-16-TRUE'/1,
+'enc_OCTETSTRING-8-32-TRUE'/1,
+'enc_OCTETSTRING-16-64-TRUE'/1
 ]).
 
 -export([
@@ -148,7 +154,13 @@
 'dec_OCTETSTRING-1-127-TRUE'/1,
 'dec_OCTETSTRING-1-128-TRUE'/1,
 'dec_OCTETSTRING-1-255-TRUE'/1,
-'dec_OCTETSTRING-1-256-TRUE'/1
+'dec_OCTETSTRING-1-256-TRUE'/1,
+'dec_OCTETSTRING-4-16-FALSE'/1,
+'dec_OCTETSTRING-8-32-FALSE'/1,
+'dec_OCTETSTRING-16-64-FALSE'/1,
+'dec_OCTETSTRING-4-16-TRUE'/1,
+'dec_OCTETSTRING-8-32-TRUE'/1,
+'dec_OCTETSTRING-16-64-TRUE'/1
 ]).
 
 -export([info/0]).
@@ -256,6 +268,12 @@ encode_disp('OCTETSTRING-1-127-TRUE', Data) -> 'enc_OCTETSTRING-1-127-TRUE'(Data
 encode_disp('OCTETSTRING-1-128-TRUE', Data) -> 'enc_OCTETSTRING-1-128-TRUE'(Data);
 encode_disp('OCTETSTRING-1-255-TRUE', Data) -> 'enc_OCTETSTRING-1-255-TRUE'(Data);
 encode_disp('OCTETSTRING-1-256-TRUE', Data) -> 'enc_OCTETSTRING-1-256-TRUE'(Data);
+encode_disp('OCTETSTRING-4-16-FALSE', Data) -> 'enc_OCTETSTRING-4-16-FALSE'(Data);
+encode_disp('OCTETSTRING-8-32-FALSE', Data) -> 'enc_OCTETSTRING-8-32-FALSE'(Data);
+encode_disp('OCTETSTRING-16-64-FALSE', Data) -> 'enc_OCTETSTRING-16-64-FALSE'(Data);
+encode_disp('OCTETSTRING-4-16-TRUE', Data) -> 'enc_OCTETSTRING-4-16-TRUE'(Data);
+encode_disp('OCTETSTRING-8-32-TRUE', Data) -> 'enc_OCTETSTRING-8-32-TRUE'(Data);
+encode_disp('OCTETSTRING-16-64-TRUE', Data) -> 'enc_OCTETSTRING-16-64-TRUE'(Data);
 encode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 decode_disp('OCTETSTRING-NULL-NULL-FALSE', Data) -> 'dec_OCTETSTRING-NULL-NULL-FALSE'(Data);
@@ -323,6 +341,12 @@ decode_disp('OCTETSTRING-1-127-TRUE', Data) -> 'dec_OCTETSTRING-1-127-TRUE'(Data
 decode_disp('OCTETSTRING-1-128-TRUE', Data) -> 'dec_OCTETSTRING-1-128-TRUE'(Data);
 decode_disp('OCTETSTRING-1-255-TRUE', Data) -> 'dec_OCTETSTRING-1-255-TRUE'(Data);
 decode_disp('OCTETSTRING-1-256-TRUE', Data) -> 'dec_OCTETSTRING-1-256-TRUE'(Data);
+decode_disp('OCTETSTRING-4-16-FALSE', Data) -> 'dec_OCTETSTRING-4-16-FALSE'(Data);
+decode_disp('OCTETSTRING-8-32-FALSE', Data) -> 'dec_OCTETSTRING-8-32-FALSE'(Data);
+decode_disp('OCTETSTRING-16-64-FALSE', Data) -> 'dec_OCTETSTRING-16-64-FALSE'(Data);
+decode_disp('OCTETSTRING-4-16-TRUE', Data) -> 'dec_OCTETSTRING-4-16-TRUE'(Data);
+decode_disp('OCTETSTRING-8-32-TRUE', Data) -> 'dec_OCTETSTRING-8-32-TRUE'(Data);
+decode_disp('OCTETSTRING-16-64-TRUE', Data) -> 'dec_OCTETSTRING-16-64-TRUE'(Data);
 decode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 info() ->
@@ -2210,6 +2234,198 @@ V1@Pad5 = bit_size(V1@Buf2) band 7,
 V1@Add7 = V1@V3 + 1,
 <<V1@V8:V1@Add7/binary-unit:8,V1@Buf9/bitstring>> = V1@Buf4,
 {V1@V8,V1@Buf9};
+<<1:1,V1@Buf2/bitstring>> ->
+V1@Pad6 = bit_size(V1@Buf2) band 7,
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<_:V1@Pad6,0:1,V1@V8:7,V1@V10:V1@V8/binary-unit:8,V1@Buf11/bitstring>> ->
+{V1@V10,V1@Buf11};
+<<_:V1@Pad6,1:1,0:1,V1@V9:14,V1@V11:V1@V9/binary-unit:8,V1@Buf12/bitstring>> ->
+{V1@V11,V1@Buf12};
+<<_:V1@Pad6,1:1,1:1,V1@V9:6,V1@Buf10/bitstring>> ->
+{V1@V11,V1@Buf12}  = decode_fragmented(V1@V9, V1@Buf10, 8),
+{V1@V11,V1@Buf12}
+end,
+{V1@V3,V1@Buf4}
+end,
+V1@Conv13 = binary:copy(V1@V0),
+{V1@Conv13,V1@Buf1}
+end.
+
+'enc_OCTETSTRING-4-16-FALSE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 4,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 13 ->
+[<<Enc1@len@sub:4>>,
+align|Val]
+end.
+
+
+'dec_OCTETSTRING-4-16-FALSE'(Bytes) ->
+begin
+<<V1@V0:4/unsigned-unit:1,V1@Buf1/bitstring>> = Bytes,
+V1@Add2 = V1@V0 + 4,
+V1@Pad5 = bit_size(V1@Buf1) band 7,
+<<_:V1@Pad5,V1@V3:V1@Add2/binary-unit:8,V1@Buf4/bitstring>> = V1@Buf1,
+V1@Conv7 = binary:copy(V1@V3),
+{V1@Conv7,V1@Buf4}
+end.
+
+'enc_OCTETSTRING-8-32-FALSE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 8,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 25 ->
+[<<Enc1@len@sub:5>>,
+align|Val]
+end.
+
+
+'dec_OCTETSTRING-8-32-FALSE'(Bytes) ->
+begin
+<<V1@V0:5/unsigned-unit:1,V1@Buf1/bitstring>> = Bytes,
+V1@Add2 = V1@V0 + 8,
+V1@Pad5 = bit_size(V1@Buf1) band 7,
+<<_:V1@Pad5,V1@V3:V1@Add2/binary-unit:8,V1@Buf4/bitstring>> = V1@Buf1,
+V1@Conv7 = binary:copy(V1@V3),
+{V1@Conv7,V1@Buf4}
+end.
+
+'enc_OCTETSTRING-16-64-FALSE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 16,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 49 ->
+[<<Enc1@len@sub:6>>,
+align|Val]
+end.
+
+
+'dec_OCTETSTRING-16-64-FALSE'(Bytes) ->
+begin
+<<V1@V0:6/unsigned-unit:1,V1@Buf1/bitstring>> = Bytes,
+V1@Add2 = V1@V0 + 16,
+V1@Pad5 = bit_size(V1@Buf1) band 7,
+<<_:V1@Pad5,V1@V3:V1@Add2/binary-unit:8,V1@Buf4/bitstring>> = V1@Buf1,
+V1@Conv7 = binary:copy(V1@V3),
+{V1@Conv7,V1@Buf4}
+end.
+
+'enc_OCTETSTRING-4-16-TRUE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 4,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 13 ->
+[<<0:1,Enc1@len@sub:4>>,
+align|Val];
+Enc1@len < 128 ->
+[<<1:1>>,
+align,
+Enc1@len|Val];
+Enc1@len < 16384 ->
+[<<1:1>>,
+align,
+<<2:2,Enc1@len:14>>|Val];
+true ->
+[<<1:1>>,
+align|encode_fragmented(Val, 8)]
+end.
+
+
+'dec_OCTETSTRING-4-16-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:4/unsigned-unit:1,V1@Buf4/bitstring>> ->
+V1@Add5 = V1@V3 + 4,
+V1@Pad8 = bit_size(V1@Buf4) band 7,
+<<_:V1@Pad8,V1@V6:V1@Add5/binary-unit:8,V1@Buf7/bitstring>> = V1@Buf4,
+{V1@V6,V1@Buf7};
+<<1:1,V1@Buf2/bitstring>> ->
+V1@Pad6 = bit_size(V1@Buf2) band 7,
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<_:V1@Pad6,0:1,V1@V8:7,V1@V10:V1@V8/binary-unit:8,V1@Buf11/bitstring>> ->
+{V1@V10,V1@Buf11};
+<<_:V1@Pad6,1:1,0:1,V1@V9:14,V1@V11:V1@V9/binary-unit:8,V1@Buf12/bitstring>> ->
+{V1@V11,V1@Buf12};
+<<_:V1@Pad6,1:1,1:1,V1@V9:6,V1@Buf10/bitstring>> ->
+{V1@V11,V1@Buf12}  = decode_fragmented(V1@V9, V1@Buf10, 8),
+{V1@V11,V1@Buf12}
+end,
+{V1@V3,V1@Buf4}
+end,
+V1@Conv13 = binary:copy(V1@V0),
+{V1@Conv13,V1@Buf1}
+end.
+
+'enc_OCTETSTRING-8-32-TRUE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 8,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 25 ->
+[<<0:1,Enc1@len@sub:5>>,
+align|Val];
+Enc1@len < 128 ->
+[<<1:1>>,
+align,
+Enc1@len|Val];
+Enc1@len < 16384 ->
+[<<1:1>>,
+align,
+<<2:2,Enc1@len:14>>|Val];
+true ->
+[<<1:1>>,
+align|encode_fragmented(Val, 8)]
+end.
+
+
+'dec_OCTETSTRING-8-32-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:5/unsigned-unit:1,V1@Buf4/bitstring>> ->
+V1@Add5 = V1@V3 + 8,
+V1@Pad8 = bit_size(V1@Buf4) band 7,
+<<_:V1@Pad8,V1@V6:V1@Add5/binary-unit:8,V1@Buf7/bitstring>> = V1@Buf4,
+{V1@V6,V1@Buf7};
+<<1:1,V1@Buf2/bitstring>> ->
+V1@Pad6 = bit_size(V1@Buf2) band 7,
+{V1@V3,V1@Buf4} = case V1@Buf2 of
+<<_:V1@Pad6,0:1,V1@V8:7,V1@V10:V1@V8/binary-unit:8,V1@Buf11/bitstring>> ->
+{V1@V10,V1@Buf11};
+<<_:V1@Pad6,1:1,0:1,V1@V9:14,V1@V11:V1@V9/binary-unit:8,V1@Buf12/bitstring>> ->
+{V1@V11,V1@Buf12};
+<<_:V1@Pad6,1:1,1:1,V1@V9:6,V1@Buf10/bitstring>> ->
+{V1@V11,V1@Buf12}  = decode_fragmented(V1@V9, V1@Buf10, 8),
+{V1@V11,V1@Buf12}
+end,
+{V1@V3,V1@Buf4}
+end,
+V1@Conv13 = binary:copy(V1@V0),
+{V1@Conv13,V1@Buf1}
+end.
+
+'enc_OCTETSTRING-16-64-TRUE'(Val) ->
+Enc1@len = byte_size(Val),
+Enc1@len@sub = Enc1@len - 16,
+if 0 =< Enc1@len@sub, Enc1@len@sub < 49 ->
+[<<0:1,Enc1@len@sub:6>>,
+align|Val];
+Enc1@len < 128 ->
+[<<1:1>>,
+align,
+Enc1@len|Val];
+Enc1@len < 16384 ->
+[<<1:1>>,
+align,
+<<2:2,Enc1@len:14>>|Val];
+true ->
+[<<1:1>>,
+align|encode_fragmented(Val, 8)]
+end.
+
+
+'dec_OCTETSTRING-16-64-TRUE'(Bytes) ->
+begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:6/unsigned-unit:1,V1@Buf4/bitstring>> ->
+V1@Add5 = V1@V3 + 16,
+V1@Pad8 = bit_size(V1@Buf4) band 7,
+<<_:V1@Pad8,V1@V6:V1@Add5/binary-unit:8,V1@Buf7/bitstring>> = V1@Buf4,
+{V1@V6,V1@Buf7};
 <<1:1,V1@Buf2/bitstring>> ->
 V1@Pad6 = bit_size(V1@Buf2) band 7,
 {V1@V3,V1@Buf4} = case V1@Buf2 of
