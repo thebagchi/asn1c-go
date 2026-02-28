@@ -1287,20 +1287,27 @@ func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
 
 	// 16.11 Otherwise, encode with length determinant (with fragmentation
 	// support)
-	if e.aligned {
-		if err := e.codec.Align(); err != nil {
-			return err
-		}
-	}
 	return e.EncodeBitStringFragments(value.Bytes, uint64(value.BitLength),
 		lb, ub)
 }
 
 func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
 	lb *uint64, ub *uint64) error {
+	// Only align at entry for unconstrained/semi-constrained length determinant paths
+	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), EncodeConstrainedWholeNumber
+	// handles its own alignment per section 11.5.
 	if e.aligned {
-		if err := e.codec.Align(); err != nil {
-			return err
+		if ub == nil || lb == nil {
+			if err := e.codec.Align(); err != nil {
+				return err
+			}
+		}
+		if ub != nil && lb != nil {
+			if *ub >= MAX_CONSTRAINED_LENGTH {
+				if err := e.codec.Align(); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

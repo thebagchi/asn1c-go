@@ -629,20 +629,27 @@ func (d *Decoder) DecodeBitString(lb *uint64, ub *uint64, extensible bool) (*asn
 	}
 
 	// 16.11 Otherwise, decode with length determinant (with fragmentation support)
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return nil, err
-		}
-	}
 	return d.DecodeBitStringFragments(lb, ub)
 }
 
 // DecodeBitStringFragments decodes a bitstring that may be fragmented.
 // This handles the indefinite-length case where the bitstring is split into fragments.
 func (d *Decoder) DecodeBitStringFragments(lb *uint64, ub *uint64) (*asn1.BitString, error) {
+	// Only align at entry for unconstrained/semi-constrained length determinant paths
+	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), DecodeConstrainedWholeNumber
+	// handles its own alignment per section 11.5.
 	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return nil, err
+		if ub == nil || lb == nil {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+		if ub != nil && lb != nil {
+			if *ub >= MAX_CONSTRAINED_LENGTH {
+				if err := d.codec.Advance(); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
