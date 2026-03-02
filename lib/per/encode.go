@@ -2,8 +2,10 @@ package per
 
 import (
 	"encoding/asn1"
+	"fmt"
 	"math"
 	"math/bits"
+	"reflect"
 	"unsafe"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
@@ -1887,6 +1889,136 @@ func (e *Encoder) EncodeString(value string, lb *uint64, ub *uint64, extensible 
 // |  |  |  marker pair are encoded as if they were defined immediately before the extension
 // |  |  |  marker pair.
 
+// EncodeSequence encodes a struct value as an ASN.1 SEQUENCE per ITU-T X.691 section 19.
+//
+// The struct uses the following tag conventions from props.go:
+//   - `per:"opt"`            — field is OPTIONAL
+//   - `per:"ext"`            — on a `_ struct{}` field, acts as the extension marker separator
+//   - `per:"lb=N,ub=M"`     — lower/upper bounds for INTEGER, OCTET STRING, BIT STRING, etc.
+//   - `per:"lb=N,ub=M,ext"` — bounds with extensibility on the field's own type
+//   - `per:"enum=N,ext"`    — ENUMERATED with N root values, extensible
+//   - `per:"def=V"`         — DEFAULT value (field may be absent if equal to default)
+//
+// Pointer fields are not implicitly OPTIONAL; optionality is controlled by tags.
+//
+// The encoding follows these steps:
+//  1. Split fields into root components and extension additions at the `_ struct{} per:"ext"` marker
+//  2. Determine if the sequence is extensible (marker present)
+//  3. If extensible: encode extension bit (1 if any extension additions are present, 0 otherwise)
+//  4. Build and encode the root preamble bitmap (one bit per OPTIONAL/DEFAULT root field)
+//  5. Encode each present root component value
+//  6. If extension bit is 1: encode extension presence bitmap as normally-small-length + bits,
+//     then encode each present extension addition as an open type field
+func (e *Encoder) EncodeSequence(value any) error {
+	rv := reflect.ValueOf(value)
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return fmt.Errorf("EncodeSequence: nil pointer")
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("EncodeSequence: expected struct, got %s", rv.Kind())
+	}
+
+	rt := rv.Type()
+
+	// --- Phase 1: Get cached struct metadata ---
+	meta, err := GetStructMeta(rt)
+	if err != nil {
+		return fmt.Errorf("EncodeSequence: %w", err)
+	}
+
+	// --- Phase 2: Determine if any extension additions are present ---
+	hasExtensions := false
+	if meta.Extensible {
+		for _, idx := range meta.Extensions {
+			if FieldPresent(rv.Field(idx)) {
+				hasExtensions = true
+				break
+			}
+		}
+	}
+
+	// --- Phase 3: Encode extension bit (section 19.1) ---
+	if meta.Extensible {
+		if err := e.EncodeBoolean(hasExtensions); err != nil {
+			return err
+		}
+	}
+
+	// --- Phase 4: Encode root preamble bitmap (section 19.2-19.3) ---
+	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent.
+	// NOTE: Per §19.3, if len(meta.Optionals) >= 65536, the bitmap should be encoded
+	// as a constrained bit string with a length determinant. In practice no SEQUENCE
+	// has that many optional fields, so we write bits directly here.
+	for _, idx := range meta.Optionals {
+		if err := e.EncodeBoolean(FieldPresent(rv.Field(idx))); err != nil {
+			return fmt.Errorf("EncodeSequence: root preamble: %w", err)
+		}
+	}
+
+	// --- Phase 5: Encode root component values (section 19.4) ---
+	for _, id := range meta.Fields {
+		field := rt.Field(id)
+		tag, err := GetFieldTag(field, rt, id)
+		if err != nil {
+			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
+		}
+
+		if tag.Opt || tag.Def != nil && !FieldPresent(rv.Field(id)) {
+			continue // absent optional/default field
+		}
+
+		if err := e.encodeField(rv.Field(id), tag); err != nil {
+			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
+		}
+	}
+
+	// --- Phase 6: Encode extension additions (sections 19.6-19.9) ---
+	if !meta.Extensible || !hasExtensions {
+		return nil // section 19.6: done if no extension bit or extension bit is 0
+	}
+
+	// Section 19.7-19.8: Encode extension bitmap preceded by normally-small-length
+	n := len(meta.Extensions)
+	if _, err := e.EncodeNormallySmallLength(uint64(n)); err != nil {
+		return fmt.Errorf("EncodeSequence: extension bitmap length: %w", err)
+	}
+	// One bit per extension addition: 1 = present, 0 = absent
+	for _, idx := range meta.Extensions {
+		if err := e.EncodeBoolean(FieldPresent(rv.Field(idx))); err != nil {
+			return fmt.Errorf("EncodeSequence: extension bitmap: %w", err)
+		}
+	}
+
+	// Section 19.9: Encode each present extension addition as open type
+	for _, idx := range meta.Extensions {
+		if !FieldPresent(rv.Field(idx)) {
+			continue
+		}
+		field := rt.Field(idx)
+		tag, err := GetFieldTag(field, rt, idx)
+		if err != nil {
+			return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
+		}
+
+		// Section 19.9 / 11.2: encode extension addition as open type field.
+		// Encode into a temporary encoder, then write as unconstrained octet string.
+		{
+			tmp := NewEncoder(e.aligned)
+			if err := tmp.encodeField(rv.Field(idx), tag); err != nil {
+				return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
+			}
+			if err := e.EncodeOctetString(tmp.Bytes(), nil, nil, false); err != nil {
+				return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // 20 Encoding the sequence-of type
 // |- 20.1 PER-visible constraints can constrain the number of components of the sequence-of
 // |  |  type.
@@ -1916,6 +2048,137 @@ func (e *Encoder) EncodeString(value string, lb *uint64, ub *uint64, extensible 
 // |  |  |  components.
 // |  |- NOTE 2 - The break-points for fragmentation are between fields. The number of bits
 // |  |  |  prior to a break-point are not necessarily a multiple of eight.
+
+// EncodeSequenceOf encodes a SEQUENCE OF value per ITU-T X.691 section 20.
+//
+// The value must be a slice or array. Each element is encoded in order.
+// lb/ub constrain the number of components; extensible indicates an extension marker.
+//
+// Encoding steps:
+//  1. §20.4: If extensible and count outside [lb..ub], encode extension bit=1 +
+//     semi-constrained length + all components. Otherwise extension bit=0 and proceed.
+//  2. §20.5: If fixed length (lb==ub) and < 64K, no length determinant — just encode components.
+//  3. §20.6: Encode length determinant (constrained if ub set, semi-constrained otherwise)
+//     with fragmentation support for large lists, then encode components.
+func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible bool) error {
+	rv := reflect.ValueOf(value)
+	// Resolve pointer indirection
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return fmt.Errorf("EncodeSequenceOf: nil pointer")
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return fmt.Errorf("EncodeSequenceOf: expected slice or array, got %s", rv.Kind())
+	}
+
+	n := uint64(rv.Len())
+
+	// §20.4: If extensible, encode extension bit
+	if extensible {
+		extended := false
+		if lb != nil && n < *lb {
+			extended = true
+		}
+		if ub != nil && n > *ub {
+			extended = true
+		}
+
+		if extended {
+			if err := e.codec.Write(1, 1); err != nil {
+				return err
+			}
+			// Encode as semi-constrained: length determinant with lb=0, then all components
+			zero := uint64(0)
+			return e.encodeSequenceOfComponents(rv, n, &zero, nil)
+		}
+		if err := e.codec.Write(1, 0); err != nil {
+			return err
+		}
+	}
+
+	// §20.5: Fixed length (lb == ub) and < 64K — no length determinant
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
+		for i := range int(n) {
+			if err := e.encodeElement(rv.Index(i)); err != nil {
+				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
+			}
+		}
+		return nil
+	}
+
+	// §20.6: Length determinant + components (with fragmentation)
+	return e.encodeSequenceOfComponents(rv, n, lb, ub)
+}
+
+// encodeSequenceOfComponents encodes length determinant(s) and components,
+// handling fragmentation per §11.9 for large lists.
+func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uint64, ub *uint64) error {
+	offset := uint64(0)
+
+	for offset < n {
+		remaining := n - offset
+		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+		if err != nil {
+			return err
+		}
+
+		// Determine how many components to encode in this fragment
+		var count uint64
+		if pending == 0 {
+			count = remaining
+		} else {
+			count = remaining - pending
+		}
+
+		// Encode components in this fragment
+		for i := offset; i < offset+count; i++ {
+			if err := e.encodeElement(rv.Index(int(i))); err != nil {
+				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
+			}
+		}
+
+		offset += count
+
+		if pending != 0 {
+			continue
+		}
+
+		// Per §11.9.3.8: trailing zero-length if fragmentation was used and all fit exactly
+		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
+			if remaining >= FRAGMENT_SIZE {
+				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
+					return err
+				}
+			}
+		}
+		break
+	}
+
+	// Handle empty list: still need to encode length determinant of 0
+	if n == 0 {
+		_, err := e.EncodeLengthDeterminant(0, lb, ub)
+		return err
+	}
+
+	return nil
+}
+
+// encodeElement encodes a single element of a SEQUENCE OF.
+// It dispatches based on the element's type, using an empty Tag (no PER constraints on elements).
+func (e *Encoder) encodeElement(v reflect.Value) error {
+	// Resolve pointer indirection
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return fmt.Errorf("encodeElement: nil element")
+		}
+		v = v.Elem()
+	}
+
+	tag := &Tag{}
+	return e.encodeField(v, tag)
+}
 
 // 23 Encoding the choice type
 // |- NOTE - (Tutorial) A choice type is encoded by encoding an index specifying the chosen
@@ -1969,3 +2232,238 @@ func (e *Encoder) EncodeString(value string, lb *uint64, ub *uint64, extensible 
 // |  |  field as specified in 11.2, completing the procedures of this clause.
 // |  |- NOTE - Version brackets in the definition of choice extension additions have no effect
 // |  |  |  on how "ExtensionAdditionAlternatives" are encoded.
+
+// EncodeChoice encodes a CHOICE value per ITU-T X.691 section 23.
+//
+// A CHOICE struct has fields tagged `per:"choice=N"` where N is the alternative index.
+// Exactly one field (pointer) must be non-nil, representing the chosen alternative.
+// Root alternatives appear before the `_ struct{} per:"ext"` marker; extensions after.
+//
+// Encoding steps:
+//  1. Find the single present (non-nil) field and its choice index
+//  2. Determine if it is a root alternative or an extension addition
+//  3. If extensible (§23.5): encode extension bit (1 if extension, 0 if root)
+//  4. Root (§23.6/23.7): encode choice index as constrained integer [0..n], then value
+//  5. Extension (§23.8): encode choice index as normally small non-negative whole number,
+//     then encode value as open type field (§11.2)
+func (e *Encoder) EncodeChoice(value any) error {
+	rv := reflect.ValueOf(value)
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return fmt.Errorf("EncodeChoice: nil pointer")
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("EncodeChoice: expected struct, got %s", rv.Kind())
+	}
+
+	rt := rv.Type()
+
+	meta, err := GetStructMeta(rt)
+	if err != nil {
+		return fmt.Errorf("EncodeChoice: %w", err)
+	}
+
+	// --- Find the chosen alternative ---
+	// Scan root fields first, then extensions
+	var (
+		choiceIndex   = -1 // struct field index
+		fieldPosition = -1 // position within root or extension alternatives (0-based)
+		extended      = false
+	)
+	for pos, idx := range meta.Fields {
+		if FieldPresent(rv.Field(idx)) {
+			if choiceIndex != -1 {
+				return fmt.Errorf("EncodeChoice: multiple alternatives present in %v", rt)
+			}
+			choiceIndex = idx
+			fieldPosition = pos
+		}
+	}
+	if choiceIndex == -1 {
+		for pos, idx := range meta.Extensions {
+			if FieldPresent(rv.Field(idx)) {
+				if choiceIndex != -1 {
+					return fmt.Errorf("EncodeChoice: multiple alternatives present in %v", rt)
+				}
+				choiceIndex = idx
+				fieldPosition = pos
+				extended = true
+			}
+		}
+	}
+	if choiceIndex == -1 {
+		return fmt.Errorf("EncodeChoice: no alternative present in %v", rt)
+	}
+
+	field := rt.Field(choiceIndex)
+	tag, err := GetFieldTag(field, rt, choiceIndex)
+	if err != nil {
+		return fmt.Errorf("EncodeChoice: field %q: %w", field.Name, err)
+	}
+
+	n := int64(len(meta.Fields) - 1) // largest root index
+
+	// --- Section 23.5: Extension bit ---
+	if meta.Extensible {
+		if err := e.EncodeBoolean(extended); err != nil {
+			return err
+		}
+	}
+
+	if !extended {
+		// --- Section 23.4: Single root alternative => no index encoding ---
+		// --- Section 23.6/23.7: Encode root choice index as constrained integer [0..n] ---
+		if n > 0 {
+			if err := e.EncodeConstrainedWholeNumber(0, n, int64(fieldPosition)); err != nil {
+				return fmt.Errorf("EncodeChoice: index: %w", err)
+			}
+		}
+
+		// Encode the chosen alternative value
+		return e.encodeField(rv.Field(choiceIndex), tag)
+	}
+
+	// --- Section 23.8: Extension alternative ---
+	// Encode index as normally small non-negative whole number
+	if err := e.EncodeNormallySmallNonNegativeWholeNumber(uint64(fieldPosition)); err != nil {
+		return fmt.Errorf("EncodeChoice: extension index: %w", err)
+	}
+
+	// Encode the value as open type field (§11.2):
+	// encode into temporary encoder, then write as unconstrained octet string
+	{
+		tmp := NewEncoder(e.aligned)
+		if err := tmp.encodeField(rv.Field(choiceIndex), tag); err != nil {
+			return fmt.Errorf("EncodeChoice: extension field %q: %w", field.Name, err)
+		}
+		if err := e.EncodeOctetString(tmp.Bytes(), nil, nil, false); err != nil {
+			return fmt.Errorf("EncodeChoice: extension field %q: %w", field.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// encodeField encodes a single struct field value according to its type and PER tag.
+// It resolves pointer indirection and dispatches to the appropriate type-specific encoder.
+func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
+	// Resolve pointer indirection
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil // absent optional field
+		}
+		v = v.Elem()
+	}
+
+	fieldType := v.Type()
+
+	// Handle well-known concrete types via type assertion first
+	switch v.Interface().(type) {
+	case asn1.BitString:
+		bs := v.Interface().(asn1.BitString)
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		return e.EncodeBitString(&bs, lb, ub, tag.Ext)
+
+	case asn1.ObjectIdentifier:
+		oid := v.Interface().(asn1.ObjectIdentifier)
+		return e.EncodeObjectIdentifier(oid)
+
+	case NULL:
+		return e.EncodeNull()
+
+	case Empty:
+		return e.EncodeNull()
+	}
+
+	// Dispatch by reflect.Kind for primitive and generic types
+	switch fieldType.Kind() {
+	case reflect.Bool:
+		return e.EncodeBoolean(v.Bool())
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return e.EncodeInteger(v.Int(), tag.LB, tag.UB, tag.Ext)
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if tag.Enum != nil {
+			return e.EncodeEnumerated(v.Uint(), *tag.Enum, tag.Ext)
+		}
+		return e.EncodeInteger(int64(v.Uint()), tag.LB, tag.UB, tag.Ext)
+
+	case reflect.Float32, reflect.Float64:
+		return e.EncodeReal(v.Float())
+
+	case reflect.String:
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		return e.EncodeString(v.String(), lb, ub, tag.Ext)
+
+	case reflect.Slice:
+		// []byte (OCTET STRING)
+		if fieldType.Elem().Kind() == reflect.Uint8 {
+			data := v.Bytes()
+			var lb, ub *uint64
+			if tag.LB != nil {
+				l := uint64(*tag.LB)
+				lb = &l
+			}
+			if tag.UB != nil {
+				u := uint64(*tag.UB)
+				ub = &u
+			}
+			return e.EncodeOctetString(data, lb, ub, tag.Ext)
+		}
+		// SEQUENCE OF
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext)
+
+	case reflect.Array:
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext)
+
+	case reflect.Struct:
+		meta, err := GetStructMeta(fieldType)
+		if err != nil {
+			return fmt.Errorf("encodeField: %s: %w", fieldType, err)
+		}
+		if meta.Choice {
+			return e.EncodeChoice(v.Interface())
+		}
+		return e.EncodeSequence(v.Interface())
+
+	default:
+		return fmt.Errorf("encodeField: unsupported type %s", fieldType)
+	}
+}

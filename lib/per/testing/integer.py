@@ -600,6 +600,51 @@ def main():
         # ---- Extensible semi-constrained, value below lb ----
         make_integer(-201, -200, None, True),
         make_integer(99, 100, None, True),
+        # ---- Gap 1: Non-zero positive LB with high offset ----
+        # (3..6): range=4, 2 bits; offset=value-3
+        make_integer(3, 3, 6, False),
+        make_integer(4, 3, 6, False),
+        make_integer(6, 3, 6, False),
+        make_integer(2, 3, 6, True),
+        make_integer(7, 3, 6, True),
+        # (4000..4254): range=255, 8 bits; offset=value-4000
+        make_integer(4000, 4000, 4254, False),
+        make_integer(4127, 4000, 4254, False),
+        make_integer(4254, 4000, 4254, False),
+        make_integer(3999, 4000, 4254, True),
+        make_integer(4255, 4000, 4254, True),
+        # (4000..4255): range=256, 9 bits UPER / 2 bytes APER; offset=value-4000
+        make_integer(4000, 4000, 4255, False),
+        make_integer(4128, 4000, 4255, False),
+        make_integer(4255, 4000, 4255, False),
+        make_integer(3999, 4000, 4255, True),
+        make_integer(4256, 4000, 4255, True),
+        # ---- Gap 2: Non-power-of-2 range (APER != UPER) ----
+        # (0..32000): range=32001, 15 bits; APER pads to 2 bytes, UPER uses 15 bits
+        make_integer(0, 0, 32000, False),
+        make_integer(16000, 0, 32000, False),
+        make_integer(31000, 0, 32000, False),
+        make_integer(32000, 0, 32000, False),
+        make_integer(32001, 0, 32000, True),
+        # ---- Gap 3: Large range > 65536 with non-zero positive LB ----
+        # (1..65538): range=65538, > 65536; APER uses length-determinant prefix
+        make_integer(1, 1, 65538, False),
+        make_integer(257, 1, 65538, False),
+        make_integer(32770, 1, 65538, False),
+        make_integer(65538, 1, 65538, False),
+        make_integer(0, 1, 65538, True),
+        make_integer(65539, 1, 65538, True),
+        # ---- Gap 4: Semi-constrained with -1 lower bound ----
+        # (-1..MAX): offset encoding, offset=value-(-1)=value+1
+        make_integer(-1, -1, None, False),
+        make_integer(0, -1, None, False),
+        make_integer(255, -1, None, False),
+        make_integer(4096, -1, None, False),
+        # ---- Gap 5: Extensible semi-constrained with -1 LB ----
+        make_integer(-1, -1, None, True),
+        make_integer(0, -1, None, True),
+        make_integer(-2, -1, None, True),
+        make_integer(-100, -1, None, True),
     ]
     for case in cases:
         value = case["value"]
@@ -1139,6 +1184,61 @@ def main():
         make_integer(100000, 0, 1000, True),
         make_integer(10000000, 0, 65536, True),
         make_integer(-1000, 0, 1000, True),
+        # ---- Gap 1: Non-zero positive LB with high offset ----
+        # Constrained (3..6): range=4, 2 bits
+        make_integer(3, 3, 6, False),
+        make_integer(4, 3, 6, False),
+        make_integer(6, 3, 6, False),
+        make_integer(2, 3, 6, True),
+        make_integer(3, 3, 6, True),
+        make_integer(6, 3, 6, True),
+        make_integer(7, 3, 6, True),
+        # Constrained (4000..4254): range=255, 8 bits
+        make_integer(4000, 4000, 4254, False),
+        make_integer(4127, 4000, 4254, False),
+        make_integer(4254, 4000, 4254, False),
+        make_integer(3999, 4000, 4254, True),
+        make_integer(4000, 4000, 4254, True),
+        make_integer(4254, 4000, 4254, True),
+        make_integer(4255, 4000, 4254, True),
+        # Constrained (4000..4255): range=256, 9 bits UPER / 2 bytes APER
+        make_integer(4000, 4000, 4255, False),
+        make_integer(4128, 4000, 4255, False),
+        make_integer(4255, 4000, 4255, False),
+        make_integer(3999, 4000, 4255, True),
+        make_integer(4000, 4000, 4255, True),
+        make_integer(4255, 4000, 4255, True),
+        make_integer(4256, 4000, 4255, True),
+        # ---- Gap 2: Non-power-of-2 range (APER != UPER) ----
+        # Constrained (0..32000): range=32001, 15 bits
+        make_integer(0, 0, 32000, False),
+        make_integer(16000, 0, 32000, False),
+        make_integer(31000, 0, 32000, False),
+        make_integer(32000, 0, 32000, False),
+        make_integer(0, 0, 32000, True),
+        make_integer(32000, 0, 32000, True),
+        make_integer(32001, 0, 32000, True),
+        # ---- Gap 3: Large range > 65536 with non-zero LB ----
+        # Constrained (1..65538): range=65538
+        make_integer(1, 1, 65538, False),
+        make_integer(257, 1, 65538, False),
+        make_integer(32770, 1, 65538, False),
+        make_integer(65538, 1, 65538, False),
+        make_integer(0, 1, 65538, True),
+        make_integer(1, 1, 65538, True),
+        make_integer(65538, 1, 65538, True),
+        make_integer(65539, 1, 65538, True),
+        # ---- Gap 4: Semi-constrained with -1 LB ----
+        # Semi-constrained (-1..MAX)
+        make_integer(-1, -1, None, False),
+        make_integer(0, -1, None, False),
+        make_integer(255, -1, None, False),
+        make_integer(4096, -1, None, False),
+        # ---- Gap 5: Extensible semi-constrained with -1 LB ----
+        make_integer(-1, -1, None, True),
+        make_integer(0, -1, None, True),
+        make_integer(-2, -1, None, True),
+        make_integer(-100, -1, None, True),
         # Large unconstrained values (5-8 byte encoding)
         make_integer(4294967296, None, None, False),
         make_integer(-4294967296, None, None, False),
