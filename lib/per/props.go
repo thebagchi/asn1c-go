@@ -8,6 +8,18 @@ import (
 	"sync"
 )
 
+// Supported PER struct tag directives (per:"..."):
+//
+//   opt           — field is OPTIONAL
+//   ext           — type has extension marker (...)
+//   lb=N          — lower bound constraint
+//   ub=N          — upper bound constraint
+//   choice=N      — CHOICE alternative index
+//   enum=N        — ENUMERATED root value count
+//   def=V         — DEFAULT value
+//   open          — field is an ASN.1 Open Type (interface value, resolved by generated code)
+//   elem(...)     — element-level constraints for SEQUENCE OF / SET OF (e.g. elem(lb=0,ub=255,ext))
+//
 // Example usage:
 //
 //		------------------ ENUMERATED ------------------
@@ -18,7 +30,6 @@ import (
 //			StatusConnecting                   // 1: Establishing connection
 //			StatusActive                       // 2: System is active
 //			StatusError                        // 3: Error state
-//			// Future extension values would start at 4 or higher
 //		)
 //
 //		------------------ CHOICE ------------------
@@ -26,52 +37,98 @@ import (
 //			Value int64 `per:"lb=1,ub=10000"` // Bandwidth value in Mbps (1-10000)
 //		}
 //		type ActionChoice struct {
-//			// Root alternatives (indices 0–2)
-//			Start  *bool            `per:"choice=0"`   // Start operation
-//			Stop   *bool            `per:"choice=1"`   // Stop operation
-//			Config *BandwidthConfig `per:"choice=2"`   // Configure bandwidth
+//			Start  *bool            `per:"choice=0"`   // Root alternative 0
+//			Stop   *bool            `per:"choice=1"`   // Root alternative 1
+//			Config *BandwidthConfig `per:"choice=2"`   // Root alternative 2
 //			_      struct{}         `per:"ext"`        // Extension marker
-//			Pause  *bool            `per:"choice=3"`   // Pause operation (extension)
-//			Resume *bool            `per:"choice=4"`   // Resume operation (extension)
-//			Reboot *bool            `per:"choice=5"`   // Reboot system (extension)
+//			Pause  *bool            `per:"choice=3"`   // Extension alternative
 //		}
 //
-//
-//		------------------ SEQUENCE OF (List) ------------------
+//		------------------ SEQUENCE OF ------------------
 //		type Channel struct {
-//			ID    int64 `per:"lb=1,ub=1000"` // Channel identifier (1-1000)
-//			Power int64 `per:"lb=0,ub=100"`  // Power level in dBm (0-100)
+//			ID    int64 `per:"lb=1,ub=1000"`
+//			Power int64 `per:"lb=0,ub=100"`
 //		}
 //		type ChannelList struct {
-//			FixedChannels      [8]Channel `per:"lb=8,ub=8"`            // Exactly 8 channels required
-//			VariableChannels   []Channel  `per:"lb=0,ub=16"`           // 0-16 channels allowed
-//			ExtensibleChannels []Channel  `per:"lb=1,ub=5,ext"`        // 1-5 in root, extensible
+//			FixedChannels      [8]Channel `per:"lb=8,ub=8"`
+//			VariableChannels   []Channel  `per:"lb=0,ub=16"`
+//			ExtensibleChannels []Channel  `per:"lb=1,ub=5,ext"`
 //		}
+//
+//		------------------ SEQUENCE OF with element constraints ------------------
+//		// When both the list and its elements have constraints, use elem() to
+//		// specify element-level bounds. The outer lb/ub constrain the list length;
+//		// the inner elem() constrains each element value.
+//		type ConstrainedIntList struct {
+//			Values []int64 `per:"lb=1,ub=10,elem(lb=0,ub=255)"`          // 1-10 ints, each 0-255
+//			Codes  []int64 `per:"lb=0,ub=100,ext,elem(lb=0,ub=65535)"`   // extensible list, each 0-65535
+//		}
+//
+//		------------------ OPEN TYPE ------------------
+//		// Open types are fields whose concrete type is determined at runtime
+//		// by a discriminant (e.g. ProcedureCode). The field must be an interface
+//		// type implementing OpenTypeValue. Dispatch (encode/decode) is provided
+//		// by generated code.
+//		//
+//		type InitiatingMessage struct {
+//			ProcedureCode int64                  `per:"lb=0,ub=255"`
+//			Criticality   uint64                 `per:"enum=3"`
+//			Value         InitiatingMessageValue `per:"open"`  // resolved by generated switch
+//		}
+//
+//		// InitiatingMessageValue interface:
+//		//   type InitiatingMessageValue interface {
+//		//       ProcedureCode() int64
+//		//       Criticality()   uint64
+//		//   }
+//
+//		// Concrete types implement InitiatingMessageValue:
+//		type NGSetupRequestIEs struct {
+//			// ... fields
+//		}
+//
+//		func (*NGSetupRequestIEs) ProcedureCode() int64 {
+//			return 21
+//		}
+//
+//		func (*NGSetupRequestIEs) Criticality() uint64 {
+//			return 0
+//		}
+//
+//		// Generated dispatch (not in this file — produced by code generator):
+//		// func EncodeInitiatingMessageValue(e *Encoder, v InitiatingMessageValue) error {
+//		//     switch v.ProcedureCode() {
+//		//     case 21: return e.EncodeOpenType(v.(*NGSetupRequestIEs))
+//		//     ...
+//		//     }
+//		// }
 //
 //		------------------ FULL CONSOLIDATED EXAMPLE ------------------
 //		type FullMessage struct {
-//			MessageID     int64            `per:"lb=1,ub=100000"`       // Unique message identifier (1-100000)
-//			Priority      *int64           `per:"lb=0,ub=10"`           // Message priority level (0-10, optional)
-//			Flags         asn1.BitString   `per:"lb=32,ub=32"`          // Fixed 32-bit flag set
-//			Mask          asn1.BitString   `per:"lb=0,ub=64"`           // Variable mask up to 64 bits
-//			Payload       []byte           `per:"lb=0,ub=1024"`         // Binary payload data (0-1024 bytes)
-//			Status        StatusType       `per:"enum=4,ext"`           // Current system status (4 root values + extensible)
-//			Action        ActionChoice     `per:"ext"`                  // Action to perform (extensible choice)
-//			Channels      []Channel        `per:"lb=1,ub=8,ext"`        // List of channels (1-8 in root, extensible)
-//			_             struct{}         `per:"ext"`                  // Extension marker for the SEQUENCE
-//			FutureVersion *int64           `per:""`                     // Future version field (extension)
-//			Experimental  *BandwidthConfig `per:""`                     // Experimental bandwidth config (extension)
+//			MessageID     int64            `per:"lb=1,ub=100000"`
+//			Priority      *int64           `per:"lb=0,ub=10"`
+//			Flags         asn1.BitString   `per:"lb=32,ub=32"`
+//			Payload       []byte           `per:"lb=0,ub=1024"`
+//			Status        StatusType       `per:"enum=4,ext"`
+//			Action        ActionChoice     `per:"ext"`
+//			Channels      []Channel        `per:"lb=1,ub=8,ext"`
+//			Scores        []int64          `per:"lb=0,ub=50,elem(lb=0,ub=100)"`
+//			_             struct{}         `per:"ext"`
+//			FutureVersion *int64           `per:""`
+//			Experimental  *BandwidthConfig `per:""`
 //		}
 
 const (
 	TAG_KEY            = "per"
 	TAG_OPTIONAL       = "opt"
 	TAG_EXTENSIBLE     = "ext"
+	TAG_OPEN           = "open"
 	TAG_PREFIX_CHOICE  = "choice="
 	TAG_PREFIX_ENUM    = "enum="
 	TAG_PREFIX_LB      = "lb="
 	TAG_PREFIX_UB      = "ub="
 	TAG_PREFIX_DEFAULT = "def="
+	TAG_PREFIX_ELEM    = "elem("
 )
 
 type Tag struct {
@@ -82,6 +139,8 @@ type Tag struct {
 	UB     *int64  // upper bound
 	Choice *int    // CHOICE alternative index
 	Enum   *uint64 // ENUMERATED root value count
+	Open   bool    // field is an ASN.1 Open Type (interface value, resolved by generated code)
+	Elem   *Tag    // element constraints for SEQUENCE OF / SET OF (e.g. elem(lb=0,ub=255))
 }
 
 func parseTag(tag string) (*Tag, error) {
@@ -91,8 +150,48 @@ func parseTag(tag string) (*Tag, error) {
 		return result, nil
 	}
 
-	for part := range strings.SplitSeq(tag, ",") {
+	// Pre-extract elem(...) before comma-splitting, since it contains commas.
+	// Find "elem(" and its matching ")".
+	var remaining string
+	if idx := strings.Index(tag, TAG_PREFIX_ELEM); idx >= 0 {
+		// Find the matching closing parenthesis
+		start := idx + len(TAG_PREFIX_ELEM)
+		depth := 1
+		end := -1
+		for i := start; i < len(tag); i++ {
+			switch tag[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					end = i
+				}
+			}
+			if end >= 0 {
+				break
+			}
+		}
+		if end < 0 {
+			return nil, fmt.Errorf("unmatched parenthesis in elem() tag")
+		}
+		inner := tag[start:end]
+		elemTag, err := parseTag(inner)
+		if err != nil {
+			return nil, fmt.Errorf("elem() tag: %w", err)
+		}
+		result.Elem = elemTag
+		// Remove elem(...) from the tag string for normal parsing
+		remaining = tag[:idx] + tag[end+1:]
+	} else {
+		remaining = tag
+	}
+
+	for part := range strings.SplitSeq(remaining, ",") {
 		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
 
 		switch {
 		case part == TAG_OPTIONAL:
@@ -100,6 +199,9 @@ func parseTag(tag string) (*Tag, error) {
 
 		case part == TAG_EXTENSIBLE:
 			result.Ext = true
+
+		case part == TAG_OPEN:
+			result.Open = true
 
 		case strings.HasPrefix(part, TAG_PREFIX_CHOICE):
 			s := strings.TrimPrefix(part, TAG_PREFIX_CHOICE)
@@ -148,6 +250,7 @@ func parseTag(tag string) (*Tag, error) {
 		case strings.HasPrefix(part, TAG_PREFIX_DEFAULT):
 			val := strings.Trim(strings.TrimPrefix(part, TAG_PREFIX_DEFAULT), `"`)
 			result.Def = &val
+
 		}
 	}
 

@@ -3,7 +3,9 @@ package per
 import (
 	"bytes"
 	"encoding/asn1"
+	"fmt"
 	"math"
+	"reflect"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
 )
@@ -830,4 +832,522 @@ func (d *Decoder) DecodeString(lb *uint64, ub *uint64, extensible bool) (string,
 
 	// Convert octets to string
 	return string(octets), nil
+}
+
+// DecodeSequence decodes a SEQUENCE value per ITU-T X.691 section 19.
+//
+// The target must be a pointer to a struct. Fields are decoded according to
+// their PER struct tags and the pre-computed StructMeta.
+//
+// Decoding steps:
+//  1. §19.1: If extensible, decode extension bit
+//  2. §19.2-19.3: Decode root preamble bitmap (one bit per OPTIONAL/DEFAULT field)
+//  3. §19.4: Decode root component values in order
+//  4. §19.6-19.9: If extension bit is set, decode extension bitmap then each
+//     present extension addition as an open type
+func (d *Decoder) DecodeSequence(value any) error {
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return fmt.Errorf("DecodeSequence: expected non-nil pointer, got %T", value)
+	}
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("DecodeSequence: expected pointer to struct, got pointer to %s", rv.Kind())
+	}
+
+	rt := rv.Type()
+
+	// --- Phase 1: Get cached struct metadata ---
+	meta, err := GetStructMeta(rt)
+	if err != nil {
+		return fmt.Errorf("DecodeSequence: %w", err)
+	}
+
+	// --- Phase 2: Decode extension bit (section 19.1) ---
+	hasExtensions := false
+	if meta.Extensible {
+		hasExtensions, err = d.DecodeBoolean()
+		if err != nil {
+			return fmt.Errorf("DecodeSequence: extension bit: %w", err)
+		}
+	}
+
+	// --- Phase 3: Decode root preamble bitmap (section 19.2-19.3) ---
+	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent.
+	optPresent := make(map[int]bool, len(meta.Optionals))
+	for _, idx := range meta.Optionals {
+		present, err := d.DecodeBoolean()
+		if err != nil {
+			return fmt.Errorf("DecodeSequence: root preamble: %w", err)
+		}
+		optPresent[idx] = present
+	}
+
+	// --- Phase 4: Decode root component values (section 19.4) ---
+	for _, id := range meta.Fields {
+		field := rt.Field(id)
+		tag, err := GetFieldTag(field, rt, id)
+		if err != nil {
+			return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
+		}
+
+		// Skip absent optional/default fields
+		if tag.Opt || tag.Def != nil {
+			if !optPresent[id] {
+				continue
+			}
+		}
+
+		if err := d.decodeField(rv.Field(id), tag); err != nil {
+			return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
+		}
+	}
+
+	// --- Phase 5: Decode extension additions (sections 19.6-19.9) ---
+	if !meta.Extensible || !hasExtensions {
+		return nil
+	}
+
+	// Section 19.7-19.8: Decode extension bitmap preceded by normally-small-length
+	extCount, _, err := d.DecodeNormallySmallLength()
+	if err != nil {
+		return fmt.Errorf("DecodeSequence: extension bitmap length: %w", err)
+	}
+
+	// Decode presence bitmap for extensions
+	extPresent := make([]bool, extCount)
+	for i := range extCount {
+		extPresent[i], err = d.DecodeBoolean()
+		if err != nil {
+			return fmt.Errorf("DecodeSequence: extension bitmap: %w", err)
+		}
+	}
+
+	// Section 19.9: Decode each present extension addition as open type
+	for i := range extCount {
+		if !extPresent[i] {
+			continue
+		}
+
+		// Decode open type wrapper: unconstrained octet string
+		openBytes, err := d.DecodeOctetString(nil, nil, false)
+		if err != nil {
+			return fmt.Errorf("DecodeSequence: extension %d: %w", i, err)
+		}
+
+		// If we have a known extension field for this index, decode into it
+		if int(i) < len(meta.Extensions) {
+			idx := meta.Extensions[i]
+			field := rt.Field(idx)
+			tag, err := GetFieldTag(field, rt, idx)
+			if err != nil {
+				return fmt.Errorf("DecodeSequence: extension field %q: %w", field.Name, err)
+			}
+
+			tmpDecoder := NewDecoder(openBytes, d.aligned)
+			if err := tmpDecoder.decodeField(rv.Field(idx), tag); err != nil {
+				return fmt.Errorf("DecodeSequence: extension field %q: %w", field.Name, err)
+			}
+		}
+		// Unknown extensions (index >= len(meta.Extensions)) are silently skipped
+	}
+
+	return nil
+}
+
+// DecodeSequenceOf decodes a SEQUENCE OF value per ITU-T X.691 section 20.
+//
+// The target must be a pointer to a slice. Each element is decoded in order.
+// lb/ub constrain the number of components; extensible indicates an extension marker.
+//
+// Decoding steps:
+//  1. §20.4: If extensible, decode extension bit. If set, decode as semi-constrained
+//     length + all components.
+//  2. §20.5: If fixed length (lb==ub) and < 64K, no length determinant — just decode components.
+//  3. §20.6: Decode length determinant (constrained if ub set, semi-constrained otherwise)
+//     with fragmentation support, then decode components.
+func (d *Decoder) DecodeSequenceOf(target any, lb *uint64, ub *uint64, extensible bool, elemTag *Tag) error {
+	rv := reflect.ValueOf(target)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return fmt.Errorf("DecodeSequenceOf: expected non-nil pointer, got %T", target)
+	}
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Slice {
+		return fmt.Errorf("DecodeSequenceOf: expected pointer to slice, got pointer to %s", rv.Kind())
+	}
+
+	elemType := rv.Type().Elem()
+
+	// §20.4: If extensible, decode extension bit
+	if extensible {
+		extended, err := d.DecodeBoolean()
+		if err != nil {
+			return fmt.Errorf("DecodeSequenceOf: extension bit: %w", err)
+		}
+
+		if extended {
+			// Decode as semi-constrained: length with lb=0, then components
+			zero := uint64(0)
+			return d.decodeSequenceOfComponents(rv, elemType, &zero, nil, elemTag)
+		}
+	}
+
+	// §20.5: Fixed length (lb == ub) and < 64K — no length determinant
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
+		n := int(*ub)
+		for i := range n {
+			elem := reflect.New(elemType).Elem()
+			if err := d.decodeField(elem, elemTag); err != nil {
+				return fmt.Errorf("DecodeSequenceOf: element %d: %w", i, err)
+			}
+			rv.Set(reflect.Append(rv, elem))
+		}
+		return nil
+	}
+
+	// §20.6: Length determinant + components (with fragmentation)
+	return d.decodeSequenceOfComponents(rv, elemType, lb, ub, elemTag)
+}
+
+// decodeSequenceOfComponents decodes length determinant(s) and components,
+// handling fragmentation per §11.9 for large lists.
+func (d *Decoder) decodeSequenceOfComponents(rv reflect.Value, elemType reflect.Type, lb *uint64, ub *uint64, elemTag *Tag) error {
+	for {
+		length, more, err := d.DecodeLengthDeterminant(lb, ub)
+		if err != nil {
+			return fmt.Errorf("DecodeSequenceOf: length: %w", err)
+		}
+
+		for i := range int(length) {
+			elem := reflect.New(elemType).Elem()
+			if err := d.decodeField(elem, elemTag); err != nil {
+				return fmt.Errorf("DecodeSequenceOf: element %d: %w", i, err)
+			}
+			rv.Set(reflect.Append(rv, elem))
+		}
+
+		if !more {
+			break
+		}
+	}
+
+	return nil
+}
+
+// DecodeChoice decodes a CHOICE value per ITU-T X.691 section 23.
+//
+// The target must be a pointer to a struct with fields tagged `per:"choice=N"`.
+// Exactly one field will be set after decoding.
+//
+// Decoding steps:
+//  1. If extensible (§23.5): decode extension bit
+//  2. Root (§23.6/23.7): decode choice index as constrained integer [0..n],
+//     then decode the chosen alternative
+//  3. Extension (§23.8): decode choice index as normally small non-negative whole number,
+//     then decode value as open type field (§11.2)
+func (d *Decoder) DecodeChoice(value any) error {
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return fmt.Errorf("DecodeChoice: expected non-nil pointer, got %T", value)
+	}
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("DecodeChoice: expected pointer to struct, got pointer to %s", rv.Kind())
+	}
+
+	rt := rv.Type()
+
+	meta, err := GetStructMeta(rt)
+	if err != nil {
+		return fmt.Errorf("DecodeChoice: %w", err)
+	}
+
+	n := int64(len(meta.Fields) - 1) // largest root index
+
+	// --- Section 23.5: Extension bit ---
+	extended := false
+	if meta.Extensible {
+		extended, err = d.DecodeBoolean()
+		if err != nil {
+			return fmt.Errorf("DecodeChoice: extension bit: %w", err)
+		}
+	}
+
+	if !extended {
+		// --- Section 23.4/23.6/23.7: Root alternative ---
+		var choiceIdx int64
+		if n > 0 {
+			choiceIdx, err = d.DecodeConstrainedWholeNumber(0, n)
+			if err != nil {
+				return fmt.Errorf("DecodeChoice: index: %w", err)
+			}
+		}
+
+		if int(choiceIdx) >= len(meta.Fields) {
+			return fmt.Errorf("DecodeChoice: root index %d out of range (max %d)", choiceIdx, len(meta.Fields)-1)
+		}
+
+		fieldIdx := meta.Fields[choiceIdx]
+		field := rt.Field(fieldIdx)
+		tag, err := GetFieldTag(field, rt, fieldIdx)
+		if err != nil {
+			return fmt.Errorf("DecodeChoice: field %q: %w", field.Name, err)
+		}
+
+		// Allocate pointer field if needed
+		fv := rv.Field(fieldIdx)
+		if fv.Kind() == reflect.Pointer {
+			fv.Set(reflect.New(fv.Type().Elem()))
+		}
+
+		return d.decodeField(fv, tag)
+	}
+
+	// --- Section 23.8: Extension alternative ---
+	extIdx, err := d.DecodeNormallySmallNonNegativeWholeNumber()
+	if err != nil {
+		return fmt.Errorf("DecodeChoice: extension index: %w", err)
+	}
+
+	// Decode open type wrapper
+	openBytes, err := d.DecodeOctetString(nil, nil, false)
+	if err != nil {
+		return fmt.Errorf("DecodeChoice: extension open type: %w", err)
+	}
+
+	if int(extIdx) >= len(meta.Extensions) {
+		// Unknown extension — silently skip (already consumed the bytes)
+		return nil
+	}
+
+	fieldIdx := meta.Extensions[extIdx]
+	field := rt.Field(fieldIdx)
+	tag, err := GetFieldTag(field, rt, fieldIdx)
+	if err != nil {
+		return fmt.Errorf("DecodeChoice: extension field %q: %w", field.Name, err)
+	}
+
+	// Allocate pointer field if needed
+	fv := rv.Field(fieldIdx)
+	if fv.Kind() == reflect.Pointer {
+		fv.Set(reflect.New(fv.Type().Elem()))
+	}
+
+	tmpDecoder := NewDecoder(openBytes, d.aligned)
+	if err := tmpDecoder.decodeField(fv, tag); err != nil {
+		return fmt.Errorf("DecodeChoice: extension field %q: %w", field.Name, err)
+	}
+
+	return nil
+}
+
+// decodeField decodes a single struct field value according to its type and PER tag.
+// It resolves pointer indirection and dispatches to the appropriate type-specific decoder.
+func (d *Decoder) decodeField(v reflect.Value, tag *Tag) error {
+	// Resolve pointer indirection: allocate if nil, then work with the element
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
+
+	// Open type: the field is an interface whose concrete value is decoded
+	// from an open type wrapper (length-determinant + inner encoding).
+	// The concrete type must already be set on the interface by the caller
+	// (typically generated code) before calling decode.
+	if tag.Open {
+		openBytes, err := d.DecodeOctetString(nil, nil, false)
+		if err != nil {
+			return fmt.Errorf("decodeField: open type: %w", err)
+		}
+		if v.Kind() == reflect.Interface {
+			if v.IsNil() {
+				return fmt.Errorf("decodeField: open type interface is nil (concrete type must be set before decoding)")
+			}
+			// Get the concrete value behind the interface
+			concrete := v.Elem()
+			if concrete.Kind() == reflect.Pointer {
+				if concrete.IsNil() {
+					concrete.Set(reflect.New(concrete.Type().Elem()))
+				}
+				concrete = concrete.Elem()
+			}
+			ttag := *tag
+			ttag.Open = false
+			tmpDecoder := NewDecoder(openBytes, d.aligned)
+			return tmpDecoder.decodeField(concrete, &ttag)
+		}
+		// Non-interface open type: decode directly
+		ttag := *tag
+		ttag.Open = false
+		tmpDecoder := NewDecoder(openBytes, d.aligned)
+		return tmpDecoder.decodeField(v, &ttag)
+	}
+
+	fieldType := v.Type()
+
+	// Handle well-known concrete types via type assertion first
+	switch v.Addr().Interface().(type) {
+	case *asn1.BitString:
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		bs, err := d.DecodeBitString(lb, ub, tag.Ext)
+		if err != nil {
+			return err
+		}
+		v.Set(reflect.ValueOf(*bs))
+		return nil
+
+	case *NULL:
+		return d.DecodeNull()
+
+	case *Empty:
+		return d.DecodeNull()
+	}
+
+	// Dispatch by reflect.Kind for primitive and generic types
+	switch fieldType.Kind() {
+	case reflect.Bool:
+		val, err := d.DecodeBoolean()
+		if err != nil {
+			return err
+		}
+		v.SetBool(val)
+		return nil
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		val, err := d.DecodeInteger(tag.LB, tag.UB, tag.Ext)
+		if err != nil {
+			return err
+		}
+		v.SetInt(val)
+		return nil
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if tag.Enum != nil {
+			val, err := d.DecodeEnumerated(*tag.Enum, tag.Ext)
+			if err != nil {
+				return err
+			}
+			v.SetUint(val)
+			return nil
+		}
+		val, err := d.DecodeInteger(tag.LB, tag.UB, tag.Ext)
+		if err != nil {
+			return err
+		}
+		v.SetUint(uint64(val))
+		return nil
+
+	case reflect.Float32, reflect.Float64:
+		val, err := d.DecodeReal()
+		if err != nil {
+			return err
+		}
+		v.SetFloat(val)
+		return nil
+
+	case reflect.String:
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		val, err := d.DecodeString(lb, ub, tag.Ext)
+		if err != nil {
+			return err
+		}
+		v.SetString(val)
+		return nil
+
+	case reflect.Slice:
+		// []byte (OCTET STRING)
+		if fieldType.Elem().Kind() == reflect.Uint8 {
+			var lb, ub *uint64
+			if tag.LB != nil {
+				l := uint64(*tag.LB)
+				lb = &l
+			}
+			if tag.UB != nil {
+				u := uint64(*tag.UB)
+				ub = &u
+			}
+			data, err := d.DecodeOctetString(lb, ub, tag.Ext)
+			if err != nil {
+				return err
+			}
+			v.SetBytes(data)
+			return nil
+		}
+		// SEQUENCE OF
+		var lb, ub *uint64
+		if tag.LB != nil {
+			l := uint64(*tag.LB)
+			lb = &l
+		}
+		if tag.UB != nil {
+			u := uint64(*tag.UB)
+			ub = &u
+		}
+		elemTag := tag.Elem
+		if elemTag == nil {
+			elemTag = &Tag{}
+		}
+		return d.DecodeSequenceOf(v.Addr().Interface(), lb, ub, tag.Ext, elemTag)
+
+	case reflect.Array:
+		// Fixed-size array: decode elements in place
+		elemTag := tag.Elem
+		if elemTag == nil {
+			elemTag = &Tag{}
+		}
+		n := v.Len()
+		for i := range n {
+			if err := d.decodeField(v.Index(i), elemTag); err != nil {
+				return fmt.Errorf("decodeField: array element %d: %w", i, err)
+			}
+		}
+		return nil
+
+	case reflect.Struct:
+		meta, err := GetStructMeta(fieldType)
+		if err != nil {
+			return fmt.Errorf("decodeField: %s: %w", fieldType, err)
+		}
+		if meta.Choice {
+			return d.DecodeChoice(v.Addr().Interface())
+		}
+		return d.DecodeSequence(v.Addr().Interface())
+
+	case reflect.Interface:
+		// Untagged interface field — resolve to concrete value and re-dispatch.
+		// For open type interfaces, the tag.Open path above handles wrapping;
+		// this branch handles the rare case of an interface field without the open tag.
+		if v.IsNil() {
+			return fmt.Errorf("decodeField: nil interface value")
+		}
+		concrete := v.Elem()
+		if concrete.Kind() == reflect.Pointer {
+			if concrete.IsNil() {
+				concrete.Set(reflect.New(concrete.Type().Elem()))
+			}
+			concrete = concrete.Elem()
+		}
+		return d.decodeField(concrete, tag)
+
+	default:
+		return fmt.Errorf("decodeField: unsupported type %s", fieldType)
+	}
 }

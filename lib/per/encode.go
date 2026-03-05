@@ -2060,7 +2060,7 @@ func (e *Encoder) EncodeSequence(value any) error {
 //  2. §20.5: If fixed length (lb==ub) and < 64K, no length determinant — just encode components.
 //  3. §20.6: Encode length determinant (constrained if ub set, semi-constrained otherwise)
 //     with fragmentation support for large lists, then encode components.
-func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible bool) error {
+func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible bool, elemTag *Tag) error {
 	rv := reflect.ValueOf(value)
 	// Resolve pointer indirection
 	if rv.Kind() == reflect.Pointer {
@@ -2091,7 +2091,7 @@ func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible
 			}
 			// Encode as semi-constrained: length determinant with lb=0, then all components
 			zero := uint64(0)
-			return e.encodeSequenceOfComponents(rv, n, &zero, nil)
+			return e.encodeSequenceOfComponents(rv, n, &zero, nil, elemTag)
 		}
 		if err := e.codec.Write(1, 0); err != nil {
 			return err
@@ -2101,7 +2101,7 @@ func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible
 	// §20.5: Fixed length (lb == ub) and < 64K — no length determinant
 	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
 		for i := range int(n) {
-			if err := e.encodeElement(rv.Index(i)); err != nil {
+			if err := e.encodeField(rv.Index(i), elemTag); err != nil {
 				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
 			}
 		}
@@ -2109,12 +2109,12 @@ func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible
 	}
 
 	// §20.6: Length determinant + components (with fragmentation)
-	return e.encodeSequenceOfComponents(rv, n, lb, ub)
+	return e.encodeSequenceOfComponents(rv, n, lb, ub, elemTag)
 }
 
 // encodeSequenceOfComponents encodes length determinant(s) and components,
 // handling fragmentation per §11.9 for large lists.
-func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uint64, ub *uint64) error {
+func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uint64, ub *uint64, elemTag *Tag) error {
 	offset := uint64(0)
 
 	for offset < n {
@@ -2134,7 +2134,7 @@ func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uin
 
 		// Encode components in this fragment
 		for i := offset; i < offset+count; i++ {
-			if err := e.encodeElement(rv.Index(int(i))); err != nil {
+			if err := e.encodeField(rv.Index(int(i)), elemTag); err != nil {
 				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
 			}
 		}
@@ -2163,21 +2163,6 @@ func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uin
 	}
 
 	return nil
-}
-
-// encodeElement encodes a single element of a SEQUENCE OF.
-// It dispatches based on the element's type, using an empty Tag (no PER constraints on elements).
-func (e *Encoder) encodeElement(v reflect.Value) error {
-	// Resolve pointer indirection
-	if v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return fmt.Errorf("encodeElement: nil element")
-		}
-		v = v.Elem()
-	}
-
-	tag := &Tag{}
-	return e.encodeField(v, tag)
 }
 
 // 23 Encoding the choice type
@@ -2357,6 +2342,28 @@ func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
 		v = v.Elem()
 	}
 
+	// Open type: the field is an interface whose concrete value must be
+	// encoded as an open type (length-determinant + inner encoding).
+	// The caller (typically generated code) is responsible for setting the
+	// correct concrete value; here we just wrap it.
+	// All other tag directives (lb, ub, ext, enum, etc.) are retained and
+	// passed through to the inner encoding.
+	if tag.Open {
+		if v.Kind() == reflect.Interface {
+			if v.IsNil() {
+				return fmt.Errorf("encodeField: open type field is nil")
+			}
+			v = v.Elem() // resolve interface to concrete value
+		}
+		ttag := *tag      // copy all existing constraints
+		ttag.Open = false // prevent infinite recursion
+		tmp := NewEncoder(e.aligned)
+		if err := tmp.encodeField(v, &ttag); err != nil {
+			return fmt.Errorf("encodeField: open type: %w", err)
+		}
+		return e.EncodeOctetString(tmp.Bytes(), nil, nil, false)
+	}
+
 	fieldType := v.Type()
 
 	// Handle well-known concrete types via type assertion first
@@ -2439,7 +2446,11 @@ func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
 			u := uint64(*tag.UB)
 			ub = &u
 		}
-		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext)
+		elemTag := tag.Elem
+		if elemTag == nil {
+			elemTag = &Tag{}
+		}
+		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext, elemTag)
 
 	case reflect.Array:
 		var lb, ub *uint64
@@ -2451,7 +2462,11 @@ func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
 			u := uint64(*tag.UB)
 			ub = &u
 		}
-		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext)
+		elemTag := tag.Elem
+		if elemTag == nil {
+			elemTag = &Tag{}
+		}
+		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext, elemTag)
 
 	case reflect.Struct:
 		meta, err := GetStructMeta(fieldType)
@@ -2462,6 +2477,15 @@ func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
 			return e.EncodeChoice(v.Interface())
 		}
 		return e.EncodeSequence(v.Interface())
+
+	case reflect.Interface:
+		// Untagged interface field — resolve to concrete value and re-dispatch.
+		// For open type interfaces, the tag.Open path above handles wrapping;
+		// this branch handles the rare case of an interface field without the open tag.
+		if v.IsNil() {
+			return fmt.Errorf("encodeField: nil interface value")
+		}
+		return e.encodeField(v.Elem(), tag)
 
 	default:
 		return fmt.Errorf("encodeField: unsupported type %s", fieldType)
