@@ -211,7 +211,7 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 
 	value := uint64(n - lb)
 	// 11.5.7.1: Bit-field case (range <= 255) - NO alignment, just encode in minimum bits
-	if vr <= 0xFF {
+	if vr <= RANGE_BITFIELD_MAX {
 		var bits int
 		switch {
 		case vr == 0x02:
@@ -234,14 +234,14 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 		return e.codec.Write(uint8(bits), value)
 	}
 	// 11.5.7.2: One-octet case (range = 256) - octet-aligned
-	if vr == 0x100 {
+	if vr == RANGE_ONE_OCTET {
 		if err := e.codec.Align(); nil != err {
 			return err
 		}
 		return e.codec.Write(8, value)
 	}
 	// 11.5.7.3: Two-octet case (range 257-64K) - octet-aligned
-	if vr >= 0x101 && vr <= 0x10000 {
+	if vr >= RANGE_TWO_OCTET_MIN && vr <= RANGE_TWO_OCTET_MAX {
 		if err := e.codec.Align(); nil != err {
 			return err
 		}
@@ -288,12 +288,12 @@ func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
 // |  |  length determinant.
 
 func (e *Encoder) EncodeNormallySmallNonNegativeWholeNumber(n uint64) error {
-	if n <= 63 {
+	if n <= NORMALLY_SMALL_MAX {
 		// 11.6.1: bit set to 0, followed by 6-bit encoding of n
 		if err := e.codec.Write(1, 0); err != nil {
 			return err
 		}
-		return e.codec.Write(6, n)
+		return e.codec.Write(NORMALLY_SMALL_BITS, n)
 	} else {
 		if err := e.codec.Write(1, 1); err != nil {
 			return err
@@ -588,7 +588,7 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 		}
 	}
 
-	if n <= 127 {
+	if n <= UNCONSTRAINED_LENGTH_SHORT_MAX {
 		if err := e.codec.Write(8, n); err != nil {
 			return 0, err
 		}
@@ -596,7 +596,7 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	}
 
 	if n < FRAGMENT_SIZE {
-		value := (1 << 15) | n
+		value := LENGTH_LONG_FORM_FLAG | n
 		if err := e.codec.Write(16, value); err != nil {
 			return 0, err
 		}
@@ -606,7 +606,7 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	m := CalculateFragmentSize(n)
 	k := m / FRAGMENT_SIZE
 
-	value := (3 << 6) | k
+	value := LENGTH_FRAGMENT_FLAG | k
 	if err := e.codec.Write(8, value); err != nil {
 		return 0, err
 	}
@@ -614,11 +614,11 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 }
 
 func (e *Encoder) EncodeNormallySmallLength(n uint64) (uint64, error) {
-	if n <= 64 {
+	if n <= NORMALLY_SMALL_LENGTH_MAX {
 		if err := e.codec.Write(1, 0); err != nil {
 			return 0, err
 		}
-		if err := e.codec.Write(6, n-1); err != nil {
+		if err := e.codec.Write(NORMALLY_SMALL_BITS, n-1); err != nil {
 			return 0, err
 		}
 		return 0, nil
@@ -654,6 +654,16 @@ func (e *Encoder) EncodeBoolean(value bool) error {
 	} else {
 		return e.codec.Write(1, 0)
 	}
+}
+
+// WriteExtensionBit encodes the single-bit "extension bit" that precedes the
+// value whenever a type has an extension marker in its constraint (X.691
+// §13.1 integer, §14.3 enumerated, §16.6 bitstring, §17.3 octetstring,
+// §19.1 sequence, §20.4 sequence-of, §23.5 choice). The bit is 1 if the
+// value being encoded lies outside the extension root (or, for SEQUENCE/
+// CHOICE, if an extension addition/alternative is present), 0 otherwise.
+func (e *Encoder) WriteExtensionBit(extended bool) error {
+	return e.EncodeBoolean(extended)
 }
 
 // 13 Encoding the integer type
@@ -727,15 +737,8 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 			extended = true
 		}
 
-		switch extended {
-		case true:
-			if err := e.codec.Write(1, 1); err != nil {
-				return err
-			}
-		case false:
-			if err := e.codec.Write(1, 0); err != nil {
-				return err
-			}
+		if err := e.WriteExtensionBit(extended); err != nil {
+			return err
 		}
 
 		if extended {
@@ -795,12 +798,12 @@ func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bo
 func (e *Encoder) EncodeEnumerated(value uint64, count uint64, extensible bool) error {
 	if extensible {
 		if value >= count {
-			if err := e.codec.Write(1, 1); err != nil {
+			if err := e.WriteExtensionBit(true); err != nil {
 				return err
 			}
 			return e.EncodeNormallySmallNonNegativeWholeNumber(value - count)
 		}
-		if err := e.codec.Write(1, 0); err != nil {
+		if err := e.WriteExtensionBit(false); err != nil {
 			return err
 		}
 	}
@@ -957,12 +960,12 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 
 	// Extract sign, exponent, and frac
 	var (
-		sign = (bits >> 63) & 1
-		bexp = int((bits >> 52) & 0x7FF)
-		frac = bits & 0xFFFFFFFFFFFFF // 52-bit mantissa
+		sign = (bits >> DOUBLE_SIGN_BIT_POS) & 1
+		bexp = int((bits >> DOUBLE_MANTISSA_BITS) & DOUBLE_EXPONENT_MASK)
+		frac = bits & DOUBLE_MANTISSA_MASK // 52-bit mantissa
 	)
 	// Handle special values (infinity, NaN) - let EncodeReal handle these
-	if bexp == 0x7FF {
+	if bexp == DOUBLE_EXPONENT_MASK {
 		return 0, 0, 2
 	}
 
@@ -970,11 +973,11 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 	if bexp == 0 {
 		// Subnormal: exponent is -1022, mantissa is 0.fraction
 		mantissa = int64(frac)
-		exponent = -1022 - 52 // Account for 52-bit fraction
+		exponent = DOUBLE_SUBNORMAL_EXP - DOUBLE_MANTISSA_BITS // Account for 52-bit fraction
 	} else {
 		// Normal: exponent is biased by 1023, mantissa is 1.fraction
-		mantissa = int64((1 << 52) | frac)
-		exponent = bexp - 1023 - 52 // Unbias and account for 52-bit fraction
+		mantissa = int64((1 << DOUBLE_MANTISSA_BITS) | frac)
+		exponent = bexp - DOUBLE_EXPONENT_BIAS - DOUBLE_MANTISSA_BITS // Unbias and account for 52-bit fraction
 	}
 
 	// Apply sign
@@ -993,7 +996,21 @@ func MakeReal(value float64) (mantissa int64, exponent int, base int) {
 }
 
 func MakeFloat64(mantissa int64, exponent int, base int) float64 {
-	return math.Pow(float64(base), float64(exponent)) * float64(mantissa)
+	// base is always 2, 8, 16 (powers of two) or 10 in practice (see DecodeReal).
+	// Ldexp scales by a power of two exactly via the float exponent bits, avoiding
+	// the log/exp rounding error and cost of the generic math.Pow path.
+	switch base {
+	case 2:
+		return math.Ldexp(float64(mantissa), exponent)
+	case 8:
+		return math.Ldexp(float64(mantissa), exponent*3)
+	case 16:
+		return math.Ldexp(float64(mantissa), exponent*4)
+	case 10:
+		return math.Pow10(exponent) * float64(mantissa)
+	default:
+		return math.Pow(float64(base), float64(exponent)) * float64(mantissa)
+	}
 }
 
 // EncodeReal encodes a real value (float64) following PER encoding rules per section 8.5
@@ -1015,13 +1032,13 @@ func (e *Encoder) EncodeReal(value float64) error {
 		var octet uint64
 		switch {
 		case math.IsNaN(value):
-			octet = 0x42 // NOT-A-NUMBER
+			octet = REAL_NOT_A_NUMBER
 		case math.IsInf(value, 1):
-			octet = 0x40 // PLUS-INFINITY
+			octet = REAL_PLUS_INFINITY
 		case math.IsInf(value, -1):
-			octet = 0x41 // MINUS-INFINITY
+			octet = REAL_MINUS_INFINITY
 		default:
-			octet = 0x43 // Minus zero
+			octet = REAL_MINUS_ZERO
 		}
 		return e.codec.Write(8, octet)
 	}
@@ -1037,24 +1054,10 @@ func (e *Encoder) EncodeReal(value float64) error {
 	}
 
 	// Section 8.5.7: Binary encoding for non-zero values (base 2)
-	// Extract mantissa and exponent from IEEE 754 representation
-	mantissa, exponent, base := MakeReal(value)
-
-	// Section 8.5.4-8.5.5: Convert base 10 to base 2 if needed
-	// Since 10 = 2 × 5, we have: 10^e = 2^e × 5^e
-	// Therefore: m₁₀ × 10^e = (m₁₀ × 5^e) × 2^e
-	if base == 10 && exponent != 0 {
-		base = 2
-		// Calculate 5^|exponent|
-		pow5 := int64(math.Pow(5, math.Abs(float64(exponent))))
-
-		// Apply the power of 5 to mantissa
-		if exponent > 0 {
-			mantissa = mantissa * pow5
-		} else {
-			mantissa = mantissa / pow5
-		}
-	}
+	// Extract mantissa and exponent from IEEE 754 representation. MakeReal always
+	// derives these from a float64 bit pattern, so base is always 2 here; the bits
+	// written below hardcode base 2 accordingly (no base-10 input path exists).
+	mantissa, exponent, _ := MakeReal(value)
 
 	// Ensure mantissa is odd (per spec: mantissa = 0 or odd)
 	// This normalization ensures canonical encoding
@@ -1247,7 +1250,7 @@ func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
 		}
 
 		if extended {
-			if err := e.codec.Write(1, 1); err != nil {
+			if err := e.WriteExtensionBit(true); err != nil {
 				return err
 			}
 			// Encode length as semi-constrained whole number (16.11) with
@@ -1259,7 +1262,7 @@ func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
 			}
 			return nil
 		} else {
-			if err := e.codec.Write(1, 0); err != nil {
+			if err := e.WriteExtensionBit(false); err != nil {
 				return err
 			}
 		}
@@ -1272,13 +1275,13 @@ func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
 
 	// 16.9 If fixed length <= 16 bits, place in bit-field (no length
 	// determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= 16 {
+	if lb != nil && ub != nil && *lb == *ub && *ub <= BITSTRING_DIRECT_MAX_BITS {
 		return e.WriteBits(value.Bytes, uint(*ub))
 	}
 
 	// 16.10 If fixed length > 16 bits but < 64K, place in bit-field
 	// octet-aligned (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < 65536 {
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
 		if e.aligned {
 			if err := e.codec.Align(); err != nil {
 				return err
@@ -1435,14 +1438,14 @@ func (e *Encoder) EncodeOctetString(value []byte, lb *uint64, ub *uint64, extens
 		}
 
 		if extended {
-			if err := e.codec.Write(1, 1); err != nil {
+			if err := e.WriteExtensionBit(true); err != nil {
 				return err
 			}
 			// Encode length as semi-constrained whole number (17.8) with fragmentation
 			zero := uint64(0)
 			return e.EncodeOctetStringFragments(value, &zero, nil)
 		} else {
-			if err := e.codec.Write(1, 0); err != nil {
+			if err := e.WriteExtensionBit(false); err != nil {
 				return err
 			}
 		}
@@ -1454,13 +1457,13 @@ func (e *Encoder) EncodeOctetString(value []byte, lb *uint64, ub *uint64, extens
 	}
 
 	// 17.6 If fixed length <= 2 octets, place in bit-field (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= 2 {
+	if lb != nil && ub != nil && *lb == *ub && *ub <= OCTET_STRING_DIRECT_MAX {
 		return e.codec.WriteBytes(value)
 	}
 
 	// 17.7 If fixed length > 2 octets but < 64K, place in bit-field octet-aligned
 	// (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < 65536 {
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
 		if e.aligned {
 			if err := e.codec.Align(); err != nil {
 				return err
@@ -1942,18 +1945,30 @@ func (e *Encoder) EncodeSequence(value any) error {
 
 	// --- Phase 3: Encode extension bit (section 19.1) ---
 	if meta.Extensible {
-		if err := e.EncodeBoolean(hasExtensions); err != nil {
+		if err := e.WriteExtensionBit(hasExtensions); err != nil {
 			return err
 		}
 	}
 
 	// --- Phase 4: Encode root preamble bitmap (section 19.2-19.3) ---
-	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent.
+	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent. For a DEFAULT field,
+	// present means "value differs from the default" (§19.5); for OPTIONAL, non-nil pointer.
 	// NOTE: Per §19.3, if len(meta.Optionals) >= 65536, the bitmap should be encoded
 	// as a constrained bit string with a length determinant. In practice no SEQUENCE
 	// has that many optional fields, so we write bits directly here.
+	present := make(map[int]bool, len(meta.Optionals))
 	for _, idx := range meta.Optionals {
-		if err := e.EncodeBoolean(FieldPresent(rv.Field(idx))); err != nil {
+		field := rt.Field(idx)
+		tag, err := GetFieldTag(field, rt, idx)
+		if err != nil {
+			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
+		}
+		has, err := FieldPresentForEncoding(rv.Field(idx), tag)
+		if err != nil {
+			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
+		}
+		present[idx] = has
+		if err := e.EncodeBoolean(has); err != nil {
 			return fmt.Errorf("EncodeSequence: root preamble: %w", err)
 		}
 	}
@@ -1966,8 +1981,8 @@ func (e *Encoder) EncodeSequence(value any) error {
 			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
 		}
 
-		if tag.Opt || tag.Def != nil && !FieldPresent(rv.Field(id)) {
-			continue // absent optional/default field
+		if (tag.Opt || tag.Def != nil) && !present[id] {
+			continue // absent optional field, or default-valued field omitted per §19.5
 		}
 
 		if err := e.encodeField(rv.Field(id), tag); err != nil {
@@ -2086,14 +2101,14 @@ func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible
 		}
 
 		if extended {
-			if err := e.codec.Write(1, 1); err != nil {
+			if err := e.WriteExtensionBit(true); err != nil {
 				return err
 			}
 			// Encode as semi-constrained: length determinant with lb=0, then all components
 			zero := uint64(0)
 			return e.encodeSequenceOfComponents(rv, n, &zero, nil, elemTag)
 		}
-		if err := e.codec.Write(1, 0); err != nil {
+		if err := e.WriteExtensionBit(false); err != nil {
 			return err
 		}
 	}
@@ -2218,6 +2233,32 @@ func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uin
 // |  |- NOTE - Version brackets in the definition of choice extension additions have no effect
 // |  |  |  on how "ExtensionAdditionAlternatives" are encoded.
 
+// EncodeChoiceId encodes a CHOICE alternative index per ITU-T X.691 section
+// 23. lb/ub give the bounds of the extension root (§23.6/23.7) — typically
+// 0 and the number of root alternatives minus one ("n"). Unlike EncodeInteger,
+// extensible here cannot be inferred from value falling outside [lb,ub]:
+// extension alternative indices are renumbered from zero independently of
+// the root (§23.2), so the caller must say directly whether value is a root
+// index (extensible=false, §23.6/23.7: constrained whole number [lb,ub]) or
+// an extension index (extensible=true, §23.8: normally small non-negative
+// whole number). This does not write the extension bit itself (§23.5) —
+// that is a separate, single bit shared by the whole CHOICE encoding, not
+// part of the index.
+func (e *Encoder) EncodeChoiceId(value int64, lb *int64, ub *int64, extensible bool) error {
+	if extensible {
+		return e.EncodeNormallySmallNonNegativeWholeNumber(uint64(value))
+	}
+
+	l, u := int64(0), int64(0)
+	if lb != nil {
+		l = *lb
+	}
+	if ub != nil {
+		u = *ub
+	}
+	return e.EncodeConstrainedWholeNumber(l, u, value)
+}
+
 // EncodeChoice encodes a CHOICE value per ITU-T X.691 section 23.
 //
 // A CHOICE struct has fields tagged `per:"choice=N"` where N is the alternative index.
@@ -2292,28 +2333,22 @@ func (e *Encoder) EncodeChoice(value any) error {
 
 	// --- Section 23.5: Extension bit ---
 	if meta.Extensible {
-		if err := e.EncodeBoolean(extended); err != nil {
+		if err := e.WriteExtensionBit(extended); err != nil {
 			return err
 		}
 	}
 
-	if !extended {
-		// --- Section 23.4: Single root alternative => no index encoding ---
-		// --- Section 23.6/23.7: Encode root choice index as constrained integer [0..n] ---
-		if n > 0 {
-			if err := e.EncodeConstrainedWholeNumber(0, n, int64(fieldPosition)); err != nil {
-				return fmt.Errorf("EncodeChoice: index: %w", err)
-			}
-		}
-
-		// Encode the chosen alternative value
-		return e.encodeField(rv.Field(choiceIndex), tag)
+	// --- Section 23.4/23.6/23.7/23.8: Encode the choice index ---
+	// (§23.4 "no index for a single root alternative" falls out automatically:
+	// EncodeConstrainedWholeNumber writes zero bits when lb==ub.)
+	zero := int64(0)
+	if err := e.EncodeChoiceId(int64(fieldPosition), &zero, &n, extended); err != nil {
+		return fmt.Errorf("EncodeChoice: index: %w", err)
 	}
 
-	// --- Section 23.8: Extension alternative ---
-	// Encode index as normally small non-negative whole number
-	if err := e.EncodeNormallySmallNonNegativeWholeNumber(uint64(fieldPosition)); err != nil {
-		return fmt.Errorf("EncodeChoice: extension index: %w", err)
+	if !extended {
+		// Encode the chosen alternative value
+		return e.encodeField(rv.Field(choiceIndex), tag)
 	}
 
 	// Encode the value as open type field (§11.2):

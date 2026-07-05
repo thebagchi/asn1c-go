@@ -1,0 +1,47 @@
+-- Reference ASN.1 module for AnyYearEncoding (lib/builtin/any_year_encoding.go)
+-- and related year/date encoding types, matching X.691 (02/2021) clause 32.2.
+-- Shared by the corresponding *.py (via pycrate) generators and Erlang
+-- cross-validation encoders to generate cross-validated PER test vectors.
+--
+-- Filename must be "YEAR.asn1" (matching this module's identifier exactly,
+-- case included): Erlang's asn1ct compiler generates code that references
+-- "<ModuleName>.hrl" regardless of the source filename, so if the file and
+-- module names don't match case-for-case, the generated include fails to
+-- resolve on a case-sensitive filesystem.
+--
+-- The "remainder" alternative below is written as plain "INTEGER" rather
+-- than the exact X.691 text "INTEGER (MIN..1748 | 2277..MAX)": Erlang's
+-- asn1ct PER code generator crashes (function_clause in per_enc_integer_2)
+-- on any value-set constraint with a MIN/MAX gap, standalone or inside a
+-- CHOICE; confirmed as a genuine asn1ct bug, not particular to this type.
+-- This substitution does not change the wire encoding: PER's constrained-
+-- whole-number rule (X.691 11.5.3) only ever uses a value-set's extremes,
+-- and both forms have the same extremes (MIN, MAX, i.e. unconstrained);
+-- verified byte-identical via pycrate across representative "remainder"
+-- values before making this substitution. lib/builtin/year_encoding.go and
+-- Specs/builtin.asn1 both keep the exact spec text; only this test-fixture
+-- copy is simplified to work around the Erlang bug.
+
+YEAR DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+YEAR-ENCODING ::= CHOICE { -- 2 bits for choice determinant
+    immediate   INTEGER (2005..2020), -- 4 bits
+    near-future INTEGER (2021..2276), -- 8 bits
+    near-past   INTEGER (1749..2004), -- 8 bits
+    remainder   INTEGER
+}
+
+ANY-YEAR-ENCODING ::= INTEGER (MIN..MAX)
+
+YEAR-MONTH-ENCODING ::= SEQUENCE {
+    year  YEAR-ENCODING,
+    month INTEGER (1..12)
+}
+
+DATE-ENCODING ::= SEQUENCE {
+    year  YEAR-ENCODING,
+    month INTEGER (1..12),
+    day   INTEGER (1..31)
+}
+
+END

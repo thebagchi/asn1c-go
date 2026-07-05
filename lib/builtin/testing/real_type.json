@@ -1,0 +1,1082 @@
+[
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0100000100"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0100001000"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0100800100"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0100801000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0101000100"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0101001000"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "0103000105"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "0103001050"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0101800100"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0101801000"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "0103800105"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "0103801050"
+  },
+  {
+    "input": {
+      "mantissa": -1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "01ff000100"
+  },
+  {
+    "input": {
+      "mantissa": -1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "01ff001000"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "01fd000105"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "01fd001050"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "01fd800105"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "01fd801050"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01030001fb"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "0103001fb0"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01038001fb"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "0103801fb0"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01fd0001fb"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "01fd001fb0"
+  },
+  {
+    "input": {
+      "mantissa": 255,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0200ff000100"
+  },
+  {
+    "input": {
+      "mantissa": 255,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0200ff001000"
+  },
+  {
+    "input": {
+      "mantissa": 256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "020100000100"
+  },
+  {
+    "input": {
+      "mantissa": 256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "020100001000"
+  },
+  {
+    "input": {
+      "mantissa": 65535,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0300ffff000100"
+  },
+  {
+    "input": {
+      "mantissa": 65535,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0300ffff001000"
+  },
+  {
+    "input": {
+      "mantissa": 65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "03010000000100"
+  },
+  {
+    "input": {
+      "mantissa": 65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "03010000001000"
+  },
+  {
+    "input": {
+      "mantissa": 16777215,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0400ffffff000100"
+  },
+  {
+    "input": {
+      "mantissa": 16777215,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0400ffffff001000"
+  },
+  {
+    "input": {
+      "mantissa": 16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0401000000000100"
+  },
+  {
+    "input": {
+      "mantissa": 16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0401000000001000"
+  },
+  {
+    "input": {
+      "mantissa": -256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "02ff00000100"
+  },
+  {
+    "input": {
+      "mantissa": -256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "02ff00001000"
+  },
+  {
+    "input": {
+      "mantissa": -65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "03ff0000000100"
+  },
+  {
+    "input": {
+      "mantissa": -65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "03ff0000001000"
+  },
+  {
+    "input": {
+      "mantissa": -16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "04ff000000000100"
+  },
+  {
+    "input": {
+      "mantissa": -16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "04ff000000001000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 127
+    },
+    "aligned": true,
+    "output": "010100017f"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 127
+    },
+    "aligned": false,
+    "output": "01010017f0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 128
+    },
+    "aligned": true,
+    "output": "010100020080"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 128
+    },
+    "aligned": false,
+    "output": "010100200800"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -128
+    },
+    "aligned": true,
+    "output": "0101000180"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -128
+    },
+    "aligned": false,
+    "output": "0101001800"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -129
+    },
+    "aligned": true,
+    "output": "01010002ff7f"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -129
+    },
+    "aligned": false,
+    "output": "0101002ff7f0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 32767
+    },
+    "aligned": true,
+    "output": "010100027fff"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 32767
+    },
+    "aligned": false,
+    "output": "01010027fff0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -32768
+    },
+    "aligned": true,
+    "output": "010100028000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -32768
+    },
+    "aligned": false,
+    "output": "010100280000"
+  },
+  {
+    "input": {
+      "mantissa": 9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": true,
+    "output": "07200000000000010001cc"
+  },
+  {
+    "input": {
+      "mantissa": 9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": false,
+    "output": "0720000000000001001cc0"
+  },
+  {
+    "input": {
+      "mantissa": -9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": true,
+    "output": "07dfffffffffffff0001cc"
+  },
+  {
+    "input": {
+      "mantissa": -9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": false,
+    "output": "07dfffffffffffff001cc0"
+  },
+  {
+    "input": {
+      "mantissa": 884279719003555,
+      "base": 2,
+      "exponent": -48
+    },
+    "aligned": true,
+    "output": "0703243f6a8885a30001d0"
+  },
+  {
+    "input": {
+      "mantissa": 884279719003555,
+      "base": 2,
+      "exponent": -48
+    },
+    "aligned": false,
+    "output": "0703243f6a8885a3001d00"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0100000100"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0100001000"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0100800100"
+  },
+  {
+    "input": {
+      "mantissa": 0,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0100801000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0101000100"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0101001000"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "0103000105"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "0103001050"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0101800100"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 10,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0101801000"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "0103800105"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "0103801050"
+  },
+  {
+    "input": {
+      "mantissa": -1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "01ff000100"
+  },
+  {
+    "input": {
+      "mantissa": -1,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "01ff001000"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "01fd000105"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "01fd001050"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": true,
+    "output": "01fd800105"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 10,
+      "exponent": 5
+    },
+    "aligned": false,
+    "output": "01fd801050"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01030001fb"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "0103001fb0"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01038001fb"
+  },
+  {
+    "input": {
+      "mantissa": 3,
+      "base": 10,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "0103801fb0"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": true,
+    "output": "01fd0001fb"
+  },
+  {
+    "input": {
+      "mantissa": -3,
+      "base": 2,
+      "exponent": -5
+    },
+    "aligned": false,
+    "output": "01fd001fb0"
+  },
+  {
+    "input": {
+      "mantissa": 255,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0200ff000100"
+  },
+  {
+    "input": {
+      "mantissa": 255,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0200ff001000"
+  },
+  {
+    "input": {
+      "mantissa": 256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "020100000100"
+  },
+  {
+    "input": {
+      "mantissa": 256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "020100001000"
+  },
+  {
+    "input": {
+      "mantissa": 65535,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0300ffff000100"
+  },
+  {
+    "input": {
+      "mantissa": 65535,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0300ffff001000"
+  },
+  {
+    "input": {
+      "mantissa": 65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "03010000000100"
+  },
+  {
+    "input": {
+      "mantissa": 65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "03010000001000"
+  },
+  {
+    "input": {
+      "mantissa": 16777215,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0400ffffff000100"
+  },
+  {
+    "input": {
+      "mantissa": 16777215,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0400ffffff001000"
+  },
+  {
+    "input": {
+      "mantissa": 16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "0401000000000100"
+  },
+  {
+    "input": {
+      "mantissa": 16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "0401000000001000"
+  },
+  {
+    "input": {
+      "mantissa": -256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "02ff00000100"
+  },
+  {
+    "input": {
+      "mantissa": -256,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "02ff00001000"
+  },
+  {
+    "input": {
+      "mantissa": -65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "03ff0000000100"
+  },
+  {
+    "input": {
+      "mantissa": -65536,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "03ff0000001000"
+  },
+  {
+    "input": {
+      "mantissa": -16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": true,
+    "output": "04ff000000000100"
+  },
+  {
+    "input": {
+      "mantissa": -16777216,
+      "base": 2,
+      "exponent": 0
+    },
+    "aligned": false,
+    "output": "04ff000000001000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 127
+    },
+    "aligned": true,
+    "output": "010100017f"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 127
+    },
+    "aligned": false,
+    "output": "01010017f0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 128
+    },
+    "aligned": true,
+    "output": "010100020080"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 128
+    },
+    "aligned": false,
+    "output": "010100200800"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -128
+    },
+    "aligned": true,
+    "output": "0101000180"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -128
+    },
+    "aligned": false,
+    "output": "0101001800"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -129
+    },
+    "aligned": true,
+    "output": "01010002ff7f"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -129
+    },
+    "aligned": false,
+    "output": "0101002ff7f0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 32767
+    },
+    "aligned": true,
+    "output": "010100027fff"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": 32767
+    },
+    "aligned": false,
+    "output": "01010027fff0"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -32768
+    },
+    "aligned": true,
+    "output": "010100028000"
+  },
+  {
+    "input": {
+      "mantissa": 1,
+      "base": 2,
+      "exponent": -32768
+    },
+    "aligned": false,
+    "output": "010100280000"
+  },
+  {
+    "input": {
+      "mantissa": 9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": true,
+    "output": "07200000000000010001cc"
+  },
+  {
+    "input": {
+      "mantissa": 9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": false,
+    "output": "0720000000000001001cc0"
+  },
+  {
+    "input": {
+      "mantissa": -9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": true,
+    "output": "07dfffffffffffff0001cc"
+  },
+  {
+    "input": {
+      "mantissa": -9007199254740993,
+      "base": 2,
+      "exponent": -52
+    },
+    "aligned": false,
+    "output": "07dfffffffffffff001cc0"
+  },
+  {
+    "input": {
+      "mantissa": 884279719003555,
+      "base": 2,
+      "exponent": -48
+    },
+    "aligned": true,
+    "output": "0703243f6a8885a30001d0"
+  },
+  {
+    "input": {
+      "mantissa": 884279719003555,
+      "base": 2,
+      "exponent": -48
+    },
+    "aligned": false,
+    "output": "0703243f6a8885a3001d00"
+  }
+]

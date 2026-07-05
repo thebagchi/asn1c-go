@@ -334,6 +334,9 @@ func MakeStructMeta(rt reflect.Type) (*StructMeta, error) {
 				return nil, fmt.Errorf("StructMeta: field %d: %w", i, err)
 			}
 			if tag.Ext {
+				if extensible {
+					return nil, fmt.Errorf("StructMeta: field %d: multiple `_ struct{} per:\"ext\"` extension markers", i)
+				}
 				extensible = true
 			}
 			continue
@@ -414,4 +417,105 @@ func FieldPresent(v reflect.Value) bool {
 		return !v.IsNil()
 	}
 	return true
+}
+
+// ApplyDefaultValue parses def according to v's underlying kind and assigns it to v.
+// If v is a pointer, it is allocated first (a DEFAULT field always ends up holding a value,
+// unlike OPTIONAL which may remain nil). Used by DecodeSequence to populate a DEFAULT field
+// that was absent in the encoding (§19.5).
+func ApplyDefaultValue(v reflect.Value, def string) error {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Bool:
+		b, err := strconv.ParseBool(def)
+		if err != nil {
+			return fmt.Errorf("default value %q: %w", def, err)
+		}
+		v.SetBool(b)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(def, 10, 64)
+		if err != nil {
+			return fmt.Errorf("default value %q: %w", def, err)
+		}
+		v.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(def, 10, 64)
+		if err != nil {
+			return fmt.Errorf("default value %q: %w", def, err)
+		}
+		v.SetUint(n)
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(def, 64)
+		if err != nil {
+			return fmt.Errorf("default value %q: %w", def, err)
+		}
+		v.SetFloat(f)
+	case reflect.String:
+		v.SetString(def)
+	default:
+		return fmt.Errorf("default value %q: unsupported field kind %s", def, v.Kind())
+	}
+	return nil
+}
+
+// FieldEqualsDefault reports whether v currently holds the DEFAULT value described by def.
+// A nil pointer is treated as equal to the default (i.e. unset/absent).
+// Used by EncodeSequence to decide a DEFAULT field's preamble presence bit.
+func FieldEqualsDefault(v reflect.Value, def string) (bool, error) {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return true, nil
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Bool:
+		b, err := strconv.ParseBool(def)
+		if err != nil {
+			return false, fmt.Errorf("default value %q: %w", def, err)
+		}
+		return v.Bool() == b, nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(def, 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("default value %q: %w", def, err)
+		}
+		return v.Int() == n, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(def, 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("default value %q: %w", def, err)
+		}
+		return v.Uint() == n, nil
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(def, 64)
+		if err != nil {
+			return false, fmt.Errorf("default value %q: %w", def, err)
+		}
+		return v.Float() == f, nil
+	case reflect.String:
+		return v.String() == def, nil
+	default:
+		return false, fmt.Errorf("default value %q: unsupported field kind %s", def, v.Kind())
+	}
+}
+
+// FieldPresentForEncoding determines the preamble presence bit for an OPTIONAL/DEFAULT root
+// field (§19.2). For a DEFAULT field, "present" means the current value differs from the
+// parsed default (BASIC-PER always omits a DEFAULT-valued simple type per §19.5). For a plain
+// OPTIONAL field, "present" falls back to FieldPresent (non-nil pointer).
+func FieldPresentForEncoding(v reflect.Value, tag *Tag) (bool, error) {
+	if tag.Def != nil {
+		equal, err := FieldEqualsDefault(v, *tag.Def)
+		if err != nil {
+			return false, err
+		}
+		return !equal, nil
+	}
+	return FieldPresent(v), nil
 }

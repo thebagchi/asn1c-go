@@ -45,12 +45,11 @@ var (
 	ENABLE_TRACE = false
 )
 
-const (
-	// BITS_PER_BYTE is the number of bits in a byte
-	BITS_PER_BYTE = 8
-
-	// TMP_ARRAY_SIZE is the size of temporary arrays used for binary operations
-	TMP_ARRAY_SIZE = 8
+// Sentinel errors, so callers can use errors.Is instead of matching error strings.
+var (
+	ErrInvalidBitCount = errors.New("bit count must be between 1 and 64") // Write/Read: num is 0 or > 64
+	ErrShortBuffer     = errors.New("insufficient data")                  // Read/ReadBytes: not enough data buffered
+	ErrNegativeCount   = errors.New("negative byte count")                // ReadBytes: n < 0
 )
 
 // InitialBufferSize is the initial capacity for the buffer in CreateWriter.
@@ -231,7 +230,7 @@ func (c *Codec) Write(num uint8, value uint64) error {
 		defer c.Trace("EXIT", "Write", "")
 	}
 	if num == 0 || num > 64 {
-		return errors.New("bit count must be between 1 and 64")
+		return ErrInvalidBitCount
 	}
 
 	// Mask the value to keep only the least significant 'num' bits,
@@ -239,24 +238,24 @@ func (c *Codec) Write(num uint8, value uint64) error {
 	value = value & ((1 << num) - 1)
 
 	// Fast path: writing at byte boundary (can write whole bytes).
-	// offset==0 means start of byte; offset==8 means ready for new byte.
-	if len(c.Buff) == 0 || c.offset == 8 {
-		if c.offset == 8 {
+	// offset==0 means start of byte; offset==BITS_PER_BYTE means ready for new byte.
+	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
+		if c.offset == BITS_PER_BYTE {
 			c.offset = 0 // Reset to start of new byte
 		}
 
-		nbytes := (int(num) + 7) >> 3 // = ceil(num/8)
-		remainder := num & 7
+		nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE // = ceil(num/8)
+		remainder := num % BITS_PER_BYTE
 
 		tmp := [TMP_ARRAY_SIZE]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-		binary.BigEndian.PutUint64(tmp[:], value<<(64-uint(num)))
+		binary.BigEndian.PutUint64(tmp[:], value<<(UINT64_BITS-uint(num)))
 
 		c.Buff = append(c.Buff, tmp[:nbytes]...)
 
-		// Set offset for next operation: remainder bits consumed (1-7) or 8 if full byte.
+		// Set offset for next operation: remainder bits consumed (1-7) or BITS_PER_BYTE if full byte.
 		c.offset = uint8(remainder)
 		if c.offset == 0 {
-			c.offset = 8 // Full byte consumed; mark as ready for next byte
+			c.offset = BITS_PER_BYTE // Full byte consumed; mark as ready for next byte
 		}
 		c.incrementWrite(uint64(num))
 		return nil
@@ -264,14 +263,14 @@ func (c *Codec) Write(num uint8, value uint64) error {
 
 	pending := num
 	for pending > 0 {
-		// If current byte is full (offset==8) or buffer empty, allocate new byte.
-		if c.offset == 8 || len(c.Buff) == 0 {
+		// If current byte is full (offset==BITS_PER_BYTE) or buffer empty, allocate new byte.
+		if c.offset == BITS_PER_BYTE || len(c.Buff) == 0 {
 			c.grow(1)
 			c.offset = 0 // Start fresh byte
 		}
 
 		var (
-			available = uint8(8 - c.offset) // Bits available in current byte
+			available = uint8(BITS_PER_BYTE - c.offset) // Bits available in current byte
 			nbits     = min(pending, available)
 			remaining = pending - nbits
 			chunk     = uint8(value>>remaining) & ((1 << nbits) - 1)
@@ -312,37 +311,37 @@ func (c *Codec) Read(num uint8) (uint64, error) {
 		return 0, nil
 	}
 	if num > 64 {
-		return 0, errors.New("bit count must be between 1 and 64")
+		return 0, ErrInvalidBitCount
 	}
 
 	if c.Len() == 0 {
-		return 0, errors.New("no more data")
+		return 0, ErrShortBuffer
 	}
 
-	// Fast path: reading at byte boundary (offset==0 or offset==8 ready for next byte).
-	if len(c.Buff) == 0 || c.offset == 8 {
-		// If at end of current byte (offset==8), advance to next byte.
-		if c.offset == 8 {
+	// Fast path: reading at byte boundary (offset==0 or offset==BITS_PER_BYTE ready for next byte).
+	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
+		// If at end of current byte (offset==BITS_PER_BYTE), advance to next byte.
+		if c.offset == BITS_PER_BYTE {
 			if len(c.Buff) == 0 {
-				return 0, errors.New("unexpected end of data")
+				return 0, ErrShortBuffer
 			}
 			c.Buff = c.Buff[1:] // Consume the byte marked by offset==8
 			c.offset = 0        // Start fresh at new byte
 			if len(c.Buff) == 0 {
-				return 0, errors.New("unexpected end of data")
+				return 0, ErrShortBuffer
 			}
 		}
 
-		nbytes := (int(num) + 7) >> 3 // = ceil(num/8)
+		nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE // = ceil(num/8)
 		if nbytes > 0 {
 			if len(c.Buff) < nbytes {
-				return 0, errors.New("insufficient data")
+				return 0, ErrShortBuffer
 			}
 			tmp := [TMP_ARRAY_SIZE]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 			copy(tmp[0:nbytes], c.Buff[:nbytes])
 			var (
-				result    = binary.BigEndian.Uint64(tmp[:]) >> (64 - num)
-				remainder = num % 8
+				result    = binary.BigEndian.Uint64(tmp[:]) >> (UINT64_BITS - num)
+				remainder = num % BITS_PER_BYTE
 			)
 			// Lazy advancement strategy: keep one extra byte in buffer and mark with offset=8
 			// to signal next read cycle. Slow path detects offset==8 and advances.
@@ -366,17 +365,17 @@ func (c *Codec) Read(num uint8) (uint64, error) {
 	)
 
 	for pending > 0 {
-		// If current byte is full (offset==8), advance to next byte.
-		if c.offset == 8 {
+		// If current byte is full (offset==BITS_PER_BYTE), advance to next byte.
+		if c.offset == BITS_PER_BYTE {
 			c.Buff = c.Buff[1:] // Consume byte marked by offset==8
 			c.offset = 0        // Start fresh at new byte
 			if len(c.Buff) == 0 {
-				return 0, errors.New("unexpected end of data")
+				return 0, ErrShortBuffer
 			}
 		}
 
 		var (
-			remaining = uint8(8 - c.offset) // Bits left in current byte
+			remaining = uint8(BITS_PER_BYTE - c.offset) // Bits left in current byte
 			reading   = min(pending, remaining)
 			mask      = uint8((1 << reading) - 1)
 			shift     = remaining - reading
@@ -409,11 +408,11 @@ func (c *Codec) WriteBytes(data []byte) error {
 	}
 
 	// Fast path: already byte-aligned (offset == 0) or at byte
-	// boundary (offset == 8)
-	if len(c.Buff) == 0 || c.offset == 8 {
+	// boundary (offset == BITS_PER_BYTE)
+	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
 		c.Buff = append(c.Buff, data...)
-		c.incrementWrite(uint64(len(data) * 8))
-		c.offset = 8
+		c.incrementWrite(uint64(len(data) * BITS_PER_BYTE))
+		c.offset = BITS_PER_BYTE
 		return nil
 	}
 
@@ -437,31 +436,31 @@ func (c *Codec) ReadBytes(n int) ([]byte, error) {
 		defer c.Trace("EXIT", "ReadBytes", "")
 	}
 	if n < 0 {
-		return nil, errors.New("negative byte count")
+		return nil, ErrNegativeCount
 	}
 	if n == 0 {
 		return []byte{}, nil
 	}
 
 	// Fast path: already byte-aligned (offset == 0) or at byte
-	// boundary (offset == 8)
-	if c.offset == 0 || c.offset == 8 {
+	// boundary (offset == BITS_PER_BYTE)
+	if c.offset == 0 || c.offset == BITS_PER_BYTE {
 		// If at end of byte, advance to next byte first
-		if c.offset == 8 {
+		if c.offset == BITS_PER_BYTE {
 			if len(c.Buff) == 0 {
-				return nil, errors.New("insufficient data")
+				return nil, ErrShortBuffer
 			}
 			c.Buff = c.Buff[1:]
 			c.offset = 0
 		}
 
 		if len(c.Buff) < n {
-			return nil, errors.New("insufficient data")
+			return nil, ErrShortBuffer
 		}
 		result := make([]byte, n)
 		copy(result, c.Buff[:n])
 		c.Buff = c.Buff[n:]
-		c.incrementRead(uint64(n * 8))
+		c.incrementRead(uint64(n * BITS_PER_BYTE))
 		return result, nil
 	}
 
@@ -495,13 +494,13 @@ func (c *Codec) Align() error {
 		c.Trace("ENTER", "Align", "")
 		defer c.Trace("EXIT", "Align", "")
 	}
-	if c.offset > 0 && c.offset < 8 {
+	if c.offset > 0 && c.offset < BITS_PER_BYTE {
 		// Partial byte - pad with zeros (which already exists) and move to next byte
-		// Set offset to 8 to indicate byte is full; next Write will handle creating new byte
-		c.incrementWrite(uint64(8 - c.offset))
-		c.offset = 8
+		// Set offset to BITS_PER_BYTE to indicate byte is full; next Write will handle creating new byte
+		c.incrementWrite(uint64(BITS_PER_BYTE - c.offset))
+		c.offset = BITS_PER_BYTE
 	}
-	// If offset == 8 or offset == 0, already aligned, do nothing
+	// If offset == BITS_PER_BYTE or offset == 0, already aligned, do nothing
 	return nil
 }
 
@@ -526,8 +525,8 @@ func (c *Codec) Advance() error {
 		defer c.Trace("EXIT", "Advance", "")
 	}
 	if c.offset > 0 {
-		c.incrementRead(uint64(8 - c.offset))
-		c.offset = 8
+		c.incrementRead(uint64(BITS_PER_BYTE - c.offset))
+		c.offset = BITS_PER_BYTE
 	}
 	// Buffer advancement will be triggered by subsequent Read() calls
 	return nil

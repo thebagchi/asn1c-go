@@ -49,7 +49,7 @@ func (d *Decoder) DecodeConstrainedWholeNumber(lb, ub int64) (int64, error) {
 
 	// ALIGNED variant
 	// 11.5.7.1: Bit-field case (range <= 255)
-	if vr <= 0xFF {
+	if vr <= RANGE_BITFIELD_MAX {
 		var bits int
 		switch {
 		case vr == 0x02:
@@ -77,7 +77,7 @@ func (d *Decoder) DecodeConstrainedWholeNumber(lb, ub int64) (int64, error) {
 	}
 
 	// 11.5.7.2: One-octet case (range == 256) - octet-aligned
-	if vr == 0x100 {
+	if vr == RANGE_ONE_OCTET {
 		if err := d.codec.Advance(); err != nil {
 			return 0, err
 		}
@@ -89,7 +89,7 @@ func (d *Decoder) DecodeConstrainedWholeNumber(lb, ub int64) (int64, error) {
 	}
 
 	// 11.5.7.3: Two-octet case (range 257-64K) - octet-aligned
-	if vr >= 0x101 && vr <= 0x10000 {
+	if vr >= RANGE_TWO_OCTET_MIN && vr <= RANGE_TWO_OCTET_MAX {
 		if err := d.codec.Advance(); err != nil {
 			return 0, err
 		}
@@ -135,7 +135,7 @@ func (d *Decoder) DecodeNormallySmallNonNegativeWholeNumber() (uint64, error) {
 
 	// 11.6.1: If the bit is 0, read 6-bit value
 	if bit == 0 {
-		value, err := d.codec.Read(6)
+		value, err := d.codec.Read(NORMALLY_SMALL_BITS)
 		if err != nil {
 			return 0, err
 		}
@@ -258,25 +258,30 @@ func (d *Decoder) DecodeUnconstrainedLength() (uint64, bool, error) {
 	}
 
 	// 11.9.4.2: If most significant bit is 0, length is in range 0-127
-	if first&0x80 == 0 {
+	if first&LENGTH_MSB_FLAG == 0 {
 		return first, false, nil
 	}
 
 	// 11.9.4.2: If most significant 2 bits are 10, length is in range 128-16383
-	if first&0xC0 == 0x80 {
+	if first&LENGTH_FORM_MASK == LENGTH_LONG_FORM {
 		second, err := d.codec.Read(8)
 		if err != nil {
 			return 0, false, err
 		}
 		// Combine first and second octets (remove the 10 prefix)
-		length := ((first & 0x3F) << 8) | (second & 0xFF)
+		length := ((first & LENGTH_SIX_BIT_MASK) << 8) | (second & 0xFF)
 		return length, false, nil
 	}
 
 	// 11.9.4.2: If most significant 2 bits are 11, length is given in fragments
 	// The next 6 bits indicate the number of fragments
 	// Each fragment is FRAGMENT_SIZE bytes
-	fragments := first & 0x3F
+	fragments := first & LENGTH_SIX_BIT_MASK
+	// 11.9.3.8: the fragment multiplier is restricted to 1-4 (64K max via fragmentation);
+	// values outside that range are not a valid encoding.
+	if fragments < 1 || fragments > 4 {
+		return 0, false, fmt.Errorf("invalid fragment count %d (must be 1-4)", fragments)
+	}
 	length := uint64(fragments) * FRAGMENT_SIZE
 
 	// Fragmentation marker always means more length determinants follow
@@ -296,7 +301,7 @@ func (d *Decoder) DecodeNormallySmallLength() (uint64, bool, error) {
 
 	// If bit is 0, length is in range 1-64 (encoded as 6 bits, value 0-63)
 	if bit == 0 {
-		value, err := d.codec.Read(6)
+		value, err := d.codec.Read(NORMALLY_SMALL_BITS)
 		if err != nil {
 			return 0, false, err
 		}
@@ -320,6 +325,17 @@ func (d *Decoder) DecodeBoolean() (bool, error) {
 	return bit != 0, nil
 }
 
+// ReadExtensionBit decodes the single-bit "extension bit" that precedes the
+// value whenever a type has an extension marker in its constraint, the
+// counterpart to Encoder.WriteExtensionBit (X.691 §13.1 integer, §14.3
+// enumerated, §16.6 bitstring, §17.3 octetstring, §19.1 sequence, §20.4
+// sequence-of, §23.5 choice). Returns true if the decoded value lies
+// outside the extension root (or, for SEQUENCE/CHOICE, if an extension
+// addition/alternative is present), false otherwise.
+func (d *Decoder) ReadExtensionBit() (bool, error) {
+	return d.DecodeBoolean()
+}
+
 // DecodeInteger decodes an integer value with optional constraints and extensibility.
 // Parameters:
 // - lb: lower bound (nil if unconstrained)
@@ -329,13 +345,13 @@ func (d *Decoder) DecodeBoolean() (bool, error) {
 func (d *Decoder) DecodeInteger(lb *int64, ub *int64, extensible bool) (int64, error) {
 	if extensible {
 		// Read extension bit
-		extended, err := d.codec.Read(1)
+		extended, err := d.ReadExtensionBit()
 		if err != nil {
 			return 0, err
 		}
 
 		// If extended (bit = 1), decode as unconstrained
-		if extended != 0 {
+		if extended {
 			return d.DecodeUnconstrainedWholeNumber()
 		}
 		// Otherwise, continue with normal constrained/unconstrained decoding
@@ -372,14 +388,14 @@ func (d *Decoder) DecodeInteger(lb *int64, ub *int64, extensible bool) (int64, e
 func (d *Decoder) DecodeEnumerated(count uint64, extensible bool) (uint64, error) {
 	if extensible {
 		// Read extension bit
-		extended, err := d.codec.Read(1)
+		extended, err := d.ReadExtensionBit()
 		if err != nil {
 			return 0, err
 		}
 
 		// If extended (bit = 1), decode as normally small non-negative whole number
 		// and add count to get the original value
-		if extended != 0 {
+		if extended {
 			value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
 			if err != nil {
 				return 0, err
@@ -429,13 +445,13 @@ func (d *Decoder) DecodeReal() (float64, error) {
 	if length == 1 {
 		octet := contents[0]
 		switch octet {
-		case 0x40:
+		case REAL_PLUS_INFINITY:
 			return math.Inf(1), nil // PLUS-INFINITY
-		case 0x41:
+		case REAL_MINUS_INFINITY:
 			return math.Inf(-1), nil // MINUS-INFINITY
-		case 0x42:
+		case REAL_NOT_A_NUMBER:
 			return math.NaN(), nil // NOT-A-NUMBER
-		case 0x43:
+		case REAL_MINUS_ZERO:
 			return math.Copysign(0, -1), nil // Minus zero
 		}
 	}
@@ -458,7 +474,7 @@ func (d *Decoder) DecodeReal() (float64, error) {
 		mantissa int64
 	)
 
-	if (first & 0x40) != 0 {
+	if (first & REAL_BINARY_SIGN_BIT) != 0 {
 		sign = -1
 	}
 
@@ -497,9 +513,9 @@ func (d *Decoder) DecodeReal() (float64, error) {
 		}
 		raw := (uint32(contents[offset]) << 16) | (uint32(contents[offset+1]) << 8) | uint32(contents[offset+2])
 		exponent = int(raw)
-		if raw&0x800000 != 0 {
+		if raw&SIGN_BIT_24 != 0 {
 			// Negative: two's complement
-			exponent = exponent - (1 << 24)
+			exponent = exponent - TWOS_COMPLEMENT_24
 		}
 		offset = offset + 3
 	case 3:
@@ -590,12 +606,12 @@ func (d *Decoder) ReadBits(count uint) ([]byte, error) {
 func (d *Decoder) DecodeBitString(lb *uint64, ub *uint64, extensible bool) (*asn1.BitString, error) {
 	// 16.6 If extensible, read a bit indicating if the length is in the extension root
 	if extensible {
-		extended, err := d.codec.Read(1)
+		extended, err := d.ReadExtensionBit()
 		if err != nil {
 			return nil, err
 		}
 
-		if extended != 0 {
+		if extended {
 			// Extended: decode length as semi-constrained whole number with fragmentation
 			zero := uint64(0)
 			return d.DecodeBitStringFragments(&zero, nil)
@@ -608,7 +624,7 @@ func (d *Decoder) DecodeBitString(lb *uint64, ub *uint64, extensible bool) (*asn
 	}
 
 	// 16.9 If fixed length <= 16 bits, read directly (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= 16 {
+	if lb != nil && ub != nil && *lb == *ub && *ub <= BITSTRING_DIRECT_MAX_BITS {
 		data, err := d.ReadBits(uint(*ub))
 		if err != nil {
 			return nil, err
@@ -617,7 +633,7 @@ func (d *Decoder) DecodeBitString(lb *uint64, ub *uint64, extensible bool) (*asn
 	}
 
 	// 16.10 If fixed length > 16 bits but < 64K, align then read (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < 65536 {
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
 		if d.aligned {
 			if err := d.codec.Advance(); err != nil {
 				return nil, err
@@ -702,12 +718,12 @@ func (d *Decoder) DecodeBitStringFragments(lb *uint64, ub *uint64) (*asn1.BitStr
 func (d *Decoder) DecodeOctetString(lb *uint64, ub *uint64, extensible bool) ([]byte, error) {
 	// 17.3 If extensible, read a bit indicating if the length is in the extension root
 	if extensible {
-		extended, err := d.codec.Read(1)
+		extended, err := d.ReadExtensionBit()
 		if err != nil {
 			return nil, err
 		}
 
-		if extended != 0 {
+		if extended {
 			// Extended: decode length as semi-constrained whole number with fragmentation
 			zero := uint64(0)
 			return d.DecodeOctetStringFragments(&zero, nil)
@@ -720,7 +736,7 @@ func (d *Decoder) DecodeOctetString(lb *uint64, ub *uint64, extensible bool) ([]
 	}
 
 	// 17.6 If fixed length <= 2 octets, read directly (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= 2 {
+	if lb != nil && ub != nil && *lb == *ub && *ub <= OCTET_STRING_DIRECT_MAX {
 		data := make([]byte, *ub)
 		bytes, err := d.codec.ReadBytes(int(*ub))
 		if err != nil {
@@ -731,7 +747,7 @@ func (d *Decoder) DecodeOctetString(lb *uint64, ub *uint64, extensible bool) ([]
 	}
 
 	// 17.7 If fixed length > 2 octets but < 64K, align then read (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < 65536 {
+	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
 		if d.aligned {
 			if err := d.codec.Advance(); err != nil {
 				return nil, err
@@ -866,7 +882,7 @@ func (d *Decoder) DecodeSequence(value any) error {
 	// --- Phase 2: Decode extension bit (section 19.1) ---
 	hasExtensions := false
 	if meta.Extensible {
-		hasExtensions, err = d.DecodeBoolean()
+		hasExtensions, err = d.ReadExtensionBit()
 		if err != nil {
 			return fmt.Errorf("DecodeSequence: extension bit: %w", err)
 		}
@@ -891,9 +907,14 @@ func (d *Decoder) DecodeSequence(value any) error {
 			return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
 		}
 
-		// Skip absent optional/default fields
+		// Skip absent optional/default fields, applying the default value if one was given
 		if tag.Opt || tag.Def != nil {
 			if !optPresent[id] {
+				if tag.Def != nil {
+					if err := ApplyDefaultValue(rv.Field(id), *tag.Def); err != nil {
+						return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
+					}
+				}
 				continue
 			}
 		}
@@ -980,7 +1001,7 @@ func (d *Decoder) DecodeSequenceOf(target any, lb *uint64, ub *uint64, extensibl
 
 	// §20.4: If extensible, decode extension bit
 	if extensible {
-		extended, err := d.DecodeBoolean()
+		extended, err := d.ReadExtensionBit()
 		if err != nil {
 			return fmt.Errorf("DecodeSequenceOf: extension bit: %w", err)
 		}
@@ -1034,6 +1055,33 @@ func (d *Decoder) decodeSequenceOfComponents(rv reflect.Value, elemType reflect.
 	return nil
 }
 
+// DecodeChoiceId decodes a CHOICE alternative index per ITU-T X.691 section
+// 23, the counterpart to Encoder.EncodeChoiceId. lb/ub give the bounds of
+// the extension root (§23.6/23.7); extensible selects whether the index
+// being decoded is a root index (false, §23.6/23.7: constrained whole
+// number [lb,ub]) or an extension index (true, §23.8: normally small
+// non-negative whole number) — see EncodeChoiceId's doc comment for why
+// this can't be inferred from lb/ub alone. This does not decode the
+// extension bit itself (§23.5); that is decoded separately.
+func (d *Decoder) DecodeChoiceId(lb *int64, ub *int64, extensible bool) (int64, error) {
+	if extensible {
+		value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
+		if err != nil {
+			return 0, err
+		}
+		return int64(value), nil
+	}
+
+	l, u := int64(0), int64(0)
+	if lb != nil {
+		l = *lb
+	}
+	if ub != nil {
+		u = *ub
+	}
+	return d.DecodeConstrainedWholeNumber(l, u)
+}
+
 // DecodeChoice decodes a CHOICE value per ITU-T X.691 section 23.
 //
 // The target must be a pointer to a struct with fields tagged `per:"choice=N"`.
@@ -1067,22 +1115,21 @@ func (d *Decoder) DecodeChoice(value any) error {
 	// --- Section 23.5: Extension bit ---
 	extended := false
 	if meta.Extensible {
-		extended, err = d.DecodeBoolean()
+		extended, err = d.ReadExtensionBit()
 		if err != nil {
 			return fmt.Errorf("DecodeChoice: extension bit: %w", err)
 		}
 	}
 
+	// --- Section 23.4/23.6/23.7/23.8: Decode the choice index ---
+	zero := int64(0)
+	choiceIdx, err := d.DecodeChoiceId(&zero, &n, extended)
+	if err != nil {
+		return fmt.Errorf("DecodeChoice: index: %w", err)
+	}
+
 	if !extended {
 		// --- Section 23.4/23.6/23.7: Root alternative ---
-		var choiceIdx int64
-		if n > 0 {
-			choiceIdx, err = d.DecodeConstrainedWholeNumber(0, n)
-			if err != nil {
-				return fmt.Errorf("DecodeChoice: index: %w", err)
-			}
-		}
-
 		if int(choiceIdx) >= len(meta.Fields) {
 			return fmt.Errorf("DecodeChoice: root index %d out of range (max %d)", choiceIdx, len(meta.Fields)-1)
 		}
@@ -1104,10 +1151,7 @@ func (d *Decoder) DecodeChoice(value any) error {
 	}
 
 	// --- Section 23.8: Extension alternative ---
-	extIdx, err := d.DecodeNormallySmallNonNegativeWholeNumber()
-	if err != nil {
-		return fmt.Errorf("DecodeChoice: extension index: %w", err)
-	}
+	extIdx := choiceIdx
 
 	// Decode open type wrapper
 	openBytes, err := d.DecodeOctetString(nil, nil, false)

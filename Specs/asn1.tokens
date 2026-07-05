@@ -1,0 +1,161 @@
+-- X6801.docx (35 named, 21 single-char, 91 keywords)
+
+-- Named lexical items
+
+typereference
+    A "typereference" shall consist of an arbitrary number (one or more) of letters, digits, and hyphens. The initial character shall be an upper-case letter. A hyphen shall not be the last character. A hyphen shall not be immediately followed by another hyphen.
+
+identifier
+    An "identifier" shall consist of an arbitrary number (one or more) of letters, digits, and hyphens. The initial character shall be a lower-case letter. A hyphen shall not be the last character. A hyphen shall not be immediately followed by another hyphen.
+
+valuereference
+    A "valuereference" shall consist of the sequence of characters specified for an "identifier" in 12.3. In analyzing an instance of use of this notation, a "valuereference" is distinguished from an "identifier" by the context in which it appears.
+
+modulereference
+    A "modulereference" shall consist of the sequence of characters specified for a "typereference" in 12.2. In analyzing an instance of use of this notation, a "modulereference" is distinguished from a "typereference" by the context in which it appears.
+
+comment
+    A "comment" is not referenced in the definition of the ASN.1 notation. It may, however, appear at any time between other lexical items, and has no syntactic significance.
+
+empty
+    The "empty" item contains no characters. It is used in the notation of clause 5 when alternative sets of production sequences are specified, to indicate that absence of all alternatives is possible.
+
+number
+    A "number" shall consist of one or more digits. The first digit shall not be zero unless the "number" is a single digit.
+
+realnumber
+    A "realnumber" shall consist of an integer part that is a series of one or more digits, and optionally a decimal point (.). The decimal point can optionally be followed by a fractional part which is one or more digits. The integer part, decimal point or fractional part (whichever is last present) can optionally be followed by an e or E and an optionally-signed exponent which is one or more digits. The leading digit of the "realnumber" shall not be zero unless it is either the only digit or is immediately followed by a decimal point followed by a fractional part of which at least one digit is not zero.
+
+bstring
+    A "bstring" shall consist of an arbitrary number (possibly zero) of the characters:
+
+xmlbstring
+    An "xmlbstring" shall consist of an arbitrary number (possibly zero) of zeros, ones or white-space. Any white-space characters that appear within a binary string item have no significance.
+
+hstring
+    An "hstring" shall consist of an arbitrary number (possibly zero) of the characters:
+
+xmlhstring
+    An "xmlhstring" shall consist of an arbitrary number (possibly zero) of the characters:
+
+cstring
+    A "cstring" shall consist of an arbitrary number (possibly zero) of graphic symbols and spacing characters from the character set referenced by the character string type, preceded and followed by a QUOTATION MARK (34) character ("). If the character set includes a QUOTATION MARK (34) character, this character (if present in the character string being represented by the "cstring") shall be represented in the "cstring" by a pair of QUOTATION MARK (34) characters on the same line with no intervening spacing character. The "cstring" may span more than one line of text, in which case the character string being represented shall not include spacing characters in the position prior to or following the end of line in the "cstring". Any spacing characters that appear immediately prior to or following the end of line in the "cstring" have no significance.
+
+xmlcstring
+    An "xmlcstring" shall consist of an arbitrary number (possibly zero) of the following ISO/IEC 10646 characters:
+
+simplestring
+    A "simplestring" shall consist of one or more ISO/IEC 10646 characters whose character code is in the range 32 to 126, preceded and followed by a QUOTATION MARK (34) character ("). It shall not contain a QUOTATION MARK (34) character ("). The "simplestring" may span more than one line of text, in which case any characters representing end-of-line shall be treated as spacing characters. In analyzing an instance of use of this notation, a "simplestring" is distinguished from a "cstring" by the context in which it appears.
+
+tstring
+    A "tstring" shall consist of one or more of the characters:
+
+xmltstring
+    An "xmltstring" shall consist of one or more of the characters:
+
+psname
+    A "psname" shall consist of an arbitrary number (one or more) of letters, digits and hyphens. The initial character shall be an upper-case letter. A hyphen shall not be the last character. A hyphen shall not be immediately followed by another hyphen.
+
+"::="
+    This lexical item shall consist of the sequence of characters:
+
+".."
+    This lexical item shall consist of the sequence of characters:
+
+"..."
+    This lexical item shall consist of the sequence of characters:
+
+"[["
+    This lexical item shall consist of the sequence of characters:
+
+"]]"
+    This lexical item shall consist of the sequence of characters:
+
+encodingreference
+    An "encodingreference" shall consist of a sequence of characters as specified for a "typereference" in 12.2, except that no lower-case letters shall be included.
+
+integerUnicodeLabel
+    This lexical item shall consist of an arbitrarily long sequence of ISO/IEC 10646 characters in the range 0 (DIGIT ZERO) to 9 (DIGIT NINE) that identify an arc of the International Object Identifier tree. It shall not commence with a 0 (DIGIT ZERO) character unless it has only a single character and the primary integer value of the associated arc of the International Object Identifier tree is zero.
+
+non-integerUnicodeLabel
+    This lexical item shall consist of an arbitrarily long sequence of ISO/IEC 10646 characters that satisfies the constraints specified in Rec. ITU-T X.660 | ISO 9834-1, 7.5 and identifies an arc of the International Object Identifier tree. For lexical parsing purposes, it shall not consist only of characters that would enable it to be identified as an "integerUnicodeLabel".
+
+"</"
+    This item shall consist of the sequence of characters:
+
+"/>"
+    This item shall consist of the sequence of characters:
+
+"true"
+    This item shall consist of the sequence of characters:
+
+extended-true
+    This item shall consist of either the sequence of characters:
+
+"false"
+    This item shall consist of the sequence of characters:
+
+extended-false
+    This item shall consist of either the sequence of characters:
+
+"NaN"
+    This item shall consist of the sequence of characters:
+
+"INF"
+    This item shall consist of the sequence of characters:
+
+xmlasn1typename
+    This Recommendation | International Standard uses the item "xmlasn1typename" when ASN.1 built-in types are to be used as XML tag names.
+
+-- X6811.docx (9 named, 0 single-char, 0 keywords)
+
+-- Named lexical items
+
+objectclassreference
+    An "objectclassreference" shall consist of a sequence of characters as specified for a "typereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found, except that no lower-case letters shall be included.
+
+objectreference
+    An "objectreference" shall consist of a sequence of characters as specified for a "valuereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found.
+
+objectsetreference
+    An "objectsetreference" shall consist of a sequence of characters as specified for a "typereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found.
+
+typefieldreference
+    A "typefieldreference" shall consist of an ampersand ("&") immediately followed by a sequence of characters as specified for a "typereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found.
+
+valuefieldreference
+    A "valuefieldreference" shall consist of an ampersand ("&") immediately followed by a sequence of characters as specified for a "valuereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found.
+
+valuesetfieldreference
+    A "valuesetfieldreference" shall consist of an ampersand ("&") immediately followed by a sequence of characters as specified for a "typereference" in Rec. ITU-T X.680 | ISO/IEC 8824-1, Error: Reference source not found.
+
+objectfieldreference
+    An "objectfieldreference" shall consist of an ampersand ("&") immediately followed by a sequence of characters as specified for an "objectreference" in 7.2.
+
+objectsetfieldreference
+    An "objectsetfieldreference" shall consist of an ampersand ("&") immediately followed by a sequence of characters as specified for an "objectsetreference" in 7.3.
+
+word
+    A "word" shall consist of a sequence of characters as specified for a "typereference" in Rec. ITU-T X.680 | ISO/IEC 88241, Error: Reference source not found, except that no lower-case letters or digits shall be included.
+
+-- X6821.docx (0 named, 0 single-char, 0 keywords)
+
+-- X6831.docx (0 named, 0 single-char, 0 keywords)
+
+-- Single-character tokens
+    "{"  "}"  "<"  ">"  ","  "."  "/"  "("  ")"  "["  "]"  "-"  ":"  "="  """  "'"  ";"  "@"  "|"  "!"  "^"
+
+-- Reserved words (keywords)
+    ABSENT ABSTRACT-SYNTAX ALL APPLICATION AUTOMATIC BEGIN BIT BMPString
+    BOOLEAN BY CHARACTER CHOICE CLASS COMPONENT COMPONENTS CONSTRAINED
+    CONTAINING DATE DATE-TIME DEFAULT DEFINITIONS DURATION EMBEDDED ENCODED
+    ENCODING-CONTROL END ENUMERATED EXCEPT EXPLICIT EXPORTS EXTENSIBILITY
+    EXTERNAL FALSE FROM GeneralString GeneralizedTime GraphicString IA5String
+    IDENTIFIER IMPLICIT IMPLIED IMPORTS INCLUDES INSTANCE INSTRUCTIONS INTEGER
+    INTERSECTION ISO646String MAX MIN MINUS-INFINITY NOT-A-NUMBER NULL
+    NumericString OBJECT OCTET OF OID-IRI OPTIONAL ObjectDescriptor PATTERN PDV
+    PLUS-INFINITY PRESENT PRIVATE PrintableString REAL RELATIVE-OID
+    RELATIVE-OID-IRI SEQUENCE SET SETTINGS SIZE STRING SYNTAX T61String TAGS
+    TIME TIME-OF-DAY TRUE TYPE-IDENTIFIER TeletexString UNION UNIQUE UNIVERSAL
+    UTCTime UTF8String UniversalString VideotexString VisibleString WITH
+
