@@ -44,4 +44,42 @@ DATE-ENCODING ::= SEQUENCE {
     day   INTEGER (1..31)
 }
 
+ANY-DATE-ENCODING ::= SEQUENCE {
+    year  ANY-YEAR-ENCODING,
+    month INTEGER (1..12),
+    day   INTEGER (1..31)
+}
+
+YEAR-DAY-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+ANY-YEAR-DAY-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    week INTEGER (1..53)
+}
+
+ANY-YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    week INTEGER (1..53)
+}
+
+YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    week INTEGER (1..53),
+    day  INTEGER (1..7)
+}
+
+ANY-YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    week INTEGER (1..53),
+    day  INTEGER (1..7)
+}
+
 END

@@ -1,0 +1,242 @@
+[
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "0000000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "00000000"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "c76003e77c"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "c76f9df0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": true,
+    "output": "63c001f495d0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": false,
+    "output": "63c7d25740"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": true,
+    "output": "08300203e8c000"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": false,
+    "output": "0830203e8c00"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": true,
+    "output": "b9f00301e240b3a0"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": false,
+    "output": "b9f0301e240b3a"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "0000000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "00000000"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "c76003e77c"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "c76f9df0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": true,
+    "output": "63c001f495d0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": false,
+    "output": "63c7d25740"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": true,
+    "output": "08300203e8c000"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": false,
+    "output": "0830203e8c00"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": true,
+    "output": "b9f00301e240b3a0"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": false,
+    "output": "b9f0301e240b3a"
+  }
+]

@@ -1,0 +1,142 @@
+[
+  {
+    "input": {
+      "hours": 0
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "hours": 0
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "hours": 1
+    },
+    "aligned": true,
+    "output": "08"
+  },
+  {
+    "input": {
+      "hours": 1
+    },
+    "aligned": false,
+    "output": "08"
+  },
+  {
+    "input": {
+      "hours": 12
+    },
+    "aligned": true,
+    "output": "60"
+  },
+  {
+    "input": {
+      "hours": 12
+    },
+    "aligned": false,
+    "output": "60"
+  },
+  {
+    "input": {
+      "hours": 23
+    },
+    "aligned": true,
+    "output": "b8"
+  },
+  {
+    "input": {
+      "hours": 23
+    },
+    "aligned": false,
+    "output": "b8"
+  },
+  {
+    "input": {
+      "hours": 24
+    },
+    "aligned": true,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "hours": 24
+    },
+    "aligned": false,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "hours": 0
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "hours": 0
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "hours": 1
+    },
+    "aligned": true,
+    "output": "08"
+  },
+  {
+    "input": {
+      "hours": 1
+    },
+    "aligned": false,
+    "output": "08"
+  },
+  {
+    "input": {
+      "hours": 12
+    },
+    "aligned": true,
+    "output": "60"
+  },
+  {
+    "input": {
+      "hours": 12
+    },
+    "aligned": false,
+    "output": "60"
+  },
+  {
+    "input": {
+      "hours": 23
+    },
+    "aligned": true,
+    "output": "b8"
+  },
+  {
+    "input": {
+      "hours": 23
+    },
+    "aligned": false,
+    "output": "b8"
+  },
+  {
+    "input": {
+      "hours": 24
+    },
+    "aligned": true,
+    "output": "c0"
+  },
+  {
+    "input": {
+      "hours": 24
+    },
+    "aligned": false,
+    "output": "c0"
+  }
+]

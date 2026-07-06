@@ -1,0 +1,182 @@
+[
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0
+    },
+    "aligned": true,
+    "output": "00000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0
+    },
+    "aligned": false,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500
+    },
+    "aligned": true,
+    "output": "63c001f4"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500
+    },
+    "aligned": false,
+    "output": "63c7d0"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999
+    },
+    "aligned": true,
+    "output": "c76003e7"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999
+    },
+    "aligned": false,
+    "output": "c76f9c"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000
+    },
+    "aligned": true,
+    "output": "08300203e8"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000
+    },
+    "aligned": false,
+    "output": "0830203e80"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456
+    },
+    "aligned": true,
+    "output": "b9f00301e240"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456
+    },
+    "aligned": false,
+    "output": "b9f0301e2400"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0
+    },
+    "aligned": true,
+    "output": "00000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "fraction": 0
+    },
+    "aligned": false,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500
+    },
+    "aligned": true,
+    "output": "63c001f4"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "fraction": 500
+    },
+    "aligned": false,
+    "output": "63c7d0"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999
+    },
+    "aligned": true,
+    "output": "c76003e7"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "fraction": 999
+    },
+    "aligned": false,
+    "output": "c76f9c"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000
+    },
+    "aligned": true,
+    "output": "08300203e8"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "fraction": 1000
+    },
+    "aligned": false,
+    "output": "0830203e80"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456
+    },
+    "aligned": true,
+    "output": "b9f00301e240"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "fraction": 123456
+    },
+    "aligned": false,
+    "output": "b9f0301e2400"
+  }
+]

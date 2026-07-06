@@ -9,7 +9,7 @@ import sys
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ASN1_MODULES = ["REAL-TYPE", "CENTURY", "YEAR"]
+ASN1_MODULES = ["REAL-TYPE", "CENTURY", "YEAR", "TIME-DIFFERENCE"]
 
 ENCODINGS = [
     ("per", os.path.join(SCRIPT_DIR, "aper")),

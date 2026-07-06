@@ -1,0 +1,258 @@
+[
+  {
+    "input": {},
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {},
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "years": 1,
+      "months": 2,
+      "weeks": 3,
+      "days": 4,
+      "hours": 5,
+      "minutes": 6,
+      "seconds": 7,
+      "fractional-part": {
+        "number-of-digits": 2,
+        "fractional-value": 50
+      }
+    },
+    "aligned": true,
+    "output": "ff010101020103010401050106010701010132"
+  },
+  {
+    "input": {
+      "years": 1,
+      "months": 2,
+      "weeks": 3,
+      "days": 4,
+      "hours": 5,
+      "minutes": 6,
+      "seconds": 7,
+      "fractional-part": {
+        "number-of-digits": 2,
+        "fractional-value": 50
+      }
+    },
+    "aligned": false,
+    "output": "ff010101020103010401050106010701010132"
+  },
+  {
+    "input": {
+      "years": 1000,
+      "months": 999,
+      "weeks": 5000,
+      "days": 12345,
+      "hours": 100000,
+      "minutes": 999999,
+      "seconds": 123456789,
+      "fractional-part": {
+        "number-of-digits": 9,
+        "fractional-value": 123456789
+      }
+    },
+    "aligned": true,
+    "output": "ff0203e80203e7021388023039030186a0030f423f04075bcd15010804075bcd15"
+  },
+  {
+    "input": {
+      "years": 1000,
+      "months": 999,
+      "weeks": 5000,
+      "days": 12345,
+      "hours": 100000,
+      "minutes": 999999,
+      "seconds": 123456789,
+      "fractional-part": {
+        "number-of-digits": 9,
+        "fractional-value": 123456789
+      }
+    },
+    "aligned": false,
+    "output": "ff0203e80203e7021388023039030186a0030f423f04075bcd15010804075bcd15"
+  },
+  {
+    "input": {
+      "weeks": 10
+    },
+    "aligned": true,
+    "output": "20010a"
+  },
+  {
+    "input": {
+      "weeks": 10
+    },
+    "aligned": false,
+    "output": "20010a"
+  },
+  {
+    "input": {
+      "seconds": 0
+    },
+    "aligned": true,
+    "output": "020100"
+  },
+  {
+    "input": {
+      "seconds": 0
+    },
+    "aligned": false,
+    "output": "020100"
+  },
+  {
+    "input": {
+      "years": 5,
+      "fractional-part": {
+        "number-of-digits": 1,
+        "fractional-value": 0
+      }
+    },
+    "aligned": true,
+    "output": "81010501000100"
+  },
+  {
+    "input": {
+      "years": 5,
+      "fractional-part": {
+        "number-of-digits": 1,
+        "fractional-value": 0
+      }
+    },
+    "aligned": false,
+    "output": "81010501000100"
+  },
+  {
+    "input": {},
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {},
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "years": 1,
+      "months": 2,
+      "weeks": 3,
+      "days": 4,
+      "hours": 5,
+      "minutes": 6,
+      "seconds": 7,
+      "fractional-part": {
+        "number-of-digits": 2,
+        "fractional-value": 50
+      }
+    },
+    "aligned": true,
+    "output": "ff010101020103010401050106010701010132"
+  },
+  {
+    "input": {
+      "years": 1,
+      "months": 2,
+      "weeks": 3,
+      "days": 4,
+      "hours": 5,
+      "minutes": 6,
+      "seconds": 7,
+      "fractional-part": {
+        "number-of-digits": 2,
+        "fractional-value": 50
+      }
+    },
+    "aligned": false,
+    "output": "ff010101020103010401050106010701010132"
+  },
+  {
+    "input": {
+      "years": 1000,
+      "months": 999,
+      "weeks": 5000,
+      "days": 12345,
+      "hours": 100000,
+      "minutes": 999999,
+      "seconds": 123456789,
+      "fractional-part": {
+        "number-of-digits": 9,
+        "fractional-value": 123456789
+      }
+    },
+    "aligned": true,
+    "output": "ff0203e80203e7021388023039030186a0030f423f04075bcd15010804075bcd15"
+  },
+  {
+    "input": {
+      "years": 1000,
+      "months": 999,
+      "weeks": 5000,
+      "days": 12345,
+      "hours": 100000,
+      "minutes": 999999,
+      "seconds": 123456789,
+      "fractional-part": {
+        "number-of-digits": 9,
+        "fractional-value": 123456789
+      }
+    },
+    "aligned": false,
+    "output": "ff0203e80203e7021388023039030186a0030f423f04075bcd15010804075bcd15"
+  },
+  {
+    "input": {
+      "weeks": 10
+    },
+    "aligned": true,
+    "output": "20010a"
+  },
+  {
+    "input": {
+      "weeks": 10
+    },
+    "aligned": false,
+    "output": "20010a"
+  },
+  {
+    "input": {
+      "seconds": 0
+    },
+    "aligned": true,
+    "output": "020100"
+  },
+  {
+    "input": {
+      "seconds": 0
+    },
+    "aligned": false,
+    "output": "020100"
+  },
+  {
+    "input": {
+      "years": 5,
+      "fractional-part": {
+        "number-of-digits": 1,
+        "fractional-value": 0
+      }
+    },
+    "aligned": true,
+    "output": "81010501000100"
+  },
+  {
+    "input": {
+      "years": 5,
+      "fractional-part": {
+        "number-of-digits": 1,
+        "fractional-value": 0
+      }
+    },
+    "aligned": false,
+    "output": "81010501000100"
+  }
+]

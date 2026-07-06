@@ -1,0 +1,222 @@
+[
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "c76f80"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "c76f80"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": true,
+    "output": "63d2ba"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": false,
+    "output": "63d2ba"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": true,
+    "output": "083800"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": false,
+    "output": "083800"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": true,
+    "output": "b9f674"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": false,
+    "output": "b9f674"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0,
+      "sign": "positive",
+      "diff_hours": 0,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": true,
+    "output": "c76f80"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59,
+      "sign": "negative",
+      "diff_hours": 15,
+      "diff_minutes": null
+    },
+    "aligned": false,
+    "output": "c76f80"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": true,
+    "output": "63d2ba"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30,
+      "sign": "positive",
+      "diff_hours": 5,
+      "diff_minutes": 30
+    },
+    "aligned": false,
+    "output": "63d2ba"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": true,
+    "output": "083800"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1,
+      "sign": "negative",
+      "diff_hours": 0,
+      "diff_minutes": 1
+    },
+    "aligned": false,
+    "output": "083800"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": true,
+    "output": "b9f674"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 15,
+      "sign": "positive",
+      "diff_hours": 12,
+      "diff_minutes": 59
+    },
+    "aligned": false,
+    "output": "b9f674"
+  }
+]

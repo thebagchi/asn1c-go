@@ -8,7 +8,11 @@
 -include("YEAR.hrl").
 -asn1_info([{vsn,'5.0.17'},
             {module,'YEAR'},
-            {options,[{i,"uper"},{outdir,"uper"},uper,{i,"."},{i,".."}]}]).
+            {options,[{i,"/home/sandeep/workspace/asn1c-go/lib/builtin/testing/erlang/uper"},
+ {outdir,"/home/sandeep/workspace/asn1c-go/lib/builtin/testing/erlang/uper"},
+ uper,
+ {i,"."},
+ {i,".."}]}]).
 
 -export([encoding_rule/0,maps/0,bit_string_format/0,
          legacy_erlang_types/0]).
@@ -17,14 +21,28 @@
 'enc_YEAR-ENCODING'/1,
 'enc_ANY-YEAR-ENCODING'/1,
 'enc_YEAR-MONTH-ENCODING'/1,
-'enc_DATE-ENCODING'/1
+'enc_DATE-ENCODING'/1,
+'enc_ANY-DATE-ENCODING'/1,
+'enc_YEAR-DAY-ENCODING'/1,
+'enc_ANY-YEAR-DAY-ENCODING'/1,
+'enc_YEAR-WEEK-ENCODING'/1,
+'enc_ANY-YEAR-WEEK-ENCODING'/1,
+'enc_YEAR-WEEK-DAY-ENCODING'/1,
+'enc_ANY-YEAR-WEEK-DAY-ENCODING'/1
 ]).
 
 -export([
 'dec_YEAR-ENCODING'/1,
 'dec_ANY-YEAR-ENCODING'/1,
 'dec_YEAR-MONTH-ENCODING'/1,
-'dec_DATE-ENCODING'/1
+'dec_DATE-ENCODING'/1,
+'dec_ANY-DATE-ENCODING'/1,
+'dec_YEAR-DAY-ENCODING'/1,
+'dec_ANY-YEAR-DAY-ENCODING'/1,
+'dec_YEAR-WEEK-ENCODING'/1,
+'dec_ANY-YEAR-WEEK-ENCODING'/1,
+'dec_YEAR-WEEK-DAY-ENCODING'/1,
+'dec_ANY-YEAR-WEEK-DAY-ENCODING'/1
 ]).
 
 -export([info/0]).
@@ -71,12 +89,26 @@ encode_disp('YEAR-ENCODING', Data) -> 'enc_YEAR-ENCODING'(Data);
 encode_disp('ANY-YEAR-ENCODING', Data) -> 'enc_ANY-YEAR-ENCODING'(Data);
 encode_disp('YEAR-MONTH-ENCODING', Data) -> 'enc_YEAR-MONTH-ENCODING'(Data);
 encode_disp('DATE-ENCODING', Data) -> 'enc_DATE-ENCODING'(Data);
+encode_disp('ANY-DATE-ENCODING', Data) -> 'enc_ANY-DATE-ENCODING'(Data);
+encode_disp('YEAR-DAY-ENCODING', Data) -> 'enc_YEAR-DAY-ENCODING'(Data);
+encode_disp('ANY-YEAR-DAY-ENCODING', Data) -> 'enc_ANY-YEAR-DAY-ENCODING'(Data);
+encode_disp('YEAR-WEEK-ENCODING', Data) -> 'enc_YEAR-WEEK-ENCODING'(Data);
+encode_disp('ANY-YEAR-WEEK-ENCODING', Data) -> 'enc_ANY-YEAR-WEEK-ENCODING'(Data);
+encode_disp('YEAR-WEEK-DAY-ENCODING', Data) -> 'enc_YEAR-WEEK-DAY-ENCODING'(Data);
+encode_disp('ANY-YEAR-WEEK-DAY-ENCODING', Data) -> 'enc_ANY-YEAR-WEEK-DAY-ENCODING'(Data);
 encode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 decode_disp('YEAR-ENCODING', Data) -> 'dec_YEAR-ENCODING'(Data);
 decode_disp('ANY-YEAR-ENCODING', Data) -> 'dec_ANY-YEAR-ENCODING'(Data);
 decode_disp('YEAR-MONTH-ENCODING', Data) -> 'dec_YEAR-MONTH-ENCODING'(Data);
 decode_disp('DATE-ENCODING', Data) -> 'dec_DATE-ENCODING'(Data);
+decode_disp('ANY-DATE-ENCODING', Data) -> 'dec_ANY-DATE-ENCODING'(Data);
+decode_disp('YEAR-DAY-ENCODING', Data) -> 'dec_YEAR-DAY-ENCODING'(Data);
+decode_disp('ANY-YEAR-DAY-ENCODING', Data) -> 'dec_ANY-YEAR-DAY-ENCODING'(Data);
+decode_disp('YEAR-WEEK-ENCODING', Data) -> 'dec_YEAR-WEEK-ENCODING'(Data);
+decode_disp('ANY-YEAR-WEEK-ENCODING', Data) -> 'dec_ANY-YEAR-WEEK-ENCODING'(Data);
+decode_disp('YEAR-WEEK-DAY-ENCODING', Data) -> 'dec_YEAR-WEEK-DAY-ENCODING'(Data);
+decode_disp('ANY-YEAR-WEEK-DAY-ENCODING', Data) -> 'dec_ANY-YEAR-WEEK-DAY-ENCODING'(Data);
 decode_disp(Type, _Data) -> exit({error,{asn1,{undefined_type,Type}}}).
 
 info() ->
@@ -267,6 +299,310 @@ V2@Add2 = V2@V0 + 1,
 {V2@Add2,V2@Buf1}
 end,
 Res1 = {'DATE-ENCODING',Term1,Term2,Term3},
+{Res1,Bytes3}.
+
+'enc_ANY-DATE-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type INTEGER
+Enc1@element = element(2, Val),
+encode_unconstrained_number(Enc1@element)
+end,
+begin
+%% attribute month(2) with type INTEGER
+Enc3@element = element(3, Val),
+Enc3@element@sub = Enc3@element - 1,
+if 0 =< Enc3@element@sub, Enc3@element@sub < 12 ->
+<<Enc3@element@sub:4>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc3@element}}})
+end
+end|begin
+%% attribute day(3) with type INTEGER
+Enc5@element = element(4, Val),
+Enc5@element@sub = Enc5@element - 1,
+if 0 =< Enc5@element@sub, Enc5@element@sub < 31 ->
+<<Enc5@element@sub:5>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc5@element}}})
+end
+end].
+
+
+'dec_ANY-DATE-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type INTEGER
+{Term1,Bytes1} = begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:7,V1@Buf4/bitstring>> when V1@V3 =/= 0 ->
+{V1@V3,V1@Buf4};
+<<1:1,0:1,V1@V4:14,V1@Buf5/bitstring>> when V1@V4 =/= 0 ->
+{V1@V4,V1@Buf5}
+end,
+<<V1@V6:V1@V0/signed-unit:8,V1@Buf7/bitstring>> = V1@Buf1,
+{V1@V6,V1@Buf7}
+end,
+
+%% attribute month(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V2@V0:4,V2@Buf1/bitstring>> = Bytes1,
+V2@Add2 = V2@V0 + 1,
+{V2@Add2,V2@Buf1}
+end,
+
+%% attribute day(3) with type INTEGER
+{Term3,Bytes3} = begin
+<<V3@V0:5,V3@Buf1/bitstring>> = Bytes2,
+V3@Add2 = V3@V0 + 1,
+{V3@Add2,V3@Buf1}
+end,
+Res1 = {'ANY-DATE-ENCODING',Term1,Term2,Term3},
+{Res1,Bytes3}.
+
+'enc_YEAR-DAY-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type YEAR-ENCODING
+Enc1@element = element(2, Val),
+'enc_YEAR-ENCODING'(Enc1@element)
+end|begin
+%% attribute day(2) with type INTEGER
+Enc2@element = element(3, Val),
+Enc2@element@sub = Enc2@element - 1,
+if 0 =< Enc2@element@sub, Enc2@element@sub < 366 ->
+<<Enc2@element@sub:9>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc2@element}}})
+end
+end].
+
+
+'dec_YEAR-DAY-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type YEAR-ENCODING
+{Term1,Bytes1} = 'dec_YEAR-ENCODING'(Bytes),
+
+%% attribute day(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V1@V0:9,V1@Buf1/bitstring>> = Bytes1,
+V1@Add2 = V1@V0 + 1,
+{V1@Add2,V1@Buf1}
+end,
+Res1 = {'YEAR-DAY-ENCODING',Term1,Term2},
+{Res1,Bytes2}.
+
+'enc_ANY-YEAR-DAY-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type INTEGER
+Enc1@element = element(2, Val),
+encode_unconstrained_number(Enc1@element)
+end|begin
+%% attribute day(2) with type INTEGER
+Enc3@element = element(3, Val),
+Enc3@element@sub = Enc3@element - 1,
+if 0 =< Enc3@element@sub, Enc3@element@sub < 366 ->
+<<Enc3@element@sub:9>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc3@element}}})
+end
+end].
+
+
+'dec_ANY-YEAR-DAY-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type INTEGER
+{Term1,Bytes1} = begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:7,V1@Buf4/bitstring>> when V1@V3 =/= 0 ->
+{V1@V3,V1@Buf4};
+<<1:1,0:1,V1@V4:14,V1@Buf5/bitstring>> when V1@V4 =/= 0 ->
+{V1@V4,V1@Buf5}
+end,
+<<V1@V6:V1@V0/signed-unit:8,V1@Buf7/bitstring>> = V1@Buf1,
+{V1@V6,V1@Buf7}
+end,
+
+%% attribute day(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V2@V0:9,V2@Buf1/bitstring>> = Bytes1,
+V2@Add2 = V2@V0 + 1,
+{V2@Add2,V2@Buf1}
+end,
+Res1 = {'ANY-YEAR-DAY-ENCODING',Term1,Term2},
+{Res1,Bytes2}.
+
+'enc_YEAR-WEEK-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type YEAR-ENCODING
+Enc1@element = element(2, Val),
+'enc_YEAR-ENCODING'(Enc1@element)
+end|begin
+%% attribute week(2) with type INTEGER
+Enc2@element = element(3, Val),
+Enc2@element@sub = Enc2@element - 1,
+if 0 =< Enc2@element@sub, Enc2@element@sub < 53 ->
+<<Enc2@element@sub:6>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc2@element}}})
+end
+end].
+
+
+'dec_YEAR-WEEK-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type YEAR-ENCODING
+{Term1,Bytes1} = 'dec_YEAR-ENCODING'(Bytes),
+
+%% attribute week(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V1@V0:6,V1@Buf1/bitstring>> = Bytes1,
+V1@Add2 = V1@V0 + 1,
+{V1@Add2,V1@Buf1}
+end,
+Res1 = {'YEAR-WEEK-ENCODING',Term1,Term2},
+{Res1,Bytes2}.
+
+'enc_ANY-YEAR-WEEK-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type INTEGER
+Enc1@element = element(2, Val),
+encode_unconstrained_number(Enc1@element)
+end|begin
+%% attribute week(2) with type INTEGER
+Enc3@element = element(3, Val),
+Enc3@element@sub = Enc3@element - 1,
+if 0 =< Enc3@element@sub, Enc3@element@sub < 53 ->
+<<Enc3@element@sub:6>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc3@element}}})
+end
+end].
+
+
+'dec_ANY-YEAR-WEEK-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type INTEGER
+{Term1,Bytes1} = begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:7,V1@Buf4/bitstring>> when V1@V3 =/= 0 ->
+{V1@V3,V1@Buf4};
+<<1:1,0:1,V1@V4:14,V1@Buf5/bitstring>> when V1@V4 =/= 0 ->
+{V1@V4,V1@Buf5}
+end,
+<<V1@V6:V1@V0/signed-unit:8,V1@Buf7/bitstring>> = V1@Buf1,
+{V1@V6,V1@Buf7}
+end,
+
+%% attribute week(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V2@V0:6,V2@Buf1/bitstring>> = Bytes1,
+V2@Add2 = V2@V0 + 1,
+{V2@Add2,V2@Buf1}
+end,
+Res1 = {'ANY-YEAR-WEEK-ENCODING',Term1,Term2},
+{Res1,Bytes2}.
+
+'enc_YEAR-WEEK-DAY-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type YEAR-ENCODING
+Enc1@element = element(2, Val),
+'enc_YEAR-ENCODING'(Enc1@element)
+end,
+begin
+%% attribute week(2) with type INTEGER
+Enc2@element = element(3, Val),
+Enc2@element@sub = Enc2@element - 1,
+if 0 =< Enc2@element@sub, Enc2@element@sub < 53 ->
+<<Enc2@element@sub:6>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc2@element}}})
+end
+end|begin
+%% attribute day(3) with type INTEGER
+Enc4@element = element(4, Val),
+Enc4@element@sub = Enc4@element - 1,
+if 0 =< Enc4@element@sub, Enc4@element@sub < 7 ->
+<<Enc4@element@sub:3>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc4@element}}})
+end
+end].
+
+
+'dec_YEAR-WEEK-DAY-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type YEAR-ENCODING
+{Term1,Bytes1} = 'dec_YEAR-ENCODING'(Bytes),
+
+%% attribute week(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V1@V0:6,V1@Buf1/bitstring>> = Bytes1,
+V1@Add2 = V1@V0 + 1,
+{V1@Add2,V1@Buf1}
+end,
+
+%% attribute day(3) with type INTEGER
+{Term3,Bytes3} = begin
+<<V2@V0:3,V2@Buf1/bitstring>> = Bytes2,
+V2@Add2 = V2@V0 + 1,
+{V2@Add2,V2@Buf1}
+end,
+Res1 = {'YEAR-WEEK-DAY-ENCODING',Term1,Term2,Term3},
+{Res1,Bytes3}.
+
+'enc_ANY-YEAR-WEEK-DAY-ENCODING'(Val) ->
+[begin
+%% attribute year(1) with type INTEGER
+Enc1@element = element(2, Val),
+encode_unconstrained_number(Enc1@element)
+end,
+begin
+%% attribute week(2) with type INTEGER
+Enc3@element = element(3, Val),
+Enc3@element@sub = Enc3@element - 1,
+if 0 =< Enc3@element@sub, Enc3@element@sub < 53 ->
+<<Enc3@element@sub:6>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc3@element}}})
+end
+end|begin
+%% attribute day(3) with type INTEGER
+Enc5@element = element(4, Val),
+Enc5@element@sub = Enc5@element - 1,
+if 0 =< Enc5@element@sub, Enc5@element@sub < 7 ->
+<<Enc5@element@sub:3>>;
+true ->
+exit({error,{asn1,{illegal_integer,Enc5@element}}})
+end
+end].
+
+
+'dec_ANY-YEAR-WEEK-DAY-ENCODING'(Bytes) ->
+
+%% attribute year(1) with type INTEGER
+{Term1,Bytes1} = begin
+{V1@V0,V1@Buf1} = case Bytes of
+<<0:1,V1@V3:7,V1@Buf4/bitstring>> when V1@V3 =/= 0 ->
+{V1@V3,V1@Buf4};
+<<1:1,0:1,V1@V4:14,V1@Buf5/bitstring>> when V1@V4 =/= 0 ->
+{V1@V4,V1@Buf5}
+end,
+<<V1@V6:V1@V0/signed-unit:8,V1@Buf7/bitstring>> = V1@Buf1,
+{V1@V6,V1@Buf7}
+end,
+
+%% attribute week(2) with type INTEGER
+{Term2,Bytes2} = begin
+<<V2@V0:6,V2@Buf1/bitstring>> = Bytes1,
+V2@Add2 = V2@V0 + 1,
+{V2@Add2,V2@Buf1}
+end,
+
+%% attribute day(3) with type INTEGER
+{Term3,Bytes3} = begin
+<<V3@V0:3,V3@Buf1/bitstring>> = Bytes2,
+V3@Add2 = V3@V0 + 1,
+{V3@Add2,V3@Buf1}
+end,
+Res1 = {'ANY-YEAR-WEEK-DAY-ENCODING',Term1,Term2,Term3},
 {Res1,Bytes3}.
 
 

@@ -1,0 +1,542 @@
+[
+  {
+    "input": {
+      "year": 2005,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "1594"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "1594"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "3f4c"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "3f4c"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "40000000"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "400000"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "404f6500"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "53d940"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "40ffcf00"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "7ff3c0"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "80000000"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "800000"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "80336500"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "8cd940"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "80ffd300"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "bff4c0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c001000000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0400000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30,
+      "day": 4
+    },
+    "aligned": true,
+    "output": "c001647580"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30,
+      "day": 4
+    },
+    "aligned": false,
+    "output": "c0591d60"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15,
+      "day": 2
+    },
+    "aligned": true,
+    "output": "c00206d43880"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15,
+      "day": 2
+    },
+    "aligned": false,
+    "output": "c081b50e20"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40,
+      "day": 5
+    },
+    "aligned": true,
+    "output": "c00208e59e00"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40,
+      "day": 5
+    },
+    "aligned": false,
+    "output": "c082396780"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c00280000000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0a0000000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "c0027fffd300"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "c09ffff4c0"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "1594"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "1594"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "3f4c"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "3f4c"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "40000000"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "400000"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "404f6500"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "53d940"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "40ffcf00"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "7ff3c0"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "80000000"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "800000"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": true,
+    "output": "80336500"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26,
+      "day": 3
+    },
+    "aligned": false,
+    "output": "8cd940"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "80ffd300"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "bff4c0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c001000000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0400000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30,
+      "day": 4
+    },
+    "aligned": true,
+    "output": "c001647580"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30,
+      "day": 4
+    },
+    "aligned": false,
+    "output": "c0591d60"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15,
+      "day": 2
+    },
+    "aligned": true,
+    "output": "c00206d43880"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15,
+      "day": 2
+    },
+    "aligned": false,
+    "output": "c081b50e20"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40,
+      "day": 5
+    },
+    "aligned": true,
+    "output": "c00208e59e00"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40,
+      "day": 5
+    },
+    "aligned": false,
+    "output": "c082396780"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c00280000000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0a0000000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": true,
+    "output": "c0027fffd300"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53,
+      "day": 7
+    },
+    "aligned": false,
+    "output": "c09ffff4c0"
+  }
+]

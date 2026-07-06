@@ -1,0 +1,542 @@
+[
+  {
+    "input": {
+      "year": 2005,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "155c"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "155c"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "3efc"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "3efc"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "40000000"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "400000"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "404f5700"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "53d5c0"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "40ffbf00"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "7fefc0"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "80000000"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "800000"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "80335700"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "8cd5c0"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "80ffbf00"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "bfefc0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c001000000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0400000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "c00164bf00"
+  },
+  {
+    "input": {
+      "year": 100,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "c0592fc0"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "month": 5,
+      "day": 20
+    },
+    "aligned": true,
+    "output": "c00206d44980"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "month": 5,
+      "day": 20
+    },
+    "aligned": false,
+    "output": "c081b51260"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "month": 7,
+      "day": 4
+    },
+    "aligned": true,
+    "output": "c00208e56180"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "month": 7,
+      "day": 4
+    },
+    "aligned": false,
+    "output": "c082395860"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c00280000000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0a0000000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "c0027fffbf00"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "c09fffefc0"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "155c"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "155c"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "3efc"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "3efc"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "40000000"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "400000"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "404f5700"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "53d5c0"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "40ffbf00"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "7fefc0"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "80000000"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "800000"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": true,
+    "output": "80335700"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "month": 6,
+      "day": 15
+    },
+    "aligned": false,
+    "output": "8cd5c0"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "80ffbf00"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "bfefc0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c001000000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0400000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "c00164bf00"
+  },
+  {
+    "input": {
+      "year": 100,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "c0592fc0"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "month": 5,
+      "day": 20
+    },
+    "aligned": true,
+    "output": "c00206d44980"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "month": 5,
+      "day": 20
+    },
+    "aligned": false,
+    "output": "c081b51260"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "month": 7,
+      "day": 4
+    },
+    "aligned": true,
+    "output": "c00208e56180"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "month": 7,
+      "day": 4
+    },
+    "aligned": false,
+    "output": "c082395860"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": true,
+    "output": "c00280000000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "month": 1,
+      "day": 1
+    },
+    "aligned": false,
+    "output": "c0a0000000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": true,
+    "output": "c0027fffbf00"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "month": 12,
+      "day": 31
+    },
+    "aligned": false,
+    "output": "c09fffefc0"
+  }
+]

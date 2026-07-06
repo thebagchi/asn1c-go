@@ -17,4 +17,42 @@
   day
 }).
 
+-record('ANY-DATE-ENCODING', {
+  year,
+  month,
+  day
+}).
+
+-record('YEAR-DAY-ENCODING', {
+  year,
+  day
+}).
+
+-record('ANY-YEAR-DAY-ENCODING', {
+  year,
+  day
+}).
+
+-record('YEAR-WEEK-ENCODING', {
+  year,
+  week
+}).
+
+-record('ANY-YEAR-WEEK-ENCODING', {
+  year,
+  week
+}).
+
+-record('YEAR-WEEK-DAY-ENCODING', {
+  year,
+  week,
+  day
+}).
+
+-record('ANY-YEAR-WEEK-DAY-ENCODING', {
+  year,
+  week,
+  day
+}).
+
 -endif. %% _YEAR_HRL_

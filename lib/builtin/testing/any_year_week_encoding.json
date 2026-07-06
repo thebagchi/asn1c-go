@@ -1,0 +1,482 @@
+[
+  {
+    "input": {
+      "year": 2005,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0207d500"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0207d500"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "0207da64"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "0207da64"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "0207e4d0"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "0207e4d0"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0207e500"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0207e500"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "02083464"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "02083464"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52
+    },
+    "aligned": true,
+    "output": "0208e4cc"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52
+    },
+    "aligned": false,
+    "output": "0208e4cc"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0206d500"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0206d500"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "02070864"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "02070864"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "0207d4d0"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "0207d4d0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "010000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "010000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30
+    },
+    "aligned": true,
+    "output": "016474"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30
+    },
+    "aligned": false,
+    "output": "016474"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15
+    },
+    "aligned": true,
+    "output": "0206d438"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15
+    },
+    "aligned": false,
+    "output": "0206d438"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40
+    },
+    "aligned": true,
+    "output": "0208e59c"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40
+    },
+    "aligned": false,
+    "output": "0208e59c"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "02800000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "02800000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "027fffd0"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "027fffd0"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0207d500"
+  },
+  {
+    "input": {
+      "year": 2005,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0207d500"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "0207da64"
+  },
+  {
+    "input": {
+      "year": 2010,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "0207da64"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "0207e4d0"
+  },
+  {
+    "input": {
+      "year": 2020,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "0207e4d0"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0207e500"
+  },
+  {
+    "input": {
+      "year": 2021,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0207e500"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "02083464"
+  },
+  {
+    "input": {
+      "year": 2100,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "02083464"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52
+    },
+    "aligned": true,
+    "output": "0208e4cc"
+  },
+  {
+    "input": {
+      "year": 2276,
+      "week": 52
+    },
+    "aligned": false,
+    "output": "0208e4cc"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "0206d500"
+  },
+  {
+    "input": {
+      "year": 1749,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "0206d500"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26
+    },
+    "aligned": true,
+    "output": "02070864"
+  },
+  {
+    "input": {
+      "year": 1800,
+      "week": 26
+    },
+    "aligned": false,
+    "output": "02070864"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "0207d4d0"
+  },
+  {
+    "input": {
+      "year": 2004,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "0207d4d0"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "010000"
+  },
+  {
+    "input": {
+      "year": 0,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "010000"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30
+    },
+    "aligned": true,
+    "output": "016474"
+  },
+  {
+    "input": {
+      "year": 100,
+      "week": 30
+    },
+    "aligned": false,
+    "output": "016474"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15
+    },
+    "aligned": true,
+    "output": "0206d438"
+  },
+  {
+    "input": {
+      "year": 1748,
+      "week": 15
+    },
+    "aligned": false,
+    "output": "0206d438"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40
+    },
+    "aligned": true,
+    "output": "0208e59c"
+  },
+  {
+    "input": {
+      "year": 2277,
+      "week": 40
+    },
+    "aligned": false,
+    "output": "0208e59c"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1
+    },
+    "aligned": true,
+    "output": "02800000"
+  },
+  {
+    "input": {
+      "year": -32768,
+      "week": 1
+    },
+    "aligned": false,
+    "output": "02800000"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53
+    },
+    "aligned": true,
+    "output": "027fffd0"
+  },
+  {
+    "input": {
+      "year": 32767,
+      "week": 53
+    },
+    "aligned": false,
+    "output": "027fffd0"
+  }
+]

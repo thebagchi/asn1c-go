@@ -1,0 +1,398 @@
+[
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "3c"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "3c"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "7c"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "7c"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 5,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "9400"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 5,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "9400"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 5,
+      "minutes": 30
+    },
+    "aligned": true,
+    "output": "d5d0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 5,
+      "minutes": 30
+    },
+    "aligned": false,
+    "output": "d5d0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "b3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "b3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "f3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "f3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "8000"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "8000"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "c3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "c3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 8,
+      "minutes": 45
+    },
+    "aligned": true,
+    "output": "a2c0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 8,
+      "minutes": 45
+    },
+    "aligned": false,
+    "output": "a2c0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "00"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "00"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "40"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "40"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "3c"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "3c"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": true,
+    "output": "7c"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 15,
+      "minutes": null
+    },
+    "aligned": false,
+    "output": "7c"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 5,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "9400"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 5,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "9400"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 5,
+      "minutes": 30
+    },
+    "aligned": true,
+    "output": "d5d0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 5,
+      "minutes": 30
+    },
+    "aligned": false,
+    "output": "d5d0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "b3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "b3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "f3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 12,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "f3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "8000"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 0,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "8000"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "c3a0"
+  },
+  {
+    "input": {
+      "sign": "negative",
+      "hours": 0,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "c3a0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 8,
+      "minutes": 45
+    },
+    "aligned": true,
+    "output": "a2c0"
+  },
+  {
+    "input": {
+      "sign": "positive",
+      "hours": 8,
+      "minutes": 45
+    },
+    "aligned": false,
+    "output": "a2c0"
+  }
+]

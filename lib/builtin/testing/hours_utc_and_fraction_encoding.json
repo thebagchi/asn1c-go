@@ -1,0 +1,162 @@
+[
+  {
+    "input": {
+      "hours": 0,
+      "fraction": 0
+    },
+    "aligned": true,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "fraction": 0
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "fraction": 500
+    },
+    "aligned": true,
+    "output": "6001f4"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "fraction": 500
+    },
+    "aligned": false,
+    "output": "61f4"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "fraction": 999
+    },
+    "aligned": true,
+    "output": "c003e7"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "fraction": 999
+    },
+    "aligned": false,
+    "output": "c3e7"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "fraction": 1000
+    },
+    "aligned": true,
+    "output": "0c0203e8"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "fraction": 1000
+    },
+    "aligned": false,
+    "output": "0c080fa0"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "fraction": 123456
+    },
+    "aligned": true,
+    "output": "bc0301e240"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "fraction": 123456
+    },
+    "aligned": false,
+    "output": "bc0c078900"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "fraction": 0
+    },
+    "aligned": true,
+    "output": "000000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "fraction": 0
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "fraction": 500
+    },
+    "aligned": true,
+    "output": "6001f4"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "fraction": 500
+    },
+    "aligned": false,
+    "output": "61f4"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "fraction": 999
+    },
+    "aligned": true,
+    "output": "c003e7"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "fraction": 999
+    },
+    "aligned": false,
+    "output": "c3e7"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "fraction": 1000
+    },
+    "aligned": true,
+    "output": "0c0203e8"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "fraction": 1000
+    },
+    "aligned": false,
+    "output": "0c080fa0"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "fraction": 123456
+    },
+    "aligned": true,
+    "output": "bc0301e240"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "fraction": 123456
+    },
+    "aligned": false,
+    "output": "bc0c078900"
+  }
+]

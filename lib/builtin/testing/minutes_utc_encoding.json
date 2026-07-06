@@ -1,0 +1,162 @@
+[
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30
+    },
+    "aligned": true,
+    "output": "63c0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30
+    },
+    "aligned": false,
+    "output": "63c0"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "c760"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "c760"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "0820"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "0820"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 0
+    },
+    "aligned": true,
+    "output": "b800"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 0
+    },
+    "aligned": false,
+    "output": "b800"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0
+    },
+    "aligned": true,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 0,
+      "minutes": 0
+    },
+    "aligned": false,
+    "output": "0000"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30
+    },
+    "aligned": true,
+    "output": "63c0"
+  },
+  {
+    "input": {
+      "hours": 12,
+      "minutes": 30
+    },
+    "aligned": false,
+    "output": "63c0"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59
+    },
+    "aligned": true,
+    "output": "c760"
+  },
+  {
+    "input": {
+      "hours": 24,
+      "minutes": 59
+    },
+    "aligned": false,
+    "output": "c760"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1
+    },
+    "aligned": true,
+    "output": "0820"
+  },
+  {
+    "input": {
+      "hours": 1,
+      "minutes": 1
+    },
+    "aligned": false,
+    "output": "0820"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 0
+    },
+    "aligned": true,
+    "output": "b800"
+  },
+  {
+    "input": {
+      "hours": 23,
+      "minutes": 0
+    },
+    "aligned": false,
+    "output": "b800"
+  }
+]
