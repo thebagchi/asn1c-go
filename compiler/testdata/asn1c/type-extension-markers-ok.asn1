@@ -1,0 +1,9 @@
+-- OK: the markers in every braced list that can carry them, including an
+-- addition group with a version and an exception on the marker.
+-- lib/review.md 11.6: the list is parsed flat and split afterwards.
+Sample DEFINITIONS ::= BEGIN
+    Seq ::= SEQUENCE { a INTEGER, ...!5, b BOOLEAN, [[ 2: c IA5String ]] }
+    Set ::= SET { a INTEGER, ... }
+    Cho ::= CHOICE { a INTEGER, ..., b BOOLEAN }
+    Enu ::= ENUMERATED { red, green(2), ... }
+END

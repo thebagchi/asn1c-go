@@ -1,0 +1,9 @@
+-- OK: the exports and imports clauses in each state X.680 gives them.
+-- lib/review.md, the body frame: an absent clause and an empty one differ.
+Sample DEFINITIONS ::= BEGIN
+    EXPORTS Foo, bar, Baz{};
+    IMPORTS
+        Person, Colour FROM Other { iso(1) three(3) } WITH SUCCESSORS
+        Size FROM Second;
+    Foo ::= INTEGER
+END

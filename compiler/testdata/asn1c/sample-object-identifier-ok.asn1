@@ -1,0 +1,18 @@
+Sample003 DEFINITIONS ::=
+BEGIN
+
+IMPORTS
+    Person, Color
+        FROM Sample002;
+
+id-sample OBJECT IDENTIFIER ::= { iso member-body 42 1 }
+
+Ratio ::= REAL
+
+pi Ratio ::= 3.14159
+
+Flags ::= BIT STRING { active(0), verified(1) }
+
+flags Flags ::= '101'B
+
+END

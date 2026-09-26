@@ -1,0 +1,17 @@
+-- OK: a constraint after each shape that could take one.
+-- lib/review.md 11.7. A constraint binds to the innermost type that can hold
+-- it, which is why the one after SEQUENCE OF INTEGER is the INTEGER's, and
+-- why constraining the collection is written the other way.
+Sample DEFINITIONS ::= BEGIN
+    Small   ::= INTEGER (1..10)
+    Open    ::= INTEGER (0..MAX, ...)
+    Pick    ::= INTEGER (2 | 10)
+    Between ::= INTEGER (1<..<10)
+    Sized   ::= BIT STRING (SIZE (1..MAX))
+    Elems   ::= SEQUENCE OF INTEGER (1..10)
+    Coll    ::= SEQUENCE (SIZE (1..4)) OF INTEGER
+    Both    ::= IA5String (SIZE (1..4))(FROM ("ab"))
+    Inner   ::= OCTET STRING (CONTAINING Small)
+    User    ::= INTEGER (CONSTRAINED BY { INTEGER : 3 })
+    Tagged  ::= [UNIVERSAL 31] IMPLICIT TIME (SETTINGS "Basic=Date")
+END

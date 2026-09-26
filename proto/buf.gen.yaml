@@ -1,0 +1,13 @@
+# Where the Go the schema generates lands. It goes to ast/ at the root of the
+# repository rather than under compiler/, because a code generator reads the
+# AST and must not have to build the compiler to do it.
+#
+# The plugin is run through the tool directive in go.mod rather than from a
+# binary on PATH, so a checkout needs nothing installed to generate.
+version: v2
+managed:
+  enabled: false
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: ../ast
+    opt: paths=source_relative

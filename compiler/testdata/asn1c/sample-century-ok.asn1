@@ -1,0 +1,21 @@
+-- Reference ASN.1 module for CenturyEncoding and AnyCenturyEncoding
+-- (lib/builtin/century_encoding.go, lib/builtin/any_century_encoding.go),
+-- matching X.691 (02/2021) clause 32.2.1/32.2.2. Shared by both
+-- century_encoding.py/any_century_encoding.py (via pycrate) and the Erlang
+-- cross-validation encoders (encode_century_encoding.erl,
+-- encode_any_century_encoding.erl) to generate cross-validated PER test
+-- vectors.
+--
+-- Filename must be "CENTURY.asn1" (matching this module's identifier
+-- exactly, case included): Erlang's asn1ct compiler generates code that
+-- references "<ModuleName>.hrl" regardless of the source filename, so if
+-- the file and module names don't match case-for-case, the generated
+-- include fails to resolve on a case-sensitive filesystem.
+
+CENTURY DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+CENTURY-ENCODING ::= INTEGER (0..99)
+
+ANY-CENTURY-ENCODING ::= INTEGER (MIN..MAX)
+
+END

@@ -1,0 +1,11 @@
+# buf builds the schema in this directory. It is pure Go, so it runs from a
+# tool directive in go.mod like every other checker here and needs no protoc.
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

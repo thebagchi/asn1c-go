@@ -1,0 +1,11 @@
+-- OK: the tag forms that are kept, including two on one type.
+Sample DEFINITIONS ::= BEGIN
+    Context     ::= [0] INTEGER
+    Implicit    ::= [1] IMPLICIT INTEGER
+    Explicit    ::= [2] EXPLICIT INTEGER
+    Application ::= [APPLICATION 1] INTEGER
+    Private     ::= [PRIVATE 2] INTEGER
+    Named       ::= [myTag] INTEGER
+    Encoded     ::= [XER: 0] INTEGER
+    Twice       ::= [0] [1] IMPLICIT INTEGER
+END

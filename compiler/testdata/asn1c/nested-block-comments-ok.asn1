@@ -1,0 +1,11 @@
+-- X.680 12.6.4 nests block comments: one opened inside another must be
+-- closed before the outer one is. No regular expression counts, so the
+-- lexer measures these with a depth.
+Sample DEFINITIONS ::= BEGIN
+    /* outer /* inner */ still the outer comment */
+    Plain ::= INTEGER
+    /* one /* two /* three */ two */ one */
+    Deep ::= BOOLEAN
+    /* a comment holding -- a line comment */
+    Mixed ::= IA5String
+END

@@ -1,0 +1,20 @@
+Sample002 DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+Person ::= SEQUENCE {
+    name       IA5String,
+    age        INTEGER (0..150) OPTIONAL,
+    male       BOOLEAN DEFAULT TRUE,
+    address    OCTET STRING
+}
+
+Color ::= ENUMERATED { red, green, blue, ... }
+
+greeting Person ::= {
+    name "John Doe",
+    age 42,
+    male TRUE,
+    address '48656C6C6F'H
+}
+
+END

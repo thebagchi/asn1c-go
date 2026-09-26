@@ -8,116 +8,8 @@ import (
 	"sync"
 )
 
-// Supported PER struct tag directives (per:"..."):
-//
-//   opt           — field is OPTIONAL
-//   ext           — type has extension marker (...)
-//   lb=N          — lower bound constraint
-//   ub=N          — upper bound constraint
-//   choice=N      — CHOICE alternative index
-//   enum=N        — ENUMERATED root value count
-//   def=V         — DEFAULT value
-//   open          — field is an ASN.1 Open Type (interface value, resolved by generated code)
-//   elem(...)     — element-level constraints for SEQUENCE OF / SET OF (e.g. elem(lb=0,ub=255,ext))
-//
-// Example usage:
-//
-//		------------------ ENUMERATED ------------------
-//		type StatusType uint64
-//
-//		const (
-//			StatusIdle       StatusType = iota // 0: System is idle
-//			StatusConnecting                   // 1: Establishing connection
-//			StatusActive                       // 2: System is active
-//			StatusError                        // 3: Error state
-//		)
-//
-//		------------------ CHOICE ------------------
-//		type BandwidthConfig struct {
-//			Value int64 `per:"lb=1,ub=10000"` // Bandwidth value in Mbps (1-10000)
-//		}
-//		type ActionChoice struct {
-//			Start  *bool            `per:"choice=0"`   // Root alternative 0
-//			Stop   *bool            `per:"choice=1"`   // Root alternative 1
-//			Config *BandwidthConfig `per:"choice=2"`   // Root alternative 2
-//			_      struct{}         `per:"ext"`        // Extension marker
-//			Pause  *bool            `per:"choice=3"`   // Extension alternative
-//		}
-//
-//		------------------ SEQUENCE OF ------------------
-//		type Channel struct {
-//			ID    int64 `per:"lb=1,ub=1000"`
-//			Power int64 `per:"lb=0,ub=100"`
-//		}
-//		type ChannelList struct {
-//			FixedChannels      [8]Channel `per:"lb=8,ub=8"`
-//			VariableChannels   []Channel  `per:"lb=0,ub=16"`
-//			ExtensibleChannels []Channel  `per:"lb=1,ub=5,ext"`
-//		}
-//
-//		------------------ SEQUENCE OF with element constraints ------------------
-//		// When both the list and its elements have constraints, use elem() to
-//		// specify element-level bounds. The outer lb/ub constrain the list length;
-//		// the inner elem() constrains each element value.
-//		type ConstrainedIntList struct {
-//			Values []int64 `per:"lb=1,ub=10,elem(lb=0,ub=255)"`          // 1-10 ints, each 0-255
-//			Codes  []int64 `per:"lb=0,ub=100,ext,elem(lb=0,ub=65535)"`   // extensible list, each 0-65535
-//		}
-//
-//		------------------ OPEN TYPE ------------------
-//		// Open types are fields whose concrete type is determined at runtime
-//		// by a discriminant (e.g. ProcedureCode). The field must be an interface
-//		// type implementing OpenTypeValue. Dispatch (encode/decode) is provided
-//		// by generated code.
-//		//
-//		type InitiatingMessage struct {
-//			ProcedureCode int64                  `per:"lb=0,ub=255"`
-//			Criticality   uint64                 `per:"enum=3"`
-//			Value         InitiatingMessageValue `per:"open"`  // resolved by generated switch
-//		}
-//
-//		// InitiatingMessageValue interface:
-//		//   type InitiatingMessageValue interface {
-//		//       ProcedureCode() int64
-//		//       Criticality()   uint64
-//		//   }
-//
-//		// Concrete types implement InitiatingMessageValue:
-//		type NGSetupRequestIEs struct {
-//			// ... fields
-//		}
-//
-//		func (*NGSetupRequestIEs) ProcedureCode() int64 {
-//			return 21
-//		}
-//
-//		func (*NGSetupRequestIEs) Criticality() uint64 {
-//			return 0
-//		}
-//
-//		// Generated dispatch (not in this file — produced by code generator):
-//		// func EncodeInitiatingMessageValue(e *Encoder, v InitiatingMessageValue) error {
-//		//     switch v.ProcedureCode() {
-//		//     case 21: return e.EncodeOpenType(v.(*NGSetupRequestIEs))
-//		//     ...
-//		//     }
-//		// }
-//
-//		------------------ FULL CONSOLIDATED EXAMPLE ------------------
-//		type FullMessage struct {
-//			MessageID     int64            `per:"lb=1,ub=100000"`
-//			Priority      *int64           `per:"lb=0,ub=10"`
-//			Flags         asn1.BitString   `per:"lb=32,ub=32"`
-//			Payload       []byte           `per:"lb=0,ub=1024"`
-//			Status        StatusType       `per:"enum=4,ext"`
-//			Action        ActionChoice     `per:"ext"`
-//			Channels      []Channel        `per:"lb=1,ub=8,ext"`
-//			Scores        []int64          `per:"lb=0,ub=50,elem(lb=0,ub=100)"`
-//			_             struct{}         `per:"ext"`
-//			FutureVersion *int64           `per:""`
-//			Experimental  *BandwidthConfig `per:""`
-//		}
-
+// Directives recognised inside a per:"..." struct tag. TAGS.md beside this file
+// has a worked example of each.
 const (
 	TAG_KEY            = "per"
 	TAG_OPTIONAL       = "opt"
@@ -128,184 +20,163 @@ const (
 	TAG_PREFIX_LB      = "lb="
 	TAG_PREFIX_UB      = "ub="
 	TAG_PREFIX_DEFAULT = "def="
+	TAG_PREFIX_STRING  = "str="
 	TAG_PREFIX_ELEM    = "elem("
+	TAG_ELEM_CLOSE     = ')'
+	TAG_ELEM_OPEN      = '('
+	TAG_SEPARATOR      = ","
 )
 
+// Caches keyed by reflect.Type. Parsing a tag and walking a struct both depend
+// only on the type, so both are done once however many values are encoded.
+var (
+	TAG_CACHE = &TagCache{
+		cache: make(map[reflect.Type]map[int]*Tag),
+	}
+	STRUCT_CACHE = &StructCache{
+		cache: make(map[reflect.Type]*StructMeta),
+	}
+)
+
+// Tag is a parsed per:"..." struct tag.
+//
+// The fields are unexported so a Tag can only come from ParseTag or
+// GetFieldTag, which is what keeps a hand-built Tag from carrying a combination
+// the parser would have rejected.
 type Tag struct {
-	Opt    bool    // field is OPTIONAL
-	Def    *string // default value (as string); empty string is distinct from nil
-	Ext    bool    // type has ... (extensible)
-	LB     *int64  // lower bound
-	UB     *int64  // upper bound
-	Choice *int    // CHOICE alternative index
-	Enum   *uint64 // ENUMERATED root value count
-	Open   bool    // field is an ASN.1 Open Type (interface value, resolved by generated code)
-	Elem   *Tag    // element constraints for SEQUENCE OF / SET OF (e.g. elem(lb=0,ub=255))
+	def    *string
+	lb     *int64
+	ub     *int64
+	choice *int
+	enum   *uint64
+	elem   *Tag
+	kind   StringKind
+	opt    bool
+	ext    bool
+	open   bool
 }
 
-func parseTag(tag string) (*Tag, error) {
-	result := &Tag{}
+// TagCache holds the parsed tag of every field of every struct type seen.
+type TagCache struct {
+	mtx   sync.RWMutex
+	cache map[reflect.Type]map[int]*Tag
+}
 
+// StructCache holds the StructMeta of every struct type seen.
+type StructCache struct {
+	mtx   sync.RWMutex
+	cache map[reflect.Type]*StructMeta
+}
+
+// StructMeta is what a struct type says about the ASN.1 type it represents,
+// worked out once from its fields and their tags.
+//
+// Fields and Extensions hold field indices, split at the extension marker;
+// Optionals is the subset of Fields that carry OPTIONAL or DEFAULT, in the order
+// their presence bits appear in the preamble of X.691 clause 19.2.
+type StructMeta struct {
+	Fields     []int
+	Extensions []int
+	Optionals  []int
+	Num        int
+	Extensible bool
+	Choice     bool
+}
+
+// ParseTag parses the body of a per:"..." struct tag.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+//   - 2026-09-22 06:43: rejects a directive it does not recognise. A typo such
+//     as ubb=255 was skipped in silence, and the field then encoded
+//     unconstrained, which is a valid encoding of the wrong type
+func ParseTag(tag string) (*Tag, error) {
+	result := new(Tag)
 	if tag == "" {
 		return result, nil
 	}
 
-	// Pre-extract elem(...) before comma-splitting, since it contains commas.
-	// Find "elem(" and its matching ")".
-	var remaining string
-	if idx := strings.Index(tag, TAG_PREFIX_ELEM); idx >= 0 {
-		// Find the matching closing parenthesis
-		start := idx + len(TAG_PREFIX_ELEM)
-		depth := 1
-		end := -1
-		for i := start; i < len(tag); i++ {
-			switch tag[i] {
-			case '(':
-				depth++
-			case ')':
-				depth--
-				if depth == 0 {
-					end = i
-				}
-			}
-			if end >= 0 {
-				break
-			}
-		}
-		if end < 0 {
-			return nil, fmt.Errorf("unmatched parenthesis in elem() tag")
-		}
-		inner := tag[start:end]
-		elemTag, err := parseTag(inner)
-		if err != nil {
-			return nil, fmt.Errorf("elem() tag: %w", err)
-		}
-		result.Elem = elemTag
-		// Remove elem(...) from the tag string for normal parsing
-		remaining = tag[:idx] + tag[end+1:]
-	} else {
-		remaining = tag
+	rest, err := result._TakeElem(tag)
+	if err != nil {
+		return nil, err
 	}
 
-	for part := range strings.SplitSeq(remaining, ",") {
+	for part := range strings.SplitSeq(rest, TAG_SEPARATOR) {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
 
-		switch {
-		case part == TAG_OPTIONAL:
-			result.Opt = true
-
-		case part == TAG_EXTENSIBLE:
-			result.Ext = true
-
-		case part == TAG_OPEN:
-			result.Open = true
-
-		case strings.HasPrefix(part, TAG_PREFIX_CHOICE):
-			s := strings.TrimPrefix(part, TAG_PREFIX_CHOICE)
-			if s == "" {
-				return nil, fmt.Errorf("empty value for %q tag", TAG_PREFIX_CHOICE)
-			}
-			v, err := strconv.Atoi(s)
-			if err != nil {
-				return nil, fmt.Errorf("invalid %q value %q: %w", TAG_PREFIX_CHOICE, s, err)
-			}
-			result.Choice = &v
-
-		case strings.HasPrefix(part, TAG_PREFIX_ENUM):
-			s := strings.TrimPrefix(part, TAG_PREFIX_ENUM)
-			if s == "" {
-				return nil, fmt.Errorf("empty value for %q tag", TAG_PREFIX_ENUM)
-			}
-			v, err := strconv.ParseUint(s, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid %q value %q: %w", TAG_PREFIX_ENUM, s, err)
-			}
-			result.Enum = &v
-
-		case strings.HasPrefix(part, TAG_PREFIX_LB):
-			s := strings.TrimPrefix(part, TAG_PREFIX_LB)
-			if s == "" {
-				return nil, fmt.Errorf("empty value for %q tag", TAG_PREFIX_LB)
-			}
-			v, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid %q value %q: %w", TAG_PREFIX_LB, s, err)
-			}
-			result.LB = &v
-
-		case strings.HasPrefix(part, TAG_PREFIX_UB):
-			s := strings.TrimPrefix(part, TAG_PREFIX_UB)
-			if s == "" {
-				return nil, fmt.Errorf("empty value for %q tag", TAG_PREFIX_UB)
-			}
-			v, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid %q value %q: %w", TAG_PREFIX_UB, s, err)
-			}
-			result.UB = &v
-
-		case strings.HasPrefix(part, TAG_PREFIX_DEFAULT):
-			val := strings.Trim(strings.TrimPrefix(part, TAG_PREFIX_DEFAULT), `"`)
-			result.Def = &val
-
+		if err := result._Apply(part); err != nil {
+			return nil, err
 		}
 	}
 
 	return result, nil
 }
 
-// TagCache provides thread-safe caching of parsed struct field tags
-// Maps from (struct type, field index) to parsed Tag
-type TagCache struct {
-	mtx   sync.RWMutex
-	cache map[reflect.Type]map[int]*Tag
+// GetFieldTag returns the parsed tag of one field, parsing it on first use.
+//
+// The cache is keyed by type and field index rather than by the tag text, so two
+// fields that happen to carry the same tag still resolve independently.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+func GetFieldTag(field reflect.StructField, parent reflect.Type, index int) (*Tag, error) {
+	TAG_CACHE.mtx.RLock()
+
+	if fields, ok := TAG_CACHE.cache[parent]; ok {
+		if tag, ok := fields[index]; ok {
+			TAG_CACHE.mtx.RUnlock()
+
+			return tag, nil
+		}
+	}
+
+	TAG_CACHE.mtx.RUnlock()
+
+	TAG_CACHE.mtx.Lock()
+	defer TAG_CACHE.mtx.Unlock()
+
+	if fields, ok := TAG_CACHE.cache[parent]; ok {
+		if tag, ok := fields[index]; ok {
+			return tag, nil
+		}
+	}
+
+	parsed, err := ParseTag(field.Tag.Get(TAG_KEY))
+	if err != nil {
+		return nil, fmt.Errorf("field %q of %v: %w", field.Name, parent, err)
+	}
+
+	if _, ok := TAG_CACHE.cache[parent]; !ok {
+		TAG_CACHE.cache[parent] = make(map[int]*Tag)
+	}
+
+	TAG_CACHE.cache[parent][index] = parsed
+
+	return parsed, nil
 }
 
-var tagCache = &TagCache{
-	cache: make(map[reflect.Type]map[int]*Tag),
-}
-
-// StructMeta holds pre-computed structural metadata for a struct type.
-// This is derived entirely from the reflect.Type and PER struct tags,
-// so it can be computed once and cached per type.
-type StructMeta struct {
-	Num        int   // total number of struct fields
-	Extensible bool  // true if struct has a `_ struct{} per:"ext"` extension marker
-	Choice     bool  // true if struct represents a CHOICE (fields have `choice=N` tags)
-	Fields     []int // field indices in the root component (before the extension marker)
-	Extensions []int // field indices of extension additions (after the extension marker)
-	Optionals  []int // subset of Fields that are OPTIONAL/DEFAULT/pointer
-}
-
-// StructCache provides thread-safe caching of StructMeta per reflect.Type
-type StructCache struct {
-	mtx   sync.RWMutex
-	cache map[reflect.Type]*StructMeta
-}
-
-var structCache = &StructCache{
-	cache: make(map[reflect.Type]*StructMeta),
-}
-
-// GetStructMeta returns the cached StructMeta for a struct type, computing it on first access.
+// GetStructMeta returns the metadata of a struct type, computing it on first use.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
 func GetStructMeta(rt reflect.Type) (*StructMeta, error) {
-	// Fast path: read lock
-	structCache.mtx.RLock()
-	if meta, exists := structCache.cache[rt]; exists {
-		structCache.mtx.RUnlock()
+	STRUCT_CACHE.mtx.RLock()
+
+	if meta, ok := STRUCT_CACHE.cache[rt]; ok {
+		STRUCT_CACHE.mtx.RUnlock()
+
 		return meta, nil
 	}
-	structCache.mtx.RUnlock()
 
-	// Slow path: compute and cache under write lock
-	structCache.mtx.Lock()
-	defer structCache.mtx.Unlock()
+	STRUCT_CACHE.mtx.RUnlock()
 
-	// Double-check after acquiring write lock
-	if meta, exists := structCache.cache[rt]; exists {
+	STRUCT_CACHE.mtx.Lock()
+	defer STRUCT_CACHE.mtx.Unlock()
+
+	if meta, ok := STRUCT_CACHE.cache[rt]; ok {
 		return meta, nil
 	}
 
@@ -313,209 +184,479 @@ func GetStructMeta(rt reflect.Type) (*StructMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	structCache.cache[rt] = meta
+
+	STRUCT_CACHE.cache[rt] = meta
+
 	return meta, nil
 }
 
-// MakeStructMeta computes the StructMeta for a struct type.
+// MakeStructMeta works out what a struct type says about its ASN.1 type.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+//   - 2026-09-22 06:43: rejects an unexported field, a non-pointer extension
+//     addition and a choice index that disagrees with its position. The first
+//     reached reflect.Value.Interface and panicked; the second was present in
+//     every encoding because a non-pointer is never absent; the third encoded
+//     the position while the tag claimed otherwise
 func MakeStructMeta(rt reflect.Type) (*StructMeta, error) {
-	num := rt.NumField()
+	meta := &StructMeta{
+		Num: rt.NumField(),
+	}
 
-	extensible := false
-	choice := false
-	var fields, extensions, optionals []int
-
-	for i := range num {
+	for i := range meta.Num {
 		field := rt.Field(i)
-		// Extension marker field: `_ struct{} per:"ext"` — marks the boundary
-		if field.Name == "_" && field.Type == EmptyType {
-			tag, err := GetFieldTag(field, rt, i)
-			if err != nil {
-				return nil, fmt.Errorf("StructMeta: field %d: %w", i, err)
+
+		marker, err := _IsMarker(field, rt, i)
+		if err != nil {
+			return nil, err
+		}
+
+		if marker {
+			if meta.Extensible {
+				return nil, fmt.Errorf(
+					"%v: field %d: second extension marker",
+					rt, i,
+				)
 			}
-			if tag.Ext {
-				if extensible {
-					return nil, fmt.Errorf("StructMeta: field %d: multiple `_ struct{} per:\"ext\"` extension markers", i)
-				}
-				extensible = true
-			}
+
+			meta.Extensible = true
+
 			continue
 		}
 
-		if !extensible {
-			fields = append(fields, i)
+		if !field.IsExported() {
+			return nil, fmt.Errorf(
+				"%v: field %q is unexported and cannot be encoded",
+				rt, field.Name,
+			)
+		}
 
-			tag, err := GetFieldTag(field, rt, i)
-			if err != nil {
-				return nil, fmt.Errorf("StructMeta: field %q: %w", field.Name, err)
-			}
-			if tag.Choice != nil {
-				choice = true
-			}
-			if tag.Opt && field.Type.Kind() != reflect.Pointer {
-				return nil, fmt.Errorf("StructMeta: field %q is tagged optional but is not a pointer type", field.Name)
-			}
-			if tag.Opt || tag.Def != nil {
-				optionals = append(optionals, i)
-			}
-		} else {
-			extensions = append(extensions, i)
+		if err := meta._Add(rt, field, i); err != nil {
+			return nil, err
 		}
 	}
 
-	return &StructMeta{
-		Num:        num,
-		Extensible: extensible,
-		Choice:     choice,
-		Fields:     fields,
-		Extensions: extensions,
-		Optionals:  optionals,
-	}, nil
+	return meta, nil
 }
 
-// GetFieldTag returns the parsed tag for a struct field, using a cache to avoid re-parsing.
-// Lookup key is (struct type, field index) to ensure unique identification.
-func GetFieldTag(field reflect.StructField, parent reflect.Type, index int) (*Tag, error) {
-	// Fast path: read lock check
-	tagCache.mtx.RLock()
-	if typeCache, exists := tagCache.cache[parent]; exists {
-		if tag, exists := typeCache[index]; exists {
-			tagCache.mtx.RUnlock()
-			return tag, nil
-		}
-	}
-	tagCache.mtx.RUnlock()
-
-	// Slow path: acquire write lock and double-check before parsing
-	tagCache.mtx.Lock()
-	defer tagCache.mtx.Unlock()
-
-	// Double-check: another goroutine may have populated while we waited
-	if typeCache, exists := tagCache.cache[parent]; exists {
-		if tag, exists := typeCache[index]; exists {
-			return tag, nil
-		}
-	}
-
-	parsed, err := parseTag(field.Tag.Get(TAG_KEY))
-	if err != nil {
-		return nil, fmt.Errorf("field %q of %v: %w", field.Name, parent, err)
-	}
-
-	if _, exists := tagCache.cache[parent]; !exists {
-		tagCache.cache[parent] = make(map[int]*Tag)
-	}
-	tagCache.cache[parent][index] = parsed
-
-	return parsed, nil
-}
-
-// FieldPresent returns true if the struct field value is "present".
-// A pointer field is present if non-nil. All non-pointer fields are always present.
+// FieldPresent reports whether a field holds a value. Only a pointer field can
+// be absent, which is why an OPTIONAL field has to be one.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
 func FieldPresent(v reflect.Value) bool {
 	if v.Kind() == reflect.Pointer {
 		return !v.IsNil()
 	}
+
 	return true
 }
 
-// ApplyDefaultValue parses def according to v's underlying kind and assigns it to v.
-// If v is a pointer, it is allocated first (a DEFAULT field always ends up holding a value,
-// unlike OPTIONAL which may remain nil). Used by DecodeSequence to populate a DEFAULT field
-// that was absent in the encoding (§19.5).
-func ApplyDefaultValue(v reflect.Value, def string) error {
-	if v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			v.Set(reflect.New(v.Type().Elem()))
-		}
-		v = v.Elem()
+// FieldPresentForEncoding reports whether a field's presence bit is set in the
+// preamble of X.691 clause 19.2.
+//
+// For a DEFAULT field that means the value differs from the default, because
+// clause 19.5 has BASIC-PER omit a simple type holding its default value; for a
+// plain OPTIONAL field it means the pointer is not nil.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
+func FieldPresentForEncoding(v reflect.Value, tag *Tag) (bool, error) {
+	if tag.def == nil {
+		return FieldPresent(v), nil
 	}
-	switch v.Kind() {
-	case reflect.Bool:
-		b, err := strconv.ParseBool(def)
-		if err != nil {
-			return fmt.Errorf("default value %q: %w", def, err)
-		}
-		v.SetBool(b)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		n, err := strconv.ParseInt(def, 10, 64)
-		if err != nil {
-			return fmt.Errorf("default value %q: %w", def, err)
-		}
-		v.SetInt(n)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n, err := strconv.ParseUint(def, 10, 64)
-		if err != nil {
-			return fmt.Errorf("default value %q: %w", def, err)
-		}
-		v.SetUint(n)
-	case reflect.Float32, reflect.Float64:
-		f, err := strconv.ParseFloat(def, 64)
-		if err != nil {
-			return fmt.Errorf("default value %q: %w", def, err)
-		}
-		v.SetFloat(f)
-	case reflect.String:
-		v.SetString(def)
-	default:
-		return fmt.Errorf("default value %q: unsupported field kind %s", def, v.Kind())
+
+	equal, err := FieldEqualsDefault(v, *tag.def)
+	if err != nil {
+		return false, err
 	}
-	return nil
+
+	return !equal, nil
 }
 
-// FieldEqualsDefault reports whether v currently holds the DEFAULT value described by def.
-// A nil pointer is treated as equal to the default (i.e. unset/absent).
-// Used by EncodeSequence to decide a DEFAULT field's preamble presence bit.
+// FieldEqualsDefault reports whether v holds the DEFAULT value def describes. A
+// nil pointer counts as equal, since an absent field decodes to the default.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
+//   - 2026-09-22 06:43: compares against a parsed value of the field's own type
+//     rather than repeating ApplyDefaultValue's switch with == in place of Set
 func FieldEqualsDefault(v reflect.Value, def string) (bool, error) {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return true, nil
 		}
+
 		v = v.Elem()
 	}
-	switch v.Kind() {
-	case reflect.Bool:
-		b, err := strconv.ParseBool(def)
-		if err != nil {
-			return false, fmt.Errorf("default value %q: %w", def, err)
+
+	want := reflect.New(v.Type()).Elem()
+	if err := _SetDefault(want, def); err != nil {
+		return false, err
+	}
+
+	return v.Equal(want), nil
+}
+
+// ApplyDefaultValue assigns the DEFAULT value def describes to v, allocating v
+// first if it is a nil pointer.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
+func ApplyDefaultValue(v reflect.Value, def string) error {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
 		}
-		return v.Bool() == b, nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		n, err := strconv.ParseInt(def, 10, 64)
-		if err != nil {
-			return false, fmt.Errorf("default value %q: %w", def, err)
-		}
-		return v.Int() == n, nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n, err := strconv.ParseUint(def, 10, 64)
-		if err != nil {
-			return false, fmt.Errorf("default value %q: %w", def, err)
-		}
-		return v.Uint() == n, nil
-	case reflect.Float32, reflect.Float64:
-		f, err := strconv.ParseFloat(def, 64)
-		if err != nil {
-			return false, fmt.Errorf("default value %q: %w", def, err)
-		}
-		return v.Float() == f, nil
-	case reflect.String:
-		return v.String() == def, nil
-	default:
-		return false, fmt.Errorf("default value %q: unsupported field kind %s", def, v.Kind())
+
+		v = v.Elem()
+	}
+
+	return _SetDefault(v, def)
+}
+
+// Constraint returns the bounds and extension marker this tag describes.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (t *Tag) Constraint() *Constraint {
+	if t == nil {
+		return Unconstrained()
+	}
+
+	return &Constraint{
+		lb:  t.lb,
+		ub:  t.ub,
+		ext: t.ext,
 	}
 }
 
-// FieldPresentForEncoding determines the preamble presence bit for an OPTIONAL/DEFAULT root
-// field (§19.2). For a DEFAULT field, "present" means the current value differs from the
-// parsed default (BASIC-PER always omits a DEFAULT-valued simple type per §19.5). For a plain
-// OPTIONAL field, "present" falls back to FieldPresent (non-nil pointer).
-func FieldPresentForEncoding(v reflect.Value, tag *Tag) (bool, error) {
-	if tag.Def != nil {
-		equal, err := FieldEqualsDefault(v, *tag.Def)
-		if err != nil {
-			return false, err
-		}
-		return !equal, nil
+// Elem returns the tag describing the elements of a SEQUENCE OF or SET OF, which
+// is never nil so a caller can pass it on without checking.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (t *Tag) Elem() *Tag {
+	if t == nil || t.elem == nil {
+		return new(Tag)
 	}
-	return FieldPresent(v), nil
+
+	return t.elem
+}
+
+// Optional reports whether the field is OPTIONAL or carries a DEFAULT, which is
+// the same question the preamble of clause 19.2 answers.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (t *Tag) Optional() bool {
+	return t != nil && (t.opt || t.def != nil)
+}
+
+// _WithoutOpen returns a copy of t with the open directive cleared, which is
+// what stops an open type field from wrapping itself again inside its own
+// encoding.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (t *Tag) _WithoutOpen() *Tag {
+	inner := *t
+	inner.open = false
+
+	return &inner
+}
+
+// _TakeElem removes an elem(...) directive from tag and parses it into t,
+// returning what is left.
+//
+// It runs before the tag is split on commas, because the directive it takes out
+// contains commas of its own.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of ParseTag
+func (t *Tag) _TakeElem(tag string) (string, error) {
+	start := strings.Index(tag, TAG_PREFIX_ELEM)
+	if start < 0 {
+		return tag, nil
+	}
+
+	var (
+		open  = start + len(TAG_PREFIX_ELEM)
+		depth = 1
+		end   = -1
+	)
+
+	for i := open; i < len(tag) && end < 0; i++ {
+		switch tag[i] {
+		case TAG_ELEM_OPEN:
+			depth++
+		case TAG_ELEM_CLOSE:
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+	}
+
+	if end < 0 {
+		return "", fmt.Errorf("unmatched parenthesis in %q", TAG_PREFIX_ELEM)
+	}
+
+	elem, err := ParseTag(tag[open:end])
+	if err != nil {
+		return "", fmt.Errorf("%q: %w", TAG_PREFIX_ELEM, err)
+	}
+
+	t.elem = elem
+
+	return tag[:start] + tag[end+1:], nil
+}
+
+// _Apply applies one comma-separated directive to t.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of ParseTag
+func (t *Tag) _Apply(part string) error {
+	switch part {
+	case TAG_OPTIONAL:
+		t.opt = true
+
+		return nil
+	case TAG_EXTENSIBLE:
+		t.ext = true
+
+		return nil
+	case TAG_OPEN:
+		t.open = true
+
+		return nil
+	}
+
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_DEFAULT); ok {
+		trimmed := strings.Trim(value, `"`)
+		t.def = &trimmed
+
+		return nil
+	}
+
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_STRING); ok {
+		kind, known := STRING_NAMES[value]
+		if !known {
+			return fmt.Errorf("unknown %q kind %q", TAG_PREFIX_STRING, value)
+		}
+
+		t.kind = kind
+
+		return nil
+	}
+
+	return t._ApplyNumeric(part)
+}
+
+// _ApplyNumeric applies one directive whose argument is a number.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of ParseTag
+func (t *Tag) _ApplyNumeric(part string) error {
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_CHOICE); ok {
+		return _ParseInto(part, value, func(n int64) {
+			index := int(n)
+			t.choice = &index
+		})
+	}
+
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_ENUM); ok {
+		return _ParseInto(part, value, func(n int64) {
+			count := uint64(n)
+			t.enum = &count
+		})
+	}
+
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_LB); ok {
+		return _ParseInto(part, value, func(n int64) { t.lb = &n })
+	}
+
+	if value, ok := strings.CutPrefix(part, TAG_PREFIX_UB); ok {
+		return _ParseInto(part, value, func(n int64) { t.ub = &n })
+	}
+
+	return fmt.Errorf("unknown %q directive %q", TAG_KEY, part)
+}
+
+// _Add records one non-marker field in the metadata.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of MakeStructMeta
+func (m *StructMeta) _Add(rt reflect.Type, field reflect.StructField, index int) error {
+	tag, err := GetFieldTag(field, rt, index)
+	if err != nil {
+		return fmt.Errorf("%v: field %q: %w", rt, field.Name, err)
+	}
+
+	if m.Extensible {
+		if err := _CheckPointer(rt, field, tag, true); err != nil {
+			return err
+		}
+
+		if err := _CheckChoice(rt, field, tag, len(m.Extensions)); err != nil {
+			return err
+		}
+
+		m.Extensions = append(m.Extensions, index)
+
+		return nil
+	}
+
+	if err := _CheckChoice(rt, field, tag, len(m.Fields)); err != nil {
+		return err
+	}
+
+	if err := _CheckPointer(rt, field, tag, false); err != nil {
+		return err
+	}
+
+	if tag.choice != nil {
+		m.Choice = true
+	}
+
+	m.Fields = append(m.Fields, index)
+	if tag.Optional() {
+		m.Optionals = append(m.Optionals, index)
+	}
+
+	return nil
+}
+
+// _CheckPointer reports a field that has to be able to be absent but is not a
+// pointer, which is the only way a Go value can be.
+//
+// An extension addition, a CHOICE alternative and an OPTIONAL field are all such
+// fields: a non-pointer among them reads as present in every encoding, so the
+// extension bit or the presence bit would never be zero.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of StructMeta._Add
+func _CheckPointer(rt reflect.Type, field reflect.StructField, tag *Tag, addition bool) error {
+	if field.Type.Kind() == reflect.Pointer {
+		return nil
+	}
+
+	role := ""
+
+	switch {
+	case addition:
+		role = "extension addition"
+	case tag.choice != nil:
+		role = "choice alternative"
+	case tag.opt:
+		role = "optional field"
+	default:
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%v: %s %q must be a pointer, so it can be absent",
+		rt, role, field.Name,
+	)
+}
+
+// _IsMarker reports whether a field is the `_ struct{}` extension marker.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of MakeStructMeta
+func _IsMarker(field reflect.StructField, rt reflect.Type, index int) (bool, error) {
+	if field.Name != "_" || field.Type != TYPE_MARKER {
+		return false, nil
+	}
+
+	tag, err := GetFieldTag(field, rt, index)
+	if err != nil {
+		return false, fmt.Errorf("%v: field %d: %w", rt, index, err)
+	}
+
+	return tag.ext, nil
+}
+
+// _CheckChoice reports a choice index that disagrees with the alternative's
+// position.
+//
+// X.691 clause 23.2 numbers alternatives by their canonical order, and numbers
+// the extension additions from zero again, so the position is the index. The
+// directive is therefore documentation, and this is what keeps it honest.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _CheckChoice(rt reflect.Type, field reflect.StructField, tag *Tag, pos int) error {
+	if tag.choice == nil || *tag.choice == pos {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%v: field %q has %s%d but is alternative %d of its list",
+		rt, field.Name, TAG_PREFIX_CHOICE, *tag.choice, pos,
+	)
+}
+
+// _ParseInto parses a directive's numeric argument and hands it to set.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _ParseInto(part, value string, set func(int64)) error {
+	if value == "" {
+		return fmt.Errorf("empty value in %q", part)
+	}
+
+	number, err := strconv.ParseInt(value, DECIMAL_BASE, 64)
+	if err != nil {
+		return fmt.Errorf("invalid value in %q: %w", part, err)
+	}
+
+	set(number)
+
+	return nil
+}
+
+// _SetDefault parses def according to v's kind and assigns it.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, shared by ApplyDefaultValue and
+//     FieldEqualsDefault, which had a copy of this switch each
+func _SetDefault(v reflect.Value, def string) error {
+	switch v.Kind() {
+	case reflect.Bool:
+		parsed, err := strconv.ParseBool(def)
+		if err != nil {
+			return fmt.Errorf("default %q: %w", def, err)
+		}
+
+		v.SetBool(parsed)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		parsed, err := strconv.ParseInt(def, DECIMAL_BASE, 64)
+		if err != nil {
+			return fmt.Errorf("default %q: %w", def, err)
+		}
+
+		v.SetInt(parsed)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		parsed, err := strconv.ParseUint(def, DECIMAL_BASE, 64)
+		if err != nil {
+			return fmt.Errorf("default %q: %w", def, err)
+		}
+
+		v.SetUint(parsed)
+	case reflect.Float32, reflect.Float64:
+		parsed, err := strconv.ParseFloat(def, 64)
+		if err != nil {
+			return fmt.Errorf("default %q: %w", def, err)
+		}
+
+		v.SetFloat(parsed)
+	case reflect.String:
+		v.SetString(def)
+	default:
+		return fmt.Errorf("default %q: unsupported kind %s", def, v.Kind())
+	}
+
+	return nil
 }

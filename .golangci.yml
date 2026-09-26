@@ -1,0 +1,290 @@
+# Enforces the mechanically checkable half of this project's coding conventions.
+#
+# Every linter here stands in for a rule that was previously enforced by remembering it.
+# The rules no off-the-shelf linter can express — the revision history on every
+# function, the leading underscore on unexported names, CAPITAL_SNAKE constants and
+# contiguous struct fields — have no checker in this repository yet, and are held to on
+# review.
+#
+# The rule that decides the split: a published checker is always preferred to one of our
+# own. Each linter below was adopted on that basis in
+# the repository this configuration came from, proved against a fixture before it was
+# trusted — enabled alone, watched to report, watched to go quiet. This configuration was
+# written for golangci-lint 2.13.2; a different version may read a setting differently.
+#
+# Adopted here on 2026-09-22. New and edited code is held to it; existing code is not
+# swept, so a run over the whole tree can report findings that predate the rules.
+version: "2"
+
+linters:
+  enable:
+    # Never discard an error.
+    - errcheck
+    # Errors are wrapped with %w, and compared with errors.Is rather than ==.
+    - errorlint
+    # ~40-50 lines is a split signal.
+    - funlen
+    # One level of abstraction per function, measured as cognitive complexity.
+    - gocognit
+    # Correctness. Its shadow analyser is deliberately off; see settings below.
+    - govet
+    # Lines wrap at 99 columns, a tab counted as eight.
+    - lll
+    # No magic numbers.
+    - mnd
+    # Nesting stops at ~3 levels.
+    - nestif
+    # Never name return values in a signature.
+    - nonamedreturns
+    # Correctness and style, including lowercase unpunctuated error strings (ST1005).
+    - staticcheck
+    # Dead code is deleted, not left "just in case".
+    - unused
+
+    # Each line names the convention it stands in for, and each was watched
+    # to fail against a fixture before it was trusted.
+
+    # context.Context is never stored in a struct.
+    - containedctx
+    # Sentinel errors keep Go's ErrXxx spelling.
+    - errname
+    # Constructor first, exported methods, then unexported helpers.
+    - funcorder
+    # No magic strings. mnd covers only numbers.
+    - goconst
+    # Consecutive declarations are grouped into one const or var block.
+    - grouper
+    # Accept interfaces, return structs.
+    - ireturn
+    # Never shadow a predeclared identifier. govet's shadow analyser does not catch
+    # these, because shadowing a builtin is legal Go rather than a suspicious
+    # re-declaration - which is why this needed its own linter.
+    - predeclared
+    # One receiver kind per type. This is the receiver half of "a struct this module
+    # declares is reached through a pointer"; parameters, results and fields are still
+    # unchecked here, because nothing published expresses them.
+    - recvcheck
+    # Four rules, listed under settings: boolean flag parameters, the parameter count,
+    # context first, and a doc comment on every exported declaration.
+    - revive
+    # Tests live in package foo_test.
+    - testpackage
+    # A helper that calls t.Fatal calls t.Helper() first.
+    - thelper
+    # Blank lines group related statements.
+    - wsl_v5
+
+  settings:
+    ireturn:
+      # A generic container returns its own type parameter, which ireturn reads
+      # as returning an interface. Every finding this produced here was that:
+      # Vec.Pop, Map.Get, SkipList.Min and the rest, whose whole purpose is to
+      # hand back the T they were instantiated with. The rule it stands in for,
+      # accept interfaces and return structs, is about concrete return types
+      # being narrowed to an interface, which is not what a type parameter is.
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+        # A sealed CHOICE interface, which CLAUDE.md's Types section names as a
+        # pattern rather than type erasure: "A closed set of cases (oneof,
+        # sealed interface) is a pattern, not erasure." builtin models every
+        # ASN.1 CHOICE the way protoc-gen-go models a oneof, as an unexported
+        # interface with a marker method, so the accessor for the chosen
+        # alternative has no concrete type it could return instead.
+        - choice[A-Z]\w*$
+    grouper:
+      # Naming: constants and package-level vars are grouped in one block.
+      const-require-grouping: true
+      var-require-grouping: true
+    revive:
+      rules:
+        # Function design: no boolean flag parameters.
+        - name: flag-parameter
+        # Function design: ~3-4 parameters, then a struct.
+        - name: argument-limit
+          arguments: [4]
+        # Signatures: context.Context is the first parameter.
+        - name: context-as-argument
+        # Signatures: error is the last result. Adopted 2026-09-19 by the sweep of
+        # the rules that had no published checker; it was the one real find in 22.
+        - name: error-return
+        # Comments: every function has a doc comment. This reaches every
+        # exported declaration, not only functions, which costs one comment per const
+        # or var block rather than one per constant - measured, and compatible with the
+        # grouping rule above, which already requires one block.
+        - name: exported
+    funlen:
+      lines: 50
+      statements: 40
+    gocognit:
+      min-complexity: 20
+    govet:
+      # `shadow` is off, and this is the cost of a form this project argues for by name.
+      #
+      # `if err := f(); err != nil` is the preferred form here, and what Go's own
+      # documentation reaches for. "No shadowing" is a separate rule. Every one
+      # of the seven sites this reported in the source repository was that exact form, with the
+      # outer err already dead — so the analyser makes the preferred form unusable in
+      # any function that already has an err, which is nearly all of them.
+      #
+      # The no-shadowing rule stands as a review rule, about an outer value that is still
+      # live. Nobody should switch this on expecting a clean run.
+      enable: []
+    lll:
+      # 99 columns with a tab counted as eight. The limit applies to Go source only;
+      # Markdown in this repository is not wrapped to a width. The two numbers here only
+      # mean something together: a tab counted as one lets an indented line pass the
+      # limit and render seven columns wider per indent level in any editor set to the
+      # usual eight, which is a limit nobody's eyes are using.
+      line-length: 99
+      tab-width: 8
+    nestif:
+      min-complexity: 4
+    staticcheck:
+      # golangci-lint's default turns off every ST check that this project happens to
+      # disagree with, and two it agrees with. ST1000 (a package comment somewhere) and
+      # ST1020 (a doc comment opening with the identifier) are rules this project states and
+      # nothing was checking, so they are switched back on.
+      #
+      # ST1003 stays off: it reports ALL_CAPS names, which is every constant here.
+      # ST1021 and ST1022 duplicate ST1020 for types and variables in a wording that
+      # fights the revision-history block.
+      #
+      # ST1016 is ON. It was previously disabled on the grounds that the conventions already
+      # required one receiver name per type — but no tool enforced that, so the rule
+      # was believed-covered and unchecked, which is the worst state a rule can be in.
+      checks: ["all", "-ST1003", "-ST1021", "-ST1022"]
+
+  exclusions:
+    # Never lint an auto-generated file. Nobody may edit one, so a finding in one is a
+    # finding nobody can act on: it is either noise forever or a standing exemption, and
+    # both teach a reader to ignore the report.
+    #
+    # strict rather than lax, deliberately. lax also treats a file as generated on looser
+    # hints, which means a hand-written file can slip out of the gate by mentioning the
+    # wrong phrase in a header comment - a check that stopped looking, reported as a clean
+    # run. strict wants the canonical marker Go itself looks for, and this project already
+    # requires that marker on the first line of every generated file, so a generated file
+    # in this repository always satisfies it and a hand-written one never does by accident.
+    #
+    # Measured in the source repository: with the exclusion disabled, planted violations
+    # in a generated .pb.go are reported; with it on, they are not. Here the one generated
+    # file is `compiler/grammar.go`, from goyacc, and its banner is on line 1.
+    generated: strict
+
+    rules:
+      # A test's table of inputs is full of literals that are the point of the test, not
+      # magic numbers hiding a meaning. Length and complexity limits are about code a
+      # reader has to follow; a table-driven test is read as data.
+      #
+      # goconst joined this list on 2026-09-21, on the same argument and measured the
+      # same way: of the 79 it reported here, the repeats were subtest names ("zero",
+      # "tabs", "unicode") and inputs ("hello", "world", "apple"). Hoisting those to
+      # named constants makes a case harder to read, because the reader then has to
+      # look up what the case is actually about. It stays on for non-test code, where a
+      # repeated string usually is a name that wants declaring once.
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+          - goconst
+          - mnd
+
+      # revive's flag-parameter, on the one function whose boolean parameter is
+      # the value being encoded rather than a mode.
+      #
+      # per._Bit turns a boolean into the bit X.691 clause 12.1 assigns it. The
+      # rule fires on any boolean parameter an `if` tests, and Go has no
+      # branchless conversion from a boolean to a number, so every form of this
+      # function is reported: measured on three of them, a bare return of two
+      # constants, an assignment to a local, and a call to a helper, all
+      # reported. The alternatives are a map lookup on the path every presence
+      # bit and extension bit takes, or pushing the branch out to every caller.
+      #
+      # The exclusion names the parameter rather than the file so that a real
+      # flag parameter added to encode.go later is still reported. The rule
+      # itself stays on, and found three genuine flag parameters on the day it
+      # was adopted.
+      - path: lib/per/encode\.go
+        linters:
+          - revive
+        text: "flag-parameter: parameter 'datum'"
+
+      # testpackage, on the three files that test goyacc's output.
+      #
+      # Lexer.Lex takes an *asn1SymType and the parser is asn1Parse; goyacc
+      # generates both unexported, so an external test cannot name either. go.md
+      # permits the internal form exactly here - "when the thing under test is
+      # unexported, and say in the test file why" - and each file says why at
+      # its package clause. expect_test.go holds what the other two compare
+      # with, so it is internal for the same reason they are. Every other test
+      # in this module is external, and the rule stays on so the next one is.
+      - path: compiler/(lexer|grammar|expect)_test\.go
+        linters:
+          - testpackage
+
+formatters:
+  enable:
+    - gofmt
+    - gci
+
+  # The same rule the linters have, for the same reason: nobody may edit a
+  # generated file, so a formatting finding in one is a finding nobody can
+  # act on. It is set separately because a formatter's exclusions are their
+  # own in v2.
+  #
+  # gci does have something to say about compiler/grammar.go: goyacc writes
+  # its own "import __yyfmt__" and then the prologue's block, and gci wants
+  # the two merged. That finding is excluded here. What is not excluded, and
+  # cannot be, is the panic it used to raise while working the patch out -
+  # see compiler/tool.go for why goyacc now runs with -l.
+  exclusions:
+    generated: strict
+
+  settings:
+    gci:
+      # Imports group as stdlib, external, then local.
+      sections:
+        - standard
+        - default
+        - prefix(github.com/thebagchi/asn1c-go)
+
+# Declined, with the reason, so nobody re-enables one expecting a clean run. Each was
+# proved against a fixture rather than judged from its description.
+#
+#   noinlineerr - forbids `if err := f(); err != nil`, which this project's control-flow
+#                 rules call the preferred form. Not wrong, but the opposite of a stated rule.
+#   varnamelen  - could not be made to report this project's one-word locals, at defaults
+#                 or at min-name-length 4. A linter that stays quiet on the case it was
+#                 adopted for cannot be trusted to report the next one.
+#   revive
+#   var-naming  - expresses "exported names are PascalCase", but
+#                 also rejects CAPITAL_SNAKE package-level variables, which this project
+#                 requires. Measured: silent on CAPITAL_SNAKE constants, reports
+#                 CAPITAL_SNAKE vars. Adopting it would report every package-level var in
+#                 the project forever. Same family as staticcheck's ST1003, and narrower
+#                 than it - ST1003 objects to the constants too.
+#   decorder    - reports the same ungrouped declarations grouper already reports, and is
+#                 silent on the grouped form. Two linters for one rule is two places to
+#                 keep in step. Redundant rather than wrong.
+
+issues:
+  # One line can break two rules, and by default only the first is reported.
+  #
+  # Measured on a six-line fixture that broke four rules: with uniq-by-line at its
+  # default of true, containedctx, grouper and revive's flag-parameter were all silent,
+  # because unused and revive's exported rule reported on those lines first. Turning it
+  # off took the same file from 6 findings to 9. A gate that reports less is
+  # indistinguishable from a tree with less wrong in it, which is the failure
+  # a gate exists to prevent - and the same class as the cap below.
+  uniq-by-line: false
+
+  # No cap. golangci-lint stops at 50 findings per linter and 3 of a kind by default,
+  # and a run that stopped counting looks exactly like a run that found less - the
+  # output says nothing either way. Measured once at 45 reported against 48 present,
+  # which is how the backlog came to carry a number that was three short.
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,0 +1,10 @@
+-- OK: every way a type or value can name another one.
+Sample DEFINITIONS ::= BEGIN
+    Plain    ::= Other
+    External ::= Module.Other
+    Selected ::= alternative < Shape
+    Field    ::= TYPE-IDENTIFIER.&id
+    Instance ::= INSTANCE OF TYPE-IDENTIFIER
+    named    INTEGER ::= other
+    qualified INTEGER ::= Module.other
+END

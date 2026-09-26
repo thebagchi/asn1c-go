@@ -1,0 +1,22 @@
+-- X.681's optional groups nest, so a group that ends where the one around
+-- it ends is written "]]" - which is the version brackets everywhere else.
+-- The lexer reads both brackets singly inside the braces of WITH SYNTAX.
+Sample DEFINITIONS ::= BEGIN
+    OPERATION ::= CLASS {
+        &ArgumentType            OPTIONAL,
+        &argumentTypeOptional    BOOLEAN OPTIONAL,
+        &ResultType              OPTIONAL,
+        &resultTypeOptional      BOOLEAN OPTIONAL,
+        &operationCode           INTEGER UNIQUE
+    } WITH SYNTAX {
+        [ARGUMENT &ArgumentType [OPTIONAL &argumentTypeOptional]]
+        [RESULT &ResultType [OPTIONAL &resultTypeOptional]]
+        CODE &operationCode
+    }
+
+    Versioned ::= SEQUENCE {
+        a INTEGER,
+        ...,
+        [[ b BOOLEAN ]]
+    }
+END

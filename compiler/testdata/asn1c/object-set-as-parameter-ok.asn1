@@ -1,0 +1,33 @@
+-- X.681 lets an actual parameter be an object set, so a parameterized type
+-- may be passed one that is nothing but an extension marker. A braced value
+-- never holds a marker, which is what tells the two apart.
+Sample DEFINITIONS ::= BEGIN
+    ALGORITHM ::= CLASS { &id OBJECT IDENTIFIER UNIQUE } WITH SYNTAX { ID &id }
+
+    AlgorithmIdentifier {ALGORITHM : Set} ::= SEQUENCE {
+        algorithm ALGORITHM.&id ({Set})
+    }
+
+    Open      ::= AlgorithmIdentifier{ALGORITHM, {...}}
+    Extending ::= AlgorithmIdentifier{ALGORITHM, {mda-sha1, ...}}
+    Closed    ::= AlgorithmIdentifier{ALGORITHM, {mda-sha1}}
+
+    mda-sha1 ALGORITHM ::= { ID id-sha1 }
+    id-sha1 OBJECT IDENTIFIER ::= { iso 4 }
+END
+
+-- X.683's ParameterizedObject, in the three places it is decidable. A value
+-- may stand in a run, and there a name followed by braces is X.680's
+-- NamedValue as readily - so it is written on the tokens in an element set,
+-- an actual parameter and an assignment, none of which holds a run.
+Parameterized DEFINITIONS ::= BEGIN
+    OPERATION ::= CLASS { &code INTEGER } WITH SYNTAX { CODE &code }
+
+    chained OPERATION ::= { CODE 1 }
+    read OPERATION ::= { CODE 2 }
+
+    chainedRead OPERATION ::= chained{read}
+    Chained OPERATION ::= { chained{read} | read }
+    Applied ::= Wrapper{chained{read}}
+    Wrapper {OPERATION : Op} ::= SEQUENCE { code OPERATION.&code ({Op}) }
+END

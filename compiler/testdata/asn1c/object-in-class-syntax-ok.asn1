@@ -1,0 +1,73 @@
+-- An object assigned in its class's own syntax. X.681 assigns one as
+-- "objectreference DefinedObjectClass ::=", which is the three tokens
+-- X.680 assigns a value with, so what is between the braces settles it: a
+-- braced value holds values, and a word or a type standing there is the
+-- class's own notation. lib/review.md 11.16.
+Sample DEFINITIONS ::= BEGIN
+    CONTENT-TYPE ::= CLASS {
+        &Type,
+        &id  OBJECT IDENTIFIER UNIQUE
+    } WITH SYNTAX { &Type IDENTIFIED BY &id }
+
+    EXTENSION ::= CLASS {
+        &syntax       OPTIONAL,
+        &extnId       OBJECT IDENTIFIER UNIQUE
+    } WITH SYNTAX { [SYNTAX &syntax] IDENTIFIED BY &extnId }
+
+    id-data  OBJECT IDENTIFIER ::= { iso 1 }
+    id-time  OBJECT IDENTIFIER ::= { iso 2 }
+
+    ct-Data CONTENT-TYPE ::= { OCTET STRING IDENTIFIED BY id-data }
+    ct-Text CONTENT-TYPE ::= { SEQUENCE { a INTEGER } IDENTIFIED BY id-time }
+    ext-Time EXTENSION ::= { SYNTAX GeneralizedTime IDENTIFIED BY id-time }
+
+    -- A value assignment of the very same shape, which must stay a value.
+    Person ::= SEQUENCE { name IA5String, age INTEGER }
+    someone Person ::= { name "Ada", age 36 }
+END
+
+-- Written as a second module so the shapes above keep their own file.
+Useful DEFINITIONS ::= BEGIN
+    -- The two classes X.681 defines itself are reserved words, so they
+    -- never reach Type and an assignment governed by one needs its own
+    -- alternative.
+    dap-abstract-syntax ABSTRACT-SYNTAX ::= { DAP-PDUs IDENTIFIED BY id-as }
+    Contents TYPE-IDENTIFIER ::= { {IA5String IDENTIFIED BY id-ct} }
+    DAP-PDUs ::= CHOICE { a INTEGER }
+    id-as OBJECT IDENTIFIER ::= { iso 5 }
+    id-ct OBJECT IDENTIFIER ::= { iso 6 }
+
+    -- A class word followed by a number, a value or a brace, and an
+    -- object after the union sign of an object set.
+    CONFIG-DATA ::= CLASS {
+        &min INTEGER,
+        &max INTEGER
+    } WITH SYNTAX { MINLEVEL &min MAXLEVEL &max }
+
+    config-data CONFIG-DATA ::= { MINLEVEL 1 MAXLEVEL 3 }
+    Configs CONFIG-DATA ::= { {MINLEVEL 1 MAXLEVEL 3} | {MINLEVEL 2 MAXLEVEL 4} }
+
+    -- A class may write one of ASN.1's own words as its own: X.681 7.9
+    -- says a word is upper case and hyphens, and says nothing about which.
+    KEYED ::= CLASS {
+        &id    INTEGER,
+        &Type
+    } WITH SYNTAX { KEY &id CONTAINING &Type }
+
+    -- A class field governed by a class, and a value set as a default.
+    HOLDER ::= CLASS {
+        &Syntaxes  ABSTRACT-SYNTAX,
+        &Critical  BOOLEAN DEFAULT {TRUE | FALSE}
+    }
+
+    -- X.683's Governor is a Type or a DefinedObjectClass. A class named by
+    -- a typereference is the Type; the two X.681 defines itself are
+    -- reserved words and need an alternative of their own.
+    Carrier {ABSTRACT-SYNTAX : Syntax} ::= SEQUENCE {
+        held  INTEGER
+    }
+
+    Held {KEYED : Key} ::= SEQUENCE {
+        id  KEYED.&id ({Key})
+    }
+END

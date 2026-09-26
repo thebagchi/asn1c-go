@@ -1,0 +1,10 @@
+-- OK: the encoding control sections of X.680 clause 54, whose bodies each
+-- encoding defines for itself and which are therefore kept as text.
+-- lib/review.md 11.19.
+Sample DEFINITIONS ::= BEGIN
+    Foo ::= INTEGER
+ENCODING-CONTROL XER
+    GLOBAL-DEFAULTS MODIFIED-ENCODINGS
+ENCODING-CONTROL PER
+    Foo ALIGNED
+END

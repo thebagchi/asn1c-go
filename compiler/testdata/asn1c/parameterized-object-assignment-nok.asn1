@@ -1,0 +1,23 @@
+-- NP: X.681's ParameterizedObjectAssignment whose every setting is braced.
+-- The lexer keeps an object's braces whole by reading the three tokens
+-- before them - a lower-case name, an upper-case one, then "::=" - which is
+-- what tells an object assignment from an object set's. A parameter list
+-- between the name and the class puts its closing brace there instead, and
+-- the case of the name is then further back than anything here looks.
+--
+-- The group's own content usually settles it anyway: a word beside a name
+-- or a type is an object whatever precedes the braces. Here every setting
+-- is itself braced, so there is no such pair and nothing is left to go on.
+-- lib/review.md 11.26.2.
+Sample DEFINITIONS ::= BEGIN
+    EXTENDED-BODY-PART-TYPE ::= CLASS {
+        &Parameters  OPTIONAL,
+        &id          OBJECT IDENTIFIER
+    } WITH SYNTAX { [PARAMETERS &Parameters] IDENTIFIED BY &id }
+
+    content-body-part {Type : content-type} EXTENDED-BODY-PART-TYPE ::= {
+        PARAMETERS {Forwarded IDENTIFIED BY {id-ep-content content-type}}
+    }
+
+    id-ep-content OBJECT IDENTIFIER ::= { iso 7 }
+END

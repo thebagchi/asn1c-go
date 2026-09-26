@@ -1,0 +1,8 @@
+-- OK: a module that writes EXPORTS and IMPORTS and then no assignments.
+-- lib/review.md 11.4. X.680 read literally cannot derive this, because its
+-- AssignmentList is non-empty and the empty ModuleBody takes no clauses
+-- either. Every compiler accepts it.
+Sample DEFINITIONS ::= BEGIN
+    EXPORTS ALL;
+    IMPORTS;
+END

@@ -2,585 +2,181 @@ package per
 
 import (
 	"encoding/asn1"
+	"errors"
 	"fmt"
-	"math"
 	"math/bits"
 	"reflect"
-	"unsafe"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
 )
 
-// Encoder represents a PER encoder for bit-level encoding
+// Sentinel errors reported while encoding.
+var (
+	ErrValueOutOfRange  = errors.New("value lies outside the type's constraint")
+	ErrLengthMismatch   = errors.New("value length differs from the type's fixed size")
+	ErrNotStruct        = errors.New("value is not a struct")
+	ErrNotList          = errors.New("value is not a slice or an array")
+	ErrNilValue         = errors.New("value is nil")
+	ErrNoAlternative    = errors.New("choice has no alternative set")
+	ErrManyAlternatives = errors.New("choice has more than one alternative set")
+	ErrUnsupportedType  = errors.New("type has no PER encoding in this package")
+	ErrEnumNoCount      = errors.New("enumerated needs an upper bound for its root")
+)
+
+// Encoder writes a PER encoding, in the variant it was created for.
 type Encoder struct {
 	codec   *bitbuffer.Codec
 	aligned bool
 }
 
-// NewEncoder creates a new PER encoder
-// aligned: true for APER (Aligned PER), false for UPER (Unaligned PER)
-func NewEncoder(aligned bool) *Encoder {
+// NewAlignedEncoder returns an Encoder for the ALIGNED variant, APER.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation as NewEncoder(aligned bool)
+//   - 2026-09-22 06:43: split into one constructor per variant, so a call site
+//     names the variant instead of passing a bare true or false
+func NewAlignedEncoder() *Encoder {
 	return &Encoder{
 		codec:   bitbuffer.CreateWriter(),
-		aligned: aligned,
+		aligned: true,
 	}
 }
 
-// Bytes returns the encoded bytes, correctly trimmed to the exact bit length
+// NewUnalignedEncoder returns an Encoder for the UNALIGNED variant, UPER.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation as NewEncoder(aligned bool)
+//   - 2026-09-22 06:43: split into one constructor per variant
+func NewUnalignedEncoder() *Encoder {
+	return &Encoder{
+		codec:   bitbuffer.CreateWriter(),
+		aligned: false,
+	}
+}
+
+// Bytes returns the encoding written so far, padded to a whole octet.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) Bytes() []byte {
 	return e.codec.Bytes()
 }
 
-// 11.3 Encoding as a non-negative-binary-integer
-// |- NOTE - (Tutorial) This subclause gives precision to the term
-// |  |  "non-negative-binary-integer encoding", putting the integer into a field which is a
-// |  |  fixed number of bits, a field which is a fixed number of octets, or a field that is
-// |  |  the minimum number of octets needed to hold it.
-// |- 11.3.1 Subsequent subclauses refer to the generation of a non-negative-binary-integer
-// |  |  encoding of a non-negative whole number into a field which is either a bit-field of
-// |  |  specified length, a single octet, a double octet, or the minimum number of octets
-// |  |  for the value.
-// |  |  This subclause (11.3) specifies the precise encoding to be applied when such
-// |  |  references are made.
-// |- 11.3.2 The leading bit of the field is defined as the leading bit of the bit-field, or
-// |  |  as the most significant bit of the first octet in the field, and the trailing bit of
-// |  |  the field is defined as the trailing bit of the bit-field or as the least significant
-// |  |  bit of the last octet in the field.
-// |- 11.3.3 For the following definition only, the bits shall be numbered zero for the
-// |  |  trailing bit of the field, one for the next bit, and so on up to the leading bit of
-// |  |  the field.
-// |- 11.3.4 In a non-negative-binary-integer encoding, the value of the whole number
-// |  |  represented by the encoding shall be the sum of the values specified by each bit.
-// |  |  A bit which is set to "0" has zero value.
-// |  |  A bit with number "n" which is set to "1" has the value 2^n.
-// |- 11.3.5 The encoding which sums (as defined above) to the value being encoded is an
-// |  |  encoding of that value.
-// |  |- NOTE - Where the size of the encoded field is fixed (a bit-field of specified
-// |  |  |  length, a single octet, or a double octet), then there is a unique encoding which
-// |  |  |  sums to the value being encoded.
-// |- 11.3.6 A minimum octet non-negative-binary-integer encoding of the whole number (which
-// |  |  does not predetermine the number of octets to be used for the encoding) has a field
-// |  |  which is a multiple of eight bits and also satisfies the condition that the leading
-// |  |  eight bits of the field shall not all be zero unless the field is precisely eight
-// |  |  bits long.
-// |  |- NOTE - This is a necessary and sufficient condition to produce a unique encoding.
-
-func BitsNonNegativeBinaryInteger(value uint64) int {
-	if value == 0 {
-		return 1
-	}
-	return bits.Len64(value)
+// Aligned reports whether this Encoder writes the ALIGNED variant.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (e *Encoder) Aligned() bool {
+	return e.aligned
 }
 
-func OctetsNonNegativeBinaryIntegerLength(value uint64) int {
-	bits := BitsNonNegativeBinaryInteger(value)
-	return (bits + 7) >> 3
-}
-
-// 11.4 Encoding as a 2's-complement-binary-integer
-// |- NOTE - (Tutorial) This subclause gives precision to the term
-// |  |  "2's-complement-binary-integer encoding", putting a signed integer into a field
-// |  |  that is the minimum number of octets needed to hold it.
-// |  |  These procedures are referenced in later encoding specifications.
-// |- 11.4.1 Subsequent subclauses refer to the generation of a 2's-complement-binary-integer
-// |  |  encoding of a whole number (which may be negative, zero, or positive) into the minimum
-// |  |  number of octets for the value.
-// |  |  This subclause (11.4) specifies the precise encoding to be applied when such
-// |  |  references are made.
-// |- 11.4.2 The leading bit of the field is defined as the most significant bit of the first
-// |  |  octet, and the trailing bit of the field is defined as the least significant bit of
-// |  |  the last octet.
-// |- 11.4.3 For the following definition only, the bits shall be numbered zero for the
-// |  |  trailing bit of the field, one for the next bit, and so on up to the leading bit of
-// |  |  the field.
-// |- 11.4.4 In a 2's-complement-binary-integer encoding, the value of the whole number
-// |  |  represented by the encoding shall be the sum of the values specified by each bit.
-// |  |  A bit which is set to "0" has zero value.
-// |  |  A bit with number "n" which is set to "1" has the value 2^n unless it is the leading
-// |  |  bit, in which case it has the (negative) value -2^n.
-// |- 11.4.5 Any encoding which sums (as defined above) to the value being encoded is an
-// |  |  encoding of that value.
-// |- 11.4.6 A minimum octet 2's-complement-binary-integer encoding of the whole number has a
-// |  |  field-width that is a multiple of eight bits and also satisfies the condition that the
-// |  |  leading nine bits of the field shall not all be zero and shall not all be ones.
-// |  |- NOTE - This is a necessary and sufficient condition to produce a unique encoding.
-
-func BitsTwosComplementBinaryInteger(value int64) int {
-	if value == 0 {
-		return 1
-	}
-	if value > 0 {
-		return bits.Len64(uint64(value)) + 1
-	}
-	// For negative values, ensure "leading nine bits shall not all be ones" per spec 11.4.6
-	// Use bitwise NOT to find minimum bits, then +1 for proper sign extension
-	return bits.Len64(uint64(^value)) + 1
-}
-
-func OctetsTwosComplementBinaryInteger(value int64) int {
-	bits := BitsTwosComplementBinaryInteger(value)
-	return (bits + 7) >> 3
-}
-
-// 11.5 Encoding of a constrained whole number
-// |- NOTE - (Tutorial) This subclause is referenced by other clauses, and itself references
-// |  |  earlier clauses for the production of a non-negative-binary-integer or a
-// |  |  2's-complement-binary-integer encoding.
-// |  |  For the UNALIGNED variant the value is always encoded in the minimum number of bits
-// |  |  necessary to represent the range (defined in 11.5.3).
-// |  |  The rest of this Note addresses the ALIGNED variant.
-// |  |  Where the range is less than or equal to 255, the value encodes into a bit-field of
-// |  |  the minimum size for the range.
-// |  |  Where the range is exactly 256, the value encodes into a single octet octet-aligned
-// |  |  bit-field.
-// |  |  Where the range is 257 to 64K, the value encodes into a two octet octet-aligned
-// |  |  bit-field.
-// |  |  Where the range is greater than 64K, the range is ignored and the value encodes into
-// |  |  an octet-aligned bit-field which is the minimum number of octets for the value.
-// |  |  In this latter case, later procedures (see 11.9) also encode a length field (usually a
-// |  |  single octet) to indicate the length of the encoding.
-// |  |  For the other cases, the length of the encoding is independent of the value being
-// |  |  encoded, and is not explicitly encoded.
-// |- 11.5.1 This subclause (11.5) specifies a mapping from a constrained whole number into
-// |  |  either a bit-field (unaligned) or a bit-field (octet-aligned in the ALIGNED variant),
-// |  |  and is invoked by later clauses in this Recommendation | International Standard.
-// |- 11.5.2 The procedures of this subclause are invoked only if a constrained whole number to
-// |  |  be encoded is available, and the values of the lower bound, "lb", and the upper bound,
-// |  |  "ub", have been determined from the type notation (after the application of PER-visible
-// |  |  constraints).
-// |  |- NOTE - A lower bound cannot be determined if MIN evaluates to an infinite number, nor
-// |  |  |  can an upper bound be determined if MAX evaluates to an infinite number.
-// |  |  |  For example, no upper or lower bound can be determined for INTEGER(MIN..MAX).
-// |- 11.5.3 Let "range" be defined as the integer value ("ub" - "lb" + 1), and let the value
-// |  |  to be encoded be "n".
-// |- 11.5.4 If "range" has the value 1, then the result of the encoding shall be an empty
-// |  |  bit-field (no bits).
-// |- 11.5.5 There are five other cases (leading to different encodings) to consider, where one
-// |  |  applies to the UNALIGNED variant and four to the ALIGNED variant.
-// |- 11.5.6 In the case of the UNALIGNED variant the value ("n" - "lb") shall be encoded as a
-// |  |  non-negative-binary-integer in a bit-field as specified in 11.3 with the minimum
-// |  |  number of bits necessary to represent the range.
-// |  |- NOTE - If "range" satisfies the inequality 2m < "range" <= 2m + 1, then the number of
-// |  |  |  bits = m + 1.
-// |- 11.5.7 In the case of the ALIGNED variant the encoding depends on whether:
-// |  |  a) "range" is less than or equal to 255 (the bit-field case);
-// |  |  b) "range" is exactly 256 (the one-octet case);
-// |  |  c) "range" is greater than 256 and less than or equal to 64K (the two-octet case);
-// |  |  d) "range" is greater than 64K (the indefinite length case).
-// |  |- 11.5.7.1 (The bit-field case.) If "range" is less than or equal to 255, then invocation
-// |  |  |  of this subclause requires the generation of a bit-field with a number of bits as
-// |  |  |  specified in the table below, and containing the value ("n" - "lb") as a
-// |  |  |  non-negative-binary-integer encoding in a bit-field as specified in 11.3.
-// |  |  |
-// |  |  |  +-------------+--------------------------+
-// |  |  |  | "range"     | Bit-field size (in bits) |
-// |  |  |  |-------------|--------------------------|
-// |  |  |  | 2           | 1                        |
-// |  |  |  | 3, 4        | 2                        |
-// |  |  |  | 5, 6, 7, 8  | 3                        |
-// |  |  |  | 9 to 16     | 4                        |
-// |  |  |  | 17 to 32    | 5                        |
-// |  |  |  | 33 to 64    | 6                        |
-// |  |  |  | 65 to 128   | 7                        |
-// |  |  |  | 129 to 255  | 8                        |
-// |  |  |  +-------------+--------------------------+
-// |  |- 11.5.7.2 (The one-octet case.) If the range has a value of 256, then the value ("n" -
-// |  |  |  "lb") shall be encoded in a one-octet bit-field (octet-aligned in the ALIGNED
-// |  |  |  variant) as a non-negative-binary-integer as specified in 11.3.
-// |  |- 11.5.7.3 (The two-octet case.) If the "range" has a value greater than or equal to 257
-// |  |  |  and less than or equal to 64K, then the value ("n" - "lb") shall be encoded in a
-// |  |  |  two-octet bit-field (octet-aligned in the ALIGNED variant) as a
-// |  |  |  non-negative-binary-integer encoding as specified in 11.3.
-// |  |- 11.5.7.4 (The indefinite length case.) Otherwise, the value ("n" - "lb") shall be
-// |  |  |  encoded as a non-negative-binary-integer in a bit-field (octet-aligned in the
-// |  |  |  ALIGNED variant) with the minimum number of octets as specified in 11.3, and the
-// |  |  |  number of octets "len" used in the encoding is used by other clauses that reference
-// |  |  |  this subclause to specify an encoding of the length.
-
+// EncodeConstrainedWholeNumber encodes n into the field X.691 clause 11.5
+// selects from the range, which is ub - lb + 1.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+//   - 2026-09-22 06:43: derives the ALIGNED bit-field width from the range
+//     rather than from a table of eight cases, which is the same number the
+//     UNALIGNED branch already computed
 func (e *Encoder) EncodeConstrainedWholeNumber(lb, ub, n int64) error {
-	vr := ub - lb + 1
-	if vr == 1 {
+	span := ub - lb + 1
+
+	// Clause 11.5.4: a range of one carries no bits at all.
+	if span == 1 {
 		return nil
 	}
 
-	if !e.aligned {
-		bits := BitsNonNegativeBinaryInteger(uint64(vr - 1))
-		value := uint64(n - lb)
-		return e.codec.Write(uint8(bits), value)
+	offset := uint64(n - lb)
+
+	if !e.aligned || span <= RANGE_BITFIELD_MAX {
+		width := BitsNonNegativeBinaryInteger(uint64(span - 1))
+
+		return e.codec.Write(uint8(width), offset)
 	}
 
-	value := uint64(n - lb)
-	// 11.5.7.1: Bit-field case (range <= 255) - NO alignment, just encode in minimum bits
-	if vr <= RANGE_BITFIELD_MAX {
-		var bits int
-		switch {
-		case vr == 0x02:
-			bits = 1
-		case vr >= 0x03 && vr <= 0x04:
-			bits = 2
-		case vr >= 0x05 && vr <= 0x08:
-			bits = 3
-		case vr >= 0x09 && vr <= 0x10:
-			bits = 4
-		case vr >= 0x11 && vr <= 0x20:
-			bits = 5
-		case vr >= 0x21 && vr <= 0x40:
-			bits = 6
-		case vr >= 0x41 && vr <= 0x80:
-			bits = 7
-		case vr >= 0x81 && vr <= 0xFF:
-			bits = 8
-		}
-		return e.codec.Write(uint8(bits), value)
-	}
-	// 11.5.7.2: One-octet case (range = 256) - octet-aligned
-	if vr == RANGE_ONE_OCTET {
-		if err := e.codec.Align(); nil != err {
+	if span <= RANGE_TWO_OCTET_MAX {
+		if err := e.codec.Align(); err != nil {
 			return err
 		}
-		return e.codec.Write(8, value)
-	}
-	// 11.5.7.3: Two-octet case (range 257-64K) - octet-aligned
-	if vr >= RANGE_TWO_OCTET_MIN && vr <= RANGE_TWO_OCTET_MAX {
-		if err := e.codec.Align(); nil != err {
-			return err
+
+		// Clauses 11.5.7.2 and 11.5.7.3: one octet at a range of 256, two up to
+		// 64K, whatever the value itself would fit in.
+		width := uint8(BITS_PER_BYTE)
+		if span > RANGE_ONE_OCTET {
+			width = DOUBLE_OCTET_BITS
 		}
-		return e.codec.Write(16, value)
+
+		return e.codec.Write(width, offset)
 	}
-	// 11.5.7.4: Indefinite length case (range > 64K)
-	// For ranges > 0x10000, use constrained encoding with length determinant
-	// Per ITU-T X.691 section 13.2.6(a): use constrained length determinant
-	// where lb=1 and ub=octets needed to hold the range
-	octets := OctetsNonNegativeBinaryIntegerLength(value)
-	if octets == 0 {
-		octets = 1
-	}
-	// Calculate constrained length bounds per spec 13.2.6(a)
-	var (
-		octetsRange = OctetsNonNegativeBinaryIntegerLength(uint64(ub - lb))
-		lbRange     = uint64(1)
-		ubRange     = uint64(octetsRange)
-	)
-	// Encode length determinant (constrained whole number, handles its own alignment per 11.5)
-	_, err := e.EncodeLengthDeterminant(uint64(octets), &lbRange, &ubRange)
-	if err != nil {
-		return err
-	}
-	// 11.5.7.4: Value is octet-aligned
-	if err := e.codec.Align(); nil != err {
-		return err
-	}
-	return e.codec.Write(uint8(octets*8), value)
+
+	return e._EncodeIndefinite(uint64(ub-lb), offset)
 }
 
-// 11.6 Encoding of a normally small non-negative whole number
-// |- NOTE - (Tutorial) This procedure is used when encoding a non-negative whole number that is
-// |  |  expected to be small, but whose size is potentially unlimited due to the presence of an
-// |  |  extension marker.
-// |  |  An example is a choice index.
-// |- 11.6.1 If the non-negative whole number, "n", is less than or equal to 63, then a
-// |  |  single-bit bit-field shall be appended to the field-list with the bit set to 0, and
-// |  |  "n" shall be encoded as a non-negative-binary-integer into a 6-bit bit-field.
-// |- 11.6.2 If "n" is greater than or equal to 64, a single-bit bit-field with the bit set to 1
-// |  |  shall be appended to the field-list.
-// |  |  The value "n" shall then be encoded as a semi-constrained whole number with "lb" equal to
-// |  |  0 and the procedures of 11.9 shall be invoked to add it to the field-list preceded by a
-// |  |  length determinant.
-
+// EncodeNormallySmallNonNegativeWholeNumber encodes n per X.691 clause 11.6.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeNormallySmallNonNegativeWholeNumber(n uint64) error {
 	if n <= NORMALLY_SMALL_MAX {
-		// 11.6.1: bit set to 0, followed by 6-bit encoding of n
 		if err := e.codec.Write(1, 0); err != nil {
 			return err
 		}
+
 		return e.codec.Write(NORMALLY_SMALL_BITS, n)
-	} else {
-		if err := e.codec.Write(1, 1); err != nil {
-			return err
-		}
-		return e.EncodeSemiConstrainedWholeNumber(0, int64(n))
 	}
+
+	if err := e.codec.Write(1, 1); err != nil {
+		return err
+	}
+
+	return e.EncodeSemiConstrainedWholeNumber(0, int64(n))
 }
 
-// 11.7 Encoding of a semi-constrained whole number
-// |- NOTE - (Tutorial) This procedure is used when a lower bound can be identified but not an
-// |  |  upper bound.
-// |  |  The encoding procedure places the offset from the lower bound into the minimum number of
-// |  |  octets as a non-negative-binary-integer, and requires an explicit length encoding
-// |  |  (typically a single octet) as specified in later procedures.
-// |- 11.7.1 This subclause specifies a mapping from a semi-constrained whole number into a
-// |  |  bit-field (octet-aligned in the ALIGNED variant), and is invoked by later clauses in this
-// |  |  Recommendation | International Standard.
-// |- 11.7.2 The procedures of this subclause (11.7) are invoked only if a semi-constrained whole
-// |  |  number ("n" say) to be encoded is available, and the value of "lb" has been determined
-// |  |  from the type notation (after the application of PER-visible constraints).
-// |  |- NOTE - A lower bound cannot be determined if MIN evaluates to an infinite number.
-// |  |  |  For example, no lower bound can be determined for INTEGER(MIN..MAX).
-// |- 11.7.3 The procedures of this subclause always produce the indefinite length case.
-// |- 11.7.4 (The indefinite length case.) The value ("n" - "lb") shall be encoded as a
-// |  |  non-negative-binary-integer in a bit-field (octet-aligned in the ALIGNED variant) with
-// |  |  the minimum number of octets as specified in 11.3, and the number of octets "len" used
-// |  |  in the encoding is used by other clauses that reference this subclause to specify an
-// |  |  encoding of the length.
-
+// EncodeSemiConstrainedWholeNumber encodes n as the offset from lb in the fewest
+// octets, behind a length determinant, per X.691 clause 11.7.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeSemiConstrainedWholeNumber(lb, n int64) error {
-	octets := OctetsNonNegativeBinaryIntegerLength(uint64(n - lb))
-	if octets == 0 {
-		octets = 1
-	}
-	// 11.7.4: octet-aligned in the ALIGNED variant only
-	if e.aligned {
-		if err := e.codec.Align(); nil != err {
-			return err
-		}
-	}
-	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
-	if err != nil {
-		return err
-	}
-	return e.codec.Write(uint8(octets*8), uint64(n-lb))
+	offset := uint64(n - lb)
+
+	return e._EncodeOctetAligned(OctetsNonNegativeBinaryIntegerLength(offset), offset)
 }
 
-// 11.8 Encoding of an unconstrained whole number
-// |- NOTE - (Tutorial) This case only arises in the encoding of the value of an integer type
-// |  |  with no lower bound.
-// |  |  The procedure encodes the value as a 2's-complement-binary-integer into the minimum
-// |  |  number of octets required to accommodate the encoding, and requires an explicit length
-// |  |  encoding (typically a single octet) as specified in later procedures.
-// |- 11.8.1 This subclause (11.8) specifies a mapping from an unconstrained whole number
-// |  |  ("n" say) into a bit-field (octet-aligned in the ALIGNED variant), and is invoked by
-// |  |  later clauses in this Recommendation | International Standard.
-// |- 11.8.2 The procedures of this subclause always produce the indefinite length case.
-// |- 11.8.3 (The indefinite length case.) The value "n" shall be encoded as a
-// |  |  2's-complement-binary-integer in a bit-field (octet-aligned in the ALIGNED variant)
-// |  |  with the minimum number of octets as specified in 11.4, and the number of octets "len"
-// |  |  used in the encoding is used by other clauses that reference this subclause to specify
-// |  |  an encoding of the length.
-
+// EncodeUnconstrainedWholeNumber encodes n in two's complement in the fewest
+// octets, behind a length determinant, per X.691 clause 11.8.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeUnconstrainedWholeNumber(n int64) error {
-	octets := OctetsTwosComplementBinaryInteger(n)
-	if octets == 0 {
-		octets = 1
-	}
-	// 11.8.3: octet-aligned in the ALIGNED variant only
-	if e.aligned {
-		if err := e.codec.Align(); nil != err {
-			return err
-		}
-	}
-	_, err := e.EncodeLengthDeterminant(uint64(octets), nil, nil)
-	if err != nil {
-		return err
-	}
-	return e.codec.Write(uint8(octets*8), uint64(n))
+	return e._EncodeOctetAligned(OctetsTwosComplementBinaryInteger(n), uint64(n))
 }
 
-// 11.9 General rules for encoding a length determinant
-// |- NOTE 1 - (Tutorial) The procedures of this subclause are invoked when an explicit length
-// |  |  field is needed for some part of the encoding regardless of whether the length count is
-// |  |  bounded above (by PER-visible constraints) or not.
-// |  |  The part of the encoding to which the length applies may be a bit string (with the length
-// |  |  count in bits), an octet string (with the length count in octets), a known-multiplier
-// |  |  character string (with the length count in characters), or a list of fields (with the
-// |  |  length count in components of a sequence-of or set-of).
-// |- NOTE 2 - (Tutorial) In the case of the ALIGNED variant if the length count is bounded above
-// |  |  by an upper bound that is less than 64K, then the constrained whole number encoding is
-// |  |  used for the length.
-// |  |  For sufficiently small ranges the result is a bit-field, otherwise the unconstrained
-// |  |  length ("n" say) is encoded into an octet-aligned bit-field in one of three ways (in
-// |  |  order of increasing size):
-// |  |  a) ("n" less than 128) a single octet containing "n" with bit 8 set to zero;
-// |  |  b) ("n" less than 16K) two octets containing "n" with bit 8 of the first octet set to 1
-// |  |     and bit 7 set to zero;
-// |  |  c) (large "n") a single octet containing a count "m" with bit 8 set to 1 and bit 7 set
-// |  |     to 1.
-// |  |     The count "m" is one to four, and the length indicates that a fragment of the
-// |  |     material follows (a multiple "m" of 16K items).
-// |  |     For all values of "m", the fragment is then followed by another length encoding for
-// |  |     the remainder of the material.
-// |- NOTE 3 - (Tutorial) In the UNALIGNED variant, if the length count is bounded above by an
-// |  |  upper bound that is less than 64K, then the constrained whole number encoding is used
-// |  |  to encode the length in the minimum number of bits necessary to represent the range.
-// |  |  Otherwise, the unconstrained length ("n" say) is encoded into a bit-field in the
-// |  |  manner described above in Note 2.
-// |- 11.9.1 This subclause is not invoked if, in accordance with the specification of later
-// |  |  clauses, the value of the length determinant, "n", is fixed by the type definition
-// |  |  (constrained by PER-visible constraints) to a value less than 64K.
-// |- 11.9.2 This subclause is invoked for addition to the field-list of a field, or list of
-// |  |  fields, preceded by a length determinant "n" which determines either:
-// |  |  a) the length in octets of an associated field (units are octets); or
-// |  |  b) the length in bits of an associated field (units are bits); or
-// |  |  c) the number of component encodings in an associated list of fields (units are
-// |  |     components of a set-of or sequence-of); or
-// |  |  d) the number of characters in the value of an associated known-multiplier character
-// |  |     string type (units are characters).
-// |- 11.9.3 (ALIGNED variant) The procedures for the ALIGNED variant are specified in
-// |  |  11.9.3.1 to 11.9.3.8.4.
-// |  |  (The procedures for the UNALIGNED variant are specified in 11.9.4.)
-// |  |- 11.9.3.1 As a result of the analysis of the type definition (specified in later
-// |  |  |  clauses) the length determinant (a whole number "n") will have been determined to be
-// |  |  |  either:
-// |  |  |  a) a normally small length with a lower bound "lb" equal to one; or
-// |  |  |  b) a constrained whole number with a lower bound "lb" (greater than or equal to
-// |  |  |     zero), and an upper bound "ub" less than 64K; or
-// |  |  |  c) a semi-constrained whole number with a lower bound "lb" (greater than or equal
-// |  |  |     to zero), or a constrained whole number with a lower bound "lb" (greater than or
-// |  |  |     equal to zero) and an upper bound "ub" greater than or equal to 64K.
-// |  |- 11.9.3.2 The subclauses invoking the procedures of this subclause will have determined
-// |  |  |  a value for "lb", the lower bound of the length (this is zero if the length is
-// |  |  |  unconstrained), and for "ub", the upper bound of the length.
-// |  |  |  "ub" is unset if there is no upper bound determinable from PER-visible constraints.
-// |  |- 11.9.3.3 Where the length determinant is a constrained whole number with "ub" less
-// |  |  |  than 64K, then the field-list shall have appended to it the encoding of the
-// |  |  |  constrained whole number for the length determinant as specified in 11.5.
-// |  |  |  If "n" is non-zero, this shall be followed by the associated field or list of
-// |  |  |  fields, completing these procedures.
-// |  |  |  If "n" is zero there shall be no further addition to the field-list, completing
-// |  |  |  these procedures.
-// |  |- 11.9.3.4 Where the length determinant is a normally small length and "n" is less
-// |  |  |  than or equal to 64, a single-bit bit-field shall be appended to the field-list
-// |  |  |  with the bit set to 0, and the value "n-1" shall be encoded as a
-// |  |  |  non-negative-binary-integer into a 6-bit bit-field.
-// |  |  |  This shall be followed by the associated field, completing these procedures.
-// |  |  |  If "n" is greater than 64, a single-bit bit-field shall be appended to the
-// |  |  |  field-list with the bit set to 1, followed by the encoding of "n" as an
-// |  |  |  unconstrained length determinant followed by the associated field, according to the
-// |  |  |  procedures of 11.9.3.5 to 11.9.3.8.4.
-// |  |  |- NOTE - Normally small lengths are only used to indicate the length of the bitmap
-// |  |  |  |  that prefixes the extension addition values of a set or sequence type.
-// |  |- 11.9.3.5 Otherwise (unconstrained length, or large "ub"), "n" is encoded and
-// |  |  |  appended to the field-list followed by the associated fields as specified below.
-// |  |  |- NOTE - The lower bound, "lb", does not affect the length encodings specified in
-// |  |  |  |  11.9.3.6 to 11.9.3.8.4.
-// |  |- 11.9.3.6 If "n" is less than or equal to 127, then "n" shall be encoded as a
-// |  |  |  non-negative-binary-integer (using the procedures of 11.3) into bits 7 (most
-// |  |  |  significant) to 1 (least significant) of a single octet and bit 8 shall be set to
-// |  |  |  zero.
-// |  |  |  This shall be appended to the field-list as a bit-field (octet-aligned in the
-// |  |  |  ALIGNED variant) followed by the associated field or list of fields, completing
-// |  |  |  these procedures.
-// |  |  |- NOTE - For example, if in the following a value of A is 4 characters long, and
-// |  |  |  |  that of B is 4 items long:
-// |  |  |  |  A ::= IA5String
-// |  |  |  |  B ::= SEQUENCE (SIZE (4..123456)) OF INTEGER
-// |  |  |  |  both values are encoded with the length octet occupying one octet, and with
-// |  |  |  |  the most significant set to 0 to indicate that the length is less than or equal
-// |  |  |  |  to 127:
-// |  |  |  |
-// |  |  |  |  +--------------------+--------------------+
-// |  |  |  |  | 0 ...  0000100     | 4 characters/items |
-// |  |  |  |  +--------------------+--------------------+
-// |  |  |  |  | Length             | Value              |
-// |  |  |  |  +--------------------+--------------------+
-// |  |- 11.9.3.7 If "n" is greater than 127 and less than 16K, then "n" shall be encoded
-// |  |  |  as a non-negative-binary-integer (using the procedures of 11.3) into bit 6 of
-// |  |  |  octet one (most significant) to bit 1 of octet two (least significant) of a
-// |  |  |  two-octet bit-field (octet-aligned in the ALIGNED variant) with bit 8 of the
-// |  |  |  first octet set to 1 and bit 7 of the first octet set to zero.
-// |  |  |  This shall be appended to the field-list followed by the associated field or list
-// |  |  |  of fields, completing these procedures.
-// |  |  |- NOTE - If in the example of 11.9.3.6 a value of A is 130 characters long, and a
-// |  |  |  |  value of B is 130 items long, both values are encoded with the length
-// |  |  |  |  component occupying 2 octets, and with the two most significant bits (bits 8
-// |  |  |  |  and 7) of the octet set to 10 to indicate that the length is greater than 127
-// |  |  |  |  but less than 16K.
-// |  |  |  |
-// |  |  |  |  +-------------------------+---------------------+
-// |  |  |  |  | 10 ... 000000 10000010  | 130 characters/items|
-// |  |  |  |  +-------------------------+---------------------+
-// |  |  |  |  | Length                  | Value               |
-// |  |  |  |  +-------------------------+---------------------+
-// |  |- 11.9.3.8 If "n" is greater than or equal to 16K, then there shall be appended to
-// |  |  |  the field-list a single octet in a bit-field (octet-aligned in the ALIGNED
-// |  |  |  variant) with bit 8 set to 1 and bit 7 set to 1, and bits 6 to 1 encoding the
-// |  |  |  value 1, 2, 3 or 4 as a non-negative-binary-integer (using the procedures of
-// |  |  |  11.8).
-// |  |  |  This single octet shall be followed by part of the associated field or list of
-// |  |  |  fields, as specified below.
-// |  |  |- NOTE - The value of bits 6 to 1 is restricted to 1-4 (instead of the theoretical
-// |  |  |  |  limits of 0-63) so as to limit the number of items that an implementation has
-// |  |  |  |  to have knowledge of to a more manageable number (64K instead of 1024K).
-// |  |  |- 11.9.3.8.1 The value of bits 6 to 1 (1 to 4) shall be multiplied by 16K giving
-// |  |  |  |  a count ("m" say).
-// |  |  |  |  The choice of the integer in bits 6 to 1 shall be the maximum allowed value
-// |  |  |  |  such that the associated field or list of fields contains more than or exactly
-// |  |  |  |  "m" octets, bits, components or characters, as appropriate.
-// |  |  |  |- NOTE 1 - The unfragmented form handles lengths up to 16K.
-// |  |  |  |  |  The fragmentation therefore provides for lengths up to 64K with a
-// |  |  |  |  |  granularity of 16K.
-// |  |  |  |- NOTE 2 - If in the example of 11.9.3.6 a value of "B" is 144K + 1 (i.e., 64K
-// |  |  |  |  |  + 64K + 16K + 1) items long, the value is fragmented, with the two most
-// |  |  |  |  |  significant bits (bits 8 and 7) of the first three fragments set to 11 to
-// |  |  |  |  |  indicate that one to four blocks each of 16K items follow, and that another
-// |  |  |  |  |  length component will follow the last block of each fragment:
-// |  |  |  |  |
-// |  |  |  |  |  +-----+--------+------------------------------+
-// |  |  |  |  |  | 11  | 000100 | 64K items                    |
-// |  |  |  |  |  +-----+--------+------------------------------+
-// |  |  |  |  |  | 11  | 000100 | 64K items                    |
-// |  |  |  |  |  +-----+--------+------------------------------+
-// |  |  |  |  |  | 11  | 000001 | 16K items                    |
-// |  |  |  |  |  +-----+--------+------------------------------+
-// |  |  |  |  |  | 0   | 000001 | 1 item                       |
-// |  |  |  |  |  +--------------+------------------------------+
-// |  |  |  |  |  | Length       | Value                        |
-// |  |  |  |  |  +--------------+------------------------------+
-// |  |  |- 11.9.3.8.2 That part of the contents specified by "m" shall then be appended to
-// |  |  |  |  the field-list as either:
-// |  |  |  |  a) a single bit-field (octet-aligned in the ALIGNED variant) of "m" octets
-// |  |  |  |     containing the first "m" octets of the associated field, for units which
-// |  |  |  |     are octets; or
-// |  |  |  |  b) a single bit-field (octet-aligned in the ALIGNED variant) of "m" bits
-// |  |  |  |     containing the first "m" bits of the associated field, for units which are
-// |  |  |  |     bits; or
-// |  |  |  |  c) the list of fields encoding the first "m" components in the associated
-// |  |  |  |     list of fields, for units which are components of a set-of or sequence-of
-// |  |  |  |     types; or
-// |  |  |  |  d) a single bit-field (octet-aligned in the ALIGNED variant) of "m"
-// |  |  |  |     characters containing the first "m" characters of the associated field, for
-// |  |  |  |     units which are characters.
-// |  |  |- 11.9.3.8.3 The procedures of 11.9 shall then be reapplied to add the remaining
-// |  |  |  |  part of the associated field or list of fields to the field-list with a length
-// |  |  |  |  which is a semi-constrained whole number equal to ("n" - "m") with a lower
-// |  |  |  |  bound of zero.
-// |  |  |  |- NOTE - If the last fragment that contains part of the encoded value has a
-// |  |  |  |  |  length that is an exact multiple of 16K, it is followed by a final fragment
-// |  |  |  |  |  that consists only of a single octet length component set to 0.
-// |  |  |- 11.9.3.8.4 The addition of only a part of the associated field(s) to the field-list
-// |  |  |  |  with reapplication of these procedures is called the fragmentation procedure.
-// |- 11.9.4 (UNALIGNED variant) The procedures for the UNALIGNED variant are specified in
-// |  |  11.9.4.1 to 11.9.4.2.
-// |  |  (The procedures for the ALIGNED variant are specified in 11.9.3.)
-// |  |- 11.9.4.1 If the length determinant "n" to be encoded is a constrained whole number
-// |  |  |  with "ub" less than 64K, then ("n"-"lb") shall be encoded as a
-// |  |  |  non-negative-binary-integer (as specified in 11.3) using the minimum number of bits
-// |  |  |  necessary to encode the "range" ("ub" - "lb" + 1), unless "range" is 1, in which
-// |  |  |  case there shall be no length encoding.
-// |  |  |  If "n" is non-zero this shall be followed by an associated field or list of
-// |  |  |  fields, completing these procedures.
-// |  |  |  If "n" is zero there shall be no further addition to the field-list, completing
-// |  |  |  these procedures.
-// |  |  |- NOTE - If "range" satisfies the inequality 2m < "range" <= 2m + 1, then the
-// |  |  |  |  number of bits in the length determinant is m + 1.
-// |  |- 11.9.4.2 If the length determinant "n" to be encoded is a normally small length,
-// |  |  |  or a constrained whole number with "ub" greater than or equal to 64K, or is a
-// |  |  |  semi-constrained whole number, then "n" shall be encoded as specified in
-// |  |  |  11.9.3.4 to 11.9.3.8.4.
-// |  |  |- NOTE - Thus, if "ub" is greater than or equal to 64K, the encoding of the length
-// |  |  |  |  determinant is the same as it would be if the length were unconstrained.
-
-func (e *Encoder) EncodeLengthDeterminant(n uint64, lb *uint64, ub *uint64) (uint64, error) {
-	// 11.9.3.3 / 11.9.4.1: constrained when "ub" is less than MAX_CONSTRAINED_LENGTH
-	if ub != nil && lb != nil && *ub < MAX_CONSTRAINED_LENGTH {
-		err := e.EncodeConstrainedWholeNumber(int64(*lb), int64(*ub), int64(n))
-		if err != nil {
-			return 0, err
-		}
-		return 0, nil
+// EncodeLengthDeterminant encodes the length n, per X.691 clause 11.9, and
+// returns how much of n a fragment left for the next determinant.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+//   - 2026-09-22 06:43: takes a Constraint, whose lower bound for a length is
+//     zero when the type states none. It required both bounds to be present, so
+//     a SIZE(0..10) written without its minimum was encoded as though the length
+//     were unconstrained
+func (e *Encoder) EncodeLengthDeterminant(n uint64, size *Constraint) (uint64, error) {
+	upper, bounded := size._SizeUpper()
+	if !bounded || upper >= MAX_CONSTRAINED_LENGTH {
+		return e.EncodeUnconstrainedLength(n)
 	}
-	return e.EncodeUnconstrainedLength(n)
+
+	lower := size._SizeLower()
+
+	return 0, e.EncodeConstrainedWholeNumber(int64(lower), int64(upper), int64(n))
 }
 
+// EncodeUnconstrainedLength encodes a length with no upper bound, per X.691
+// clauses 11.9.3.6 to 11.9.3.8, and returns what a fragment left over.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	if e.aligned {
 		if err := e.codec.Align(); err != nil {
@@ -589,769 +185,512 @@ func (e *Encoder) EncodeUnconstrainedLength(n uint64) (uint64, error) {
 	}
 
 	if n <= UNCONSTRAINED_LENGTH_SHORT_MAX {
-		if err := e.codec.Write(8, n); err != nil {
-			return 0, err
-		}
-		return 0, nil
+		return 0, e.codec.Write(BITS_PER_BYTE, n)
 	}
 
 	if n < FRAGMENT_SIZE {
-		value := LENGTH_LONG_FORM_FLAG | n
-		if err := e.codec.Write(16, value); err != nil {
-			return 0, err
-		}
-		return 0, nil
+		return 0, e.codec.Write(DOUBLE_OCTET_BITS, LENGTH_LONG_FORM_FLAG|n)
 	}
 
-	m := CalculateFragmentSize(n)
-	k := m / FRAGMENT_SIZE
+	carried := CalculateFragmentSize(n)
+	marker := LENGTH_FRAGMENT_FLAG | carried/FRAGMENT_SIZE
 
-	value := LENGTH_FRAGMENT_FLAG | k
-	if err := e.codec.Write(8, value); err != nil {
+	if err := e.codec.Write(BITS_PER_BYTE, marker); err != nil {
 		return 0, err
 	}
-	return n - m, nil
+
+	return n - carried, nil
 }
 
+// EncodeNormallySmallLength encodes the length of an extension bitmap, per
+// X.691 clause 11.9.3.4.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeNormallySmallLength(n uint64) (uint64, error) {
 	if n <= NORMALLY_SMALL_LENGTH_MAX {
 		if err := e.codec.Write(1, 0); err != nil {
 			return 0, err
 		}
-		if err := e.codec.Write(NORMALLY_SMALL_BITS, n-1); err != nil {
-			return 0, err
-		}
-		return 0, nil
+
+		return 0, e.codec.Write(NORMALLY_SMALL_BITS, n-1)
 	}
 
 	if err := e.codec.Write(1, 1); err != nil {
 		return 0, err
 	}
+
 	return e.EncodeUnconstrainedLength(n)
 }
 
-func CalculateFragmentSize(n uint64) uint64 {
-	if n >= 4*FRAGMENT_SIZE {
-		return 4 * FRAGMENT_SIZE // 64K
-	} else if n >= 3*FRAGMENT_SIZE {
-		return 3 * FRAGMENT_SIZE // 48K
-	} else if n >= 2*FRAGMENT_SIZE {
-		return 2 * FRAGMENT_SIZE // 32K
-	} else {
-		return FRAGMENT_SIZE // 16K
-	}
-}
-
-// 12 Encoding the boolean type
-// |- NOTE - A value of the boolean type shall be encoded as a bit-field consisting of a single
-// |  |  bit.
-// |- 12.1 The bit shall be set to 1 for TRUE and 0 for FALSE.
-// |- 12.2 The bit-field shall be appended to the field-list with no length determinant.
-
+// EncodeBoolean encodes a boolean as one bit, per X.691 clause 12.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
 func (e *Encoder) EncodeBoolean(value bool) error {
-	if value {
-		return e.codec.Write(1, 1)
-	} else {
-		return e.codec.Write(1, 0)
-	}
+	return e.codec.Write(1, _Bit(value))
 }
 
-// WriteExtensionBit encodes the single-bit "extension bit" that precedes the
-// value whenever a type has an extension marker in its constraint (X.691
-// §13.1 integer, §14.3 enumerated, §16.6 bitstring, §17.3 octetstring,
-// §19.1 sequence, §20.4 sequence-of, §23.5 choice). The bit is 1 if the
-// value being encoded lies outside the extension root (or, for SEQUENCE/
-// CHOICE, if an extension addition/alternative is present), 0 otherwise.
+// WriteExtensionBit writes the bit that says whether what follows lies outside
+// the extension root, per X.691 clauses 13.1, 14.3, 16.6, 17.3, 19.1, 20.4
+// and 23.5.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
 func (e *Encoder) WriteExtensionBit(extended bool) error {
 	return e.EncodeBoolean(extended)
 }
 
-// 13 Encoding the integer type
-// |- NOTE 1 - (Tutorial ALIGNED variant) Ranges which allow the encoding of all values into one
-// |  |  octet or less go into a minimum-sized bit-field with no length count.
-// |  |  Ranges which allow encoding of all values into two octets go into two octets in an
-// |  |  octet-aligned bit-field with no length count.
-// |  |  Otherwise, the value is encoded into the minimum number of octets (using
-// |  |  non-negative-binary-integer or 2's-complement-binary-integer encoding as appropriate) and
-// |  |  a length determinant is added.
-// |  |  In this case, if the integer value can be encoded in less than 127 octets (as an offset
-// |  |  from any lower bound that might be determined), and there is no finite upper and lower
-// |  |  bound, there is a one-octet length determinant, else the length is encoded in the fewest
-// |  |  number of bits needed.
-// |  |  Other cases are not of any practical interest, but are specified for completeness.
-// |- NOTE 2 - (Tutorial UNALIGNED variant) Constrained integers are encoded in the fewest number
-// |  |  of bits necessary to represent the range regardless of its size.
-// |  |  Unconstrained integers are encoded as in Note 1.
-// |- 13.1 If an extension marker is present in the constraint specification of the integer type,
-// |  |  then a single bit shall be added to the field-list in a bit-field of length one.
-// |  |  The bit shall be set to 1 if the value to be encoded is not within the range of the
-// |  |  extension root, and zero otherwise.
-// |  |  In the former case, the value shall be added to the field-list as an unconstrained
-// |  |  integer value, as specified in 13.2.4 to 13.2.6, completing this procedure.
-// |  |  In the latter case, the value shall be encoded as if the extension marker is not present.
-// |- 13.2 If an extension marker is not present in the constraint specification of the integer
-// |  |  type, then the following applies.
-// |  |- 13.2.1 If PER-visible constraints restrict the integer value to a single value, then
-// |  |  |  there shall be no addition to the field-list, completing these procedures.
-// |  |- 13.2.2 If PER-visible constraints restrict the integer value to be a constrained whole
-// |  |  |  number, then it shall be converted to a field according to the procedures of 11.5
-// |  |  |  (encoding of a constrained whole number), and the procedures of 13.2.5 to 13.2.6
-// |  |  |  shall then be applied.
-// |  |- 13.2.3 If PER-visible constraints restrict the integer value to be a semi-constrained
-// |  |  |  whole number, then it shall be converted to a field according to the procedures of
-// |  |  |  11.7 (encoding of a semi-constrained whole number), and the procedures of 13.2.6
-// |  |  |  shall then be applied.
-// |  |- 13.2.4 If PER-visible constraints do not restrict the integer to be either a constrained
-// |  |  |  or a semi-constrained whole number, then it shall be converted to a field according
-// |  |  |  to the procedures of 11.8 (encoding of an unconstrained whole number), and the
-// |  |  |  procedures of 13.2.6 shall then be applied.
-// |  |- 13.2.5 If the procedures invoked to encode the integer value into a field did not produce
-// |  |  |  the indefinite length case (see 11.5.7.4 and 11.8.2), then that field shall be appended
-// |  |  |  to the field-list completing these procedures.
-// |  |- 13.2.6 Otherwise, (the indefinite length case) the procedures of 11.9 shall be invoked
-// |  |  |  to append the field to the field-list preceded by one of the following:
-// |  |  |- a) A constrained length determinant "len" (as determined by 11.5.7.4) if PER-visible
-// |  |  |  |  constraints restrict the type with finite upper and lower bounds and, if the type
-// |  |  |  |  is extensible, the value lies within the range of the extension root.
-// |  |  |  |  The lower bound "lb" used in the length determinant shall be 1, and the upper
-// |  |  |  |  bound "ub" shall be the count of the number of octets required to hold the range
-// |  |  |  |  of the integer value.
-// |  |  |  |- NOTE - The encoding of the value "foo INTEGER (256..1234567) ::= 256" would thus
-// |  |  |  |  |  be encoded in the ALIGNED variant as 00xxxxxx00000000, where each 'x' represents
-// |  |  |  |  |  a zero pad bit that may or may not be present depending on where within the
-// |  |  |  |  |  octet the length occurs (e.g., the encoding is 00 xxxxxx 00000000 if the length
-// |  |  |  |  |  starts on an octet boundary, and 00 00000000 if it starts with the two least
-// |  |  |  |  |  significant bits (bits 2 and 1) of an octet).
-// |  |  |- b) An unconstrained length determinant equal to "len" (as determined by 11.7 and
-// |  |  |  |  11.8) if PER-visible constraints do not restrict the type with finite upper and
-// |  |  |  |  lower bounds, or if the type is extensible and the value does not lie within the
-// |  |  |  |  range of the extension root.
-
-func (e *Encoder) EncodeInteger(value int64, lb *int64, ub *int64, extensible bool) error {
-	if extensible {
-		extended := false
-		if lb != nil && value < *lb {
-			extended = true
-		}
-		if ub != nil && value > *ub {
-			extended = true
-		}
-
-		if err := e.WriteExtensionBit(extended); err != nil {
+// EncodeInteger encodes an integer under its constraint, per X.691 clause 13.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+//   - 2026-09-22 06:43: rejects a value outside a non-extensible constraint.
+//     The offset from the lower bound was written into a field sized for the
+//     range and silently truncated there, so 9 in a type constrained to 0..7
+//     encoded as 1 and the receiver had no way to know
+func (e *Encoder) EncodeInteger(value int64, size *Constraint) error {
+	if size.HasExtension() {
+		outside := !size._Covers(value)
+		if err := e.WriteExtensionBit(outside); err != nil {
 			return err
 		}
 
-		if extended {
+		if outside {
 			return e.EncodeUnconstrainedWholeNumber(value)
 		}
+
+		size = size._Root()
 	}
 
-	if lb != nil && ub != nil && *lb == *ub {
-		return nil
+	lower, hasLower := size.Lower()
+	upper, hasUpper := size.Upper()
+
+	if (hasLower || hasUpper) && !size._Covers(value) {
+		return fmt.Errorf("integer %d: %w", value, ErrValueOutOfRange)
 	}
 
-	if lb != nil && ub != nil {
-		return e.EncodeConstrainedWholeNumber(*lb, *ub, value)
-	} else if lb != nil && ub == nil {
-		return e.EncodeSemiConstrainedWholeNumber(*lb, value)
-	} else {
+	switch {
+	case hasLower && hasUpper:
+		return e.EncodeConstrainedWholeNumber(lower, upper, value)
+	case hasLower:
+		return e.EncodeSemiConstrainedWholeNumber(lower, value)
+	default:
 		return e.EncodeUnconstrainedWholeNumber(value)
 	}
 }
 
-// 14 Encoding the enumerated type
-// |- NOTE - (Tutorial) An enumerated type without an extension marker is encoded as if it
-// |  |  were a constrained integer whose subtype constraint does not contain an extension
-// |  |  marker.
-// |  |  This means that an enumerated type will almost always in practice be encoded as a
-// |  |  bit-field in the smallest number of bits needed to express every enumeration.
-// |  |  In the presence of an extension marker, it is encoded as a normally small
-// |  |  non-negative whole number if the value is not in the extension root.
-// |- 14.1 The enumerations in the enumeration root shall be sorted into ascending order by
-// |  |  their enumeration value, and shall then be assigned an enumeration index starting
-// |  |  with zero for the first enumeration, one for the second, and so on up to the last
-// |  |  enumeration in the sorted list.
-// |  |  The extension additions (which are always defined in ascending order) shall be
-// |  |  assigned an enumeration index starting with zero for the first enumeration, one for
-// |  |  the second, and so on up to the last enumeration in the extension additions.
-// |  |- NOTE - Rec. ITU-T X.680 | ISO/IEC 8824-1 requires that each successive extension
-// |  |  |  addition shall have a greater enumeration value than the last.
-// |- 14.2 If the extension marker is absent in the definition of the enumerated type, then
-// |  |  the enumeration index shall be encoded.
-// |  |  Its encoding shall be as though it were a value of a constrained integer type for
-// |  |  which there is no extension marker present, where the lower bound is 0 and the
-// |  |  upper bound is the largest enumeration index associated with the type, completing
-// |  |  this procedure.
-// |- 14.3 If the extension marker is present, then a single bit shall be added to the
-// |  |  field-list in a bit-field of length one.
-// |  |  The bit shall be set to 1 if the value to be encoded is not within the extension
-// |  |  root, and zero otherwise.
-// |  |  In the former case, the enumeration additions shall be sorted according to 14.1
-// |  |  and the value shall be added to the field-list as a normally small non-negative
-// |  |  whole number whose value is the enumeration index of the additional enumeration and
-// |  |  with "lb" set to 0, completing this procedure.
-// |  |  In the latter case, the value shall be encoded as if the extension marker is not
-// |  |  present, as specified in 14.2.
-// |  |- NOTE - There are no PER-visible constraints that can be applied to an enumerated
-// |  |  |  type that are visible to these encoding rules.
+// EncodeEnumerated encodes an enumeration index, per X.691 clause 14. root gives
+// the indices of the extension root, from zero, and carries the extension marker
+// when the type has one.
+//
+// Revisions:
+//   - 2026-01-29 23:50: initial creation
+//   - 2026-09-22 06:43: takes the root as a Constraint rather than a count and a
+//     flag, and rejects an index outside a root that cannot be extended
+func (e *Encoder) EncodeEnumerated(value uint64, root *Constraint) error {
+	upper, bounded := root.Upper()
+	if !bounded || upper < 0 {
+		return ErrEnumNoCount
+	}
 
-func (e *Encoder) EncodeEnumerated(value uint64, count uint64, extensible bool) error {
-	if extensible {
-		if value >= count {
-			if err := e.WriteExtensionBit(true); err != nil {
-				return err
-			}
+	count := uint64(upper) + 1
+
+	if root.HasExtension() {
+		outside := value >= count
+		if err := e.WriteExtensionBit(outside); err != nil {
+			return err
+		}
+
+		if outside {
 			return e.EncodeNormallySmallNonNegativeWholeNumber(value - count)
 		}
-		if err := e.WriteExtensionBit(false); err != nil {
-			return err
-		}
 	}
 
-	lb := int64(0)
-	ub := int64(count - 1)
-	return e.EncodeConstrainedWholeNumber(lb, ub, int64(value))
+	if value >= count {
+		return fmt.Errorf(
+			"enumeration index %d of %d: %w", value, count, ErrValueOutOfRange,
+		)
+	}
+
+	return e.EncodeConstrainedWholeNumber(0, upper, int64(value))
 }
 
-// 15 Encoding the real type
-// |- NOTE - (Tutorial) A real uses the contents octets of CER/DER preceded by a length
-// |  |  determinant that will in practice be a single octet.
-// |- 15.1 If the base of the abstract value is 10, then the base of the encoded value shall
-// |  |  be 10, and if the base of the abstract value is 2 the base of the encoded value
-// |  |  shall be 2.
-// |- 15.2 The encoding of REAL specified for CER and DER in Rec. ITU-T X.690 |
-// |  |  ISO/IEC 8825-1, 11.3 shall be applied to give a bit-field (octet-aligned in the
-// |  |  ALIGNED variant) which is the contents octets of the CER/DER encoding.
-// |  |  The contents octets of this encoding consists of "n" (say) octets and is placed in
-// |  |  a bit-field (octet-aligned in the ALIGNED variant) of "n" octets.
-// |  |  The procedures of 11.9 shall be invoked to append this bit-field (octet-aligned in
-// |  |  the ALIGNED variant) of "n" octets to the field-list, preceded by an unconstrained
-// |  |  length determinant equal to "n".
-
-// 11.3 Real values
-// |- 11.3.1 If the encoding represents a real value whose base B is 2, then binary encoding
-// |  |  employing base 2 shall be used.
-// |  |  Before encoding, the mantissa M and exponent E are chosen so that M is either 0 or is odd.
-// |  |  NOTE – This is necessary because the same real value can be regarded as both {M, 2, E}
-// |  |  and {M', 2, E'} with M ≠ M' if, for some non-zero integer n:
-// |  |  M' = M  2–n
-// |  |  E' = E + n
-// |  |  In encoding the value, the binary scaling factor F shall be zero, and M and E shall
-// |  |  each be represented in the fewest octets necessary.
-// |- 11.3.2 If the encoding represents a real value whose base B is 10, then decimal encoding
-// |  |  shall be used. In forming the encoding, the following applies:
-// |  |- 11.3.2.1 The ISO 6093 NR3 form shall be used (see 8.5.8).
-// |  |- 11.3.2.2 SPACE shall not be used within the encoding.
-// |  |- 11.3.2.3 If the real value is negative, then it shall begin with a MINUS SIGN (–),
-// |  |  |  otherwise, it shall begin with a digit.
-// |  |- 11.3.2.4 Neither the first nor the last digit of the mantissa may be a 0.
-// |  |- 11.3.2.5 The last digit in the mantissa shall be immediately followed by FULL STOP (.),
-// |  |  |  followed by the exponent-mark "E".
-// |  |- 11.3.2.6 If the exponent has the value 0, it shall be written "+0", otherwise the
-// |  |  |  exponent's first digit shall not be zero, and PLUS SIGN shall not be used.
-
-// 8.5 Encoding of a real value
-// |- 8.5.1 The encoding of a real value shall be primitive.
-// |- 8.5.2 If the real value is the value plus zero, there shall be no contents octets in the encoding.
-// |- 8.5.3 If the real value is the value minus zero, then it shall be encoded as specified in 8.5.9.
-// |- 8.5.4 For a non-zero real value, if the base of the abstract value is 10, then the base of the
-// |  |  encoded value shall be 10, and if the base of the abstract value is 2 the base of the
-// |  |  encoded value shall be 2, 8 or 16 as a sender's option.
-// |- 8.5.5 If the real value is non-zero, then the base used for the encoding shall be B' as specified
-// |  |  in 8.5.4. If B' is 2, 8 or 16, a binary encoding, specified in 8.5.7, shall be used. If B' is
-// |  |  10, a character encoding, specified in 8.5.8, shall be used.
-// |- 8.5.6
-// |- Bit 8 of the first contents octet shall be set as follows:
-// |  |- a) if bit 8 = 1, then the binary encoding specified in 8.5.7 applies;
-// |  |- b) if bit 8 = 0 and bit 7 = 0, then the decimal encoding specified in 8.5.8 applies;
-// |  |- c) if bit 8 = 0 and bit 7 = 1, then either a "SpecialRealValue" (see Rec. ITU-T X.680 |
-// |  |  |  ISO/IEC 8824-1) or the value minus zero is encoded as specified in 8.5.9.
-// 8.5.7
-// |- When binary encoding is used (bit 8 = 1), then if the mantissa M is non-zero, it shall be
-// |  |  represented by a sign S, a positive integer value N and a binary scaling factor F, such that:
-// |  |  M = S × N × 2^F
-// |  |  0 ≤ F < 4
-// |  |  S = +1 or –1
-// |- NOTE – The binary scaling factor F is required under certain circumstances in order to align
-// |  |  the implied point of the mantissa to the position required by the encoding rules of this
-// |  |  subclause. This alignment cannot always be achieved by modification of the exponent E. If
-// |  |  the base B' used for encoding is 8 or 16, the implied point can only be moved in steps of
-// |  |  3 or 4 bits, respectively, by changing the component E. Therefore, values of the binary
-// |  |  scaling factor F other than zero may be required in order to move the implied point to the
-// |  |  required position.
-// 8.5.7.1
-// |- Bit 7 of the first contents octets shall be 1 if S is –1 and 0 otherwise.
-// 8.5.7.2
-// |- Bits 6 to 5 of the first contents octets shall encode the value of the base B' as follows:
-// |  |  Bits 6 to 5 | Base
-// |  |  00          | base 2
-// |  |  01          | base 8
-// |  |  10          | base 16
-// |  |  11          | Reserved for further editions of this Recommendation | International Standard.
-// 8.5.7.3
-// |- Bits 4 to 3 of the first contents octet shall encode the value of the binary scaling
-// |  |  factor F as an unsigned binary integer.
-// 8.5.7.4
-// |- (Encoding of the mantissa and exponent is specified in 8.5.7.5)
-// 8.5.7.5
-// |- Bits 2 to 1 of the first contents octet shall encode the format of the exponent as follows:
-// |  |- a) if bits 2 to 1 are 00, then the second contents octet encodes the value of the exponent
-// |  |  |  as a two's complement binary number;
-// |  |- b) if bits 2 to 1 are 01, then the second and third contents octets encode the value of
-// |  |  |  the exponent as a two's complement binary number;
-// |  |- c) if bits 2 to 1 are 10, then the second, third and fourth contents octets encode the
-// |  |  |  value of the exponent as a two's complement binary number;
-// |  |- d) if bits 2 to 1 are 11, then the second contents octet encodes the number of octets, X
-// |  |  |  say, (as an unsigned binary number) used to encode the value of the exponent, and the
-// |  |  |  third up to the (X plus 3)th (inclusive) contents octets encode the value of the
-// |  |  |  exponent as a two's complement binary number; the value of X shall be at least one; the
-// |  |  |  first nine bits of the transmitted exponent shall not be all zeros or all ones.
-// |- The remaining contents octets encode the value of the integer N (see 8.5.7) as an unsigned
-// |  |  binary number.
-// |- NOTE 1 – For non-canonical BER there is no requirement for floating point normalization of
-// |  |  the mantissa. This allows an implementer to transmit octets containing the mantissa without
-// |  |  performing shift functions on the mantissa in memory. In the Canonical Encoding Rules and
-// |  |  the Distinguished Encoding Rules normalization is specified and the mantissa (unless it is
-// |  |  0) needs to be repeatedly shifted until the least significant bit is a 1.
-// |- NOTE 2 – This representation of real numbers is very different from the formats normally
-// |  |  used in floating point hardware, but has been designed to be easily converted to and from
-// |  |  such formats (see Annex C).
-// |- 8.5.8 Decimal encoding of real values
-// |  |- When decimal encoding is used (bits 8 to 7 = 00), all the contents octets following the
-// |  |  |  first contents octet form a field, as the term is used in ISO 6093, of a length chosen
-// |  |  |  by the sender, and encoded according to ISO 6093. The choice of ISO 6093 number
-// |  |  |  representation is specified by bits 6 to 1 of the first contents octet as follows:
-// |  |  |  Bits 6 to 1: Number representation
-// |  |  |  00 0001: ISO 6093 NR1 form
-// |  |  |  00 0010: ISO 6093 NR2 form
-// |  |  |  00 0011: ISO 6093 NR3 form
-// |  |  |  The remaining values of bits 6 to 1 are reserved for further editions of this
-// |  |  |  Recommendation | International Standard.
-// |  |- There shall be no use of scaling factors specified in accompanying documentation
-// |  |  |  (see ISO 6093).
-// |  |- NOTE 1 – The recommendations in ISO 6093 concerning the use of at least one digit to the
-// |  |  |  left of the decimal mark are also recommended in this Recommendation | International
-// |  |  |  Standard, but are not mandatory.
-// |  |- NOTE 2 – Use of the normalized form (see ISO 6093) is a sender's option, and has no
-// |  |  |  significance.
-// |- 8.5.9 Special Real Values and minus zero encoding (bits 8 to 7 = 01):
-// |  |- When "SpecialRealValues" or minus zero are to be encoded (bits 8 to 7 = 01), there shall be
-// |  |  |  only one contents octet, with values as follows:
-// |  |  |    01000000 - Value is PLUS-INFINITY
-// |  |  |    01000001 - Value is MINUS-INFINITY
-// |  |  |    01000010 - Value is NOT-A-NUMBER
-// |  |  |    01000011 - Value is minus zero
-// |  |- All other values having bits 8 and 7 equal to 0 and 1 respectively are reserved for addenda
-// |  |  |  to this Recommendation | International Standard.
-
-// MakeReal extracts characteristics, mantissa, and exponent from a float64 value
-// Returns:
-//   - mantissa: normalized mantissa as int64 (odd for non-zero values)
-//   - exponent: unbiased exponent as int
-//   - base: encoding base (2 for binary)
-func MakeReal(value float64) (mantissa int64, exponent int, base int) {
-	// Handle special case: zero
-	if value == 0.0 {
-		return 0, 0, 2
-	}
-
-	// Extract IEEE 754 components from float64
-	bits := math.Float64bits(value)
-
-	// Extract sign, exponent, and frac
-	var (
-		sign = (bits >> DOUBLE_SIGN_BIT_POS) & 1
-		bexp = int((bits >> DOUBLE_MANTISSA_BITS) & DOUBLE_EXPONENT_MASK)
-		frac = bits & DOUBLE_MANTISSA_MASK // 52-bit mantissa
-	)
-	// Handle special values (infinity, NaN) - let EncodeReal handle these
-	if bexp == DOUBLE_EXPONENT_MASK {
-		return 0, 0, 2
-	}
-
-	// Handle subnormal numbers (exponent == 0)
-	if bexp == 0 {
-		// Subnormal: exponent is -1022, mantissa is 0.fraction
-		mantissa = int64(frac)
-		exponent = DOUBLE_SUBNORMAL_EXP - DOUBLE_MANTISSA_BITS // Account for 52-bit fraction
-	} else {
-		// Normal: exponent is biased by 1023, mantissa is 1.fraction
-		mantissa = int64((1 << DOUBLE_MANTISSA_BITS) | frac)
-		exponent = bexp - DOUBLE_EXPONENT_BIAS - DOUBLE_MANTISSA_BITS // Unbias and account for 52-bit fraction
-	}
-
-	// Apply sign
-	if sign == 1 {
-		mantissa = -mantissa
-	}
-
-	// Normalize mantissa to be odd (per section 11.3.1)
-	// Remove trailing zeros from mantissa
-	for mantissa != 0 && mantissa%2 == 0 {
-		mantissa = mantissa / 2
-		exponent = exponent + 1
-	}
-
-	return mantissa, exponent, 2
-}
-
-func MakeFloat64(mantissa int64, exponent int, base int) float64 {
-	// base is always 2, 8, 16 (powers of two) or 10 in practice (see DecodeReal).
-	// Ldexp scales by a power of two exactly via the float exponent bits, avoiding
-	// the log/exp rounding error and cost of the generic math.Pow path.
-	switch base {
-	case 2:
-		return math.Ldexp(float64(mantissa), exponent)
-	case 8:
-		return math.Ldexp(float64(mantissa), exponent*3)
-	case 16:
-		return math.Ldexp(float64(mantissa), exponent*4)
-	case 10:
-		return math.Pow10(exponent) * float64(mantissa)
-	default:
-		return math.Pow(float64(base), float64(exponent)) * float64(mantissa)
-	}
-}
-
-// EncodeReal encodes a real value (float64) following PER encoding rules per section 8.5
-// Based on pycrate reference implementation using ITU-T X.690 specifications
+// EncodeReal encodes a real, per X.691 clause 15: the contents octets of X.690
+// clause 8.5 behind an unconstrained length determinant.
+//
+// Revisions:
+//   - 2026-02-04 22:23: initial creation
+//   - 2026-09-22 06:43: builds the contents with _RealContents, which cannot
+//     fail, in place of fifteen unchecked writes into a second bit buffer
 func (e *Encoder) EncodeReal(value float64) error {
-	// Section 8.5.9: Special real values (bits 7-6 = 01, bits 5-0 vary)
-	// Per section 15.2, content octets are preceded by an unconstrained length determinant.
-	// For these trivial cases (length 0 or 1) we write the length and value directly.
-	if math.IsNaN(value) || math.IsInf(value, 0) || (value == 0.0 && math.Signbit(value)) {
-		if e.aligned {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
-		}
-		// Unconstrained length determinant: single octet, value 1 (bit 8 = 0)
-		if err := e.codec.Write(8, 1); err != nil {
-			return err
-		}
-		var octet uint64
-		switch {
-		case math.IsNaN(value):
-			octet = REAL_NOT_A_NUMBER
-		case math.IsInf(value, 1):
-			octet = REAL_PLUS_INFINITY
-		case math.IsInf(value, -1):
-			octet = REAL_MINUS_INFINITY
-		default:
-			octet = REAL_MINUS_ZERO
-		}
-		return e.codec.Write(8, octet)
-	}
-
-	// Section 8.5.2: Plus zero has no contents octets (length = 0)
-	if value == 0.0 {
-		if e.aligned {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
-		}
-		return e.codec.Write(8, 0) // unconstrained length determinant = 0
-	}
-
-	// Section 8.5.7: Binary encoding for non-zero values (base 2)
-	// Extract mantissa and exponent from IEEE 754 representation. MakeReal always
-	// derives these from a float64 bit pattern, so base is always 2 here; the bits
-	// written below hardcode base 2 accordingly (no base-10 input path exists).
-	mantissa, exponent, _ := MakeReal(value)
-
-	// Ensure mantissa is odd (per spec: mantissa = 0 or odd)
-	// This normalization ensures canonical encoding
-	var sign int64
-	if mantissa < 0 {
-		sign = -1
-		mantissa = -mantissa
-	} else {
-		sign = 1
-	}
-
-	// Right-shift mantissa while it's even, incrementing exponent each time
-	// Both mantissa and exponent are modified by this normalization
-	for mantissa > 0 && mantissa%2 == 0 {
-		mantissa >>= 1
-		exponent++
-	}
-
-	// Build first octet per section 8.5.6-8.5.7 using temporary bitbuffer
-	// Bit 7: Binary encoding flag (1 for binary, 0 for decimal)
-	// Bit 6: Sign bit S (1 if negative, 0 if positive)
-	// Bits 5-4: Base B (00=base2, 01=base8, 10=base16)
-	// Bits 3-2: Scaling factor F (always 0 in normalized form)
-	// Bits 1-0: Exponent format (0=1 octet, 1=2 octets, 2=3 octets, 3=length prefix)
-	temp := bitbuffer.CreateWriter()
-
-	// Write Bit 7: Binary encoding flag (always 1)
-	temp.Write(1, 1)
-
-	// Write Bit 6: Sign bit
-	if sign < 0 {
-		temp.Write(1, 1)
-	} else {
-		temp.Write(1, 0)
-	}
-
-	// Write Bits 5-4: Base (always 00 for base 2)
-	temp.Write(2, 0)
-
-	// Write Bits 3-2: Scaling factor (always 00 for normalized form)
-	temp.Write(2, 0)
-
-	{
-		// Calculate exponent length in octets for first octet encoding
-		// Per Python reference: int_bytelen() returns minimum bytes needed
-		// Calculate exponent length using math and bits packages
-		length := OctetsTwosComplementBinaryInteger(int64(exponent))
-		// Write Bits 1-0: Exponent format (actualExpLen-1, capped at 3 for length prefix)
-		if length > 3 {
-			temp.Write(2, 3)
-		} else {
-			temp.Write(2, uint64(length-1))
-		}
-
-		// Encode exponent based on length format
-		switch length {
-		case 1:
-			// Single octet: encode as signed byte
-			temp.Write(8, uint64(int8(exponent)))
-		case 2:
-			// Two octets: encode as signed big-endian short
-			temp.Write(16, uint64(int16(exponent)))
-		case 3:
-			// Three octets: encode as signed big-endian (three bytes)
-			if exponent < 0 {
-				// Two's complement for negative values
-				temp.Write(24, uint64((1<<24)+exponent))
-			} else {
-				temp.Write(24, uint64(exponent))
-			}
-		default:
-			// Length prefix format: length octet followed by exponent octets
-			temp.Write(8, uint64(length))
-
-			// Encode exponent in actualExpLen octets as two's complement
-			if exponent < 0 {
-				temp.Write(uint8(length*8), uint64((1<<uint(length*8))+exponent))
-			} else {
-				temp.Write(uint8(length*8), uint64(exponent))
-			}
-		}
-	}
-
-	// Encode mantissa N as unsigned binary integer
-	// Convert mantissa to bytes (big-endian, minimum length)
-	if mantissa > 0 {
-		length := (bits.Len64(uint64(mantissa)) + 7) / 8
-		temp.Write(uint8(length*8), uint64(mantissa))
-	}
-
-	// Encode the contents with length determinant per section 11.9
-	return e.EncodeOctetString(temp.Bytes(), nil, nil, false)
+	return e.EncodeOctetString(_RealContents(value), Unconstrained())
 }
 
-// 16 Encoding the bitstring type
-// |- NOTE - (Tutorial) Bitstrings constrained to a fixed length less than or equal to 16
-// |  |  bits do not cause octet alignment.
-// |  |  Larger bitstrings are octet-aligned in the ALIGNED variant.
-// |  |  If the length is fixed by constraints and the upper bound is less than 64K, there
-// |  |  is no explicit length encoding, otherwise a length encoding is included which can
-// |  |  take any of the forms specified earlier for length encodings, including
-// |  |  fragmentation for large bit strings.
-// |- 16.1 PER-visible constraints can only constrain the length of the bitstring.
-// |- 16.2 Where there are no PER-visible constraints and Rec. ITU-T X.680 |
-// |  |  ISO/IEC 8824-1, 22.7, applies the value shall be encoded with no trailing 0 bits
-// |  |  (note that this means that a value with no 1 bits is always encoded as an empty
-// |  |  bit string).
-// |- 16.3 Where there is a PER-visible constraint and Rec. ITU-T X.680 | ISO/IEC 8824-1,
-// |  |  22.7, applies (i.e., the bitstring type is defined with a "NamedBitList"), the
-// |  |  value shall be encoded with trailing 0 bits added or removed as necessary to ensure
-// |  |  that the size of the transmitted value is the smallest size capable of carrying
-// |  |  this value and satisfies the effective size constraint.
-// |- 16.4 Let the maximum number of bits in the bitstring (as determined by PER-visible
-// |  |  constraints on the length) be "ub" and the minimum number of bits be "lb".
-// |  |  If there is no finite maximum we say that "ub" is unset.
-// |  |  If there is no constraint on the minimum, then "lb" has the value zero.
-// |  |  Let the length of the actual bit string value to be encoded be "n" bits.
-// |- 16.5 When a bitstring value is placed in a bit-field as specified in 16.6 to 16.11,
-// |  |  the leading bit of the bitstring value shall be placed in the leading bit of the
-// |  |  bit-field, and the trailing bit of the bitstring value shall be placed in the
-// |  |  trailing bit of the bit-field.
-// |- 16.6 If the type is extensible for PER encodings (see 10.3.9), then a bit-field
-// |  |  consisting of a single bit shall be added to the field-list.
-// |  |  The bit shall be set to 1 if the length of this encoding is not within the range of
-// |  |  the extension root, and zero otherwise.
-// |  |  In the former case, 16.11 shall be invoked to add the length as a
-// |  |  semi-constrained whole number to the field-list, followed by the bitstring value.
-// |  |  In the latter case the length and value shall be encoded as if no extension is
-// |  |  present in the constraint.
-// |- 16.7 If an extension marker is not present in the constraint specification of the
-// |  |  bitstring type, then 16.8 to 16.11 apply.
-// |- 16.8 If the bitstring is constrained to be of zero length ("ub" equals zero), then
-// |  |  it shall not be encoded (no additions to the field-list), completing the
-// |  |  procedures of this clause.
-// |- 16.9 If all values of the bitstring are constrained to be of the same length ("ub"
-// |  |  equals "lb") and that length is less than or equal to sixteen bits, then the
-// |  |  bitstring shall be placed in a bit-field of the constrained length "ub" which shall
-// |  |  be appended to the field-list with no length determinant, completing the procedures
-// |  |  of this clause.
-// |- 16.10 If all values of the bitstring are constrained to be of the same length ("ub"
-// |  |  equals "lb") and that length is greater than sixteen bits but less than 64K bits,
-// |  |  then the bitstring shall be placed in a bit-field (octet-aligned in the ALIGNED
-// |  |  variant) of length "ub" (which is not necessarily a multiple of eight bits) and
-// |  |  shall be appended to the field-list with no length determinant, completing the
-// |  |  procedures of this clause.
-// |- 16.11 If 16.8-16.10 do not apply, the bitstring shall be placed in a bit-field
-// |  |  (octet-aligned in the ALIGNED variant) of length "n" bits and the procedures of
-// |  |  11.9 shall be invoked to add this bit-field (octet-aligned in the ALIGNED variant)
-// |  |  of "n" bits to the field-list, preceded by a length determinant equal to "n" bits
-// |  |  as a constrained whole number if "ub" is set and is less than 64K or as a
-// |  |  semi-constrained whole number if "ub" is unset.
-// |  |  "lb" is as determined above.
-// |  |- NOTE - Fragmentation applies for unconstrained or large "ub" after 16K, 32K, 48K
-// |  |  |  or 64K bits.
-
-func (e *Encoder) WriteBits(data []byte, count uint) error {
+// WriteBits writes the leading count bits of data.
+//
+// Revisions:
+//   - 2026-01-31 00:03: initial creation
+func (e *Encoder) WriteBits(data []byte, count uint64) error {
 	if count == 0 {
 		return nil
 	}
 
-	num := count / 8
-	if num > 0 {
-		if err := e.codec.WriteBytes(data[:num]); err != nil {
+	if uint64(len(data))*BITS_PER_BYTE < count {
+		return fmt.Errorf(
+			"%d bits from %d octets: %w", count, len(data), ErrShortBitString,
+		)
+	}
+
+	whole := count / BITS_PER_BYTE
+	if whole > 0 {
+		if err := e.codec.WriteBytes(data[:whole]); err != nil {
 			return err
 		}
 	}
 
-	remaining := count % 8
-	if remaining > 0 {
-		var (
-			last  = data[num]
-			value = uint64(last >> (8 - remaining))
-		)
-		return e.codec.Write(uint8(remaining), value)
+	rest := count % BITS_PER_BYTE
+	if rest == 0 {
+		return nil
 	}
+
+	return e.codec.Write(uint8(rest), uint64(data[whole]>>(BITS_PER_BYTE-rest)))
+}
+
+// EncodeBitString encodes a bit string under its size constraint, per X.691
+// clause 16.
+//
+// Revisions:
+//   - 2026-01-31 00:03: initial creation
+//   - 2026-09-22 06:43: checks that the value carries the bits it claims, and
+//     that a fixed size gets exactly that many. A BitString whose Bytes were
+//     shorter than its BitLength indexed past the slice and panicked, and a
+//     fixed-size field wrote the constrained width from whatever followed
+func (e *Encoder) EncodeBitString(value *asn1.BitString, size *Constraint) error {
+	if value == nil {
+		return fmt.Errorf("bit string: %w", ErrNilValue)
+	}
+
+	count := uint64(value.BitLength)
+	if uint64(len(value.Bytes))*BITS_PER_BYTE < count {
+		return fmt.Errorf(
+			"%d bits in %d octets: %w",
+			count, len(value.Bytes), ErrShortBitString,
+		)
+	}
+
+	if size.HasExtension() {
+		outside := !size._CoversLength(count)
+		if err := e.WriteExtensionBit(outside); err != nil {
+			return err
+		}
+
+		if outside {
+			return e._EncodeBitFragments(value.Bytes, count, _Unbounded())
+		}
+
+		size = size._Root()
+	}
+
+	return e._EncodeBitString(value.Bytes, count, size)
+}
+
+// EncodeOctetString encodes an octet string under its size constraint, per X.691
+// clause 17.
+//
+// Revisions:
+//   - 2026-01-29 23:50: initial creation
+//   - 2026-09-22 06:43: checks a fixed size against the value's own length,
+//     which was written without a determinant and so could not be recovered
+func (e *Encoder) EncodeOctetString(value []byte, size *Constraint) error {
+	count := uint64(len(value))
+
+	if size.HasExtension() {
+		outside := !size._CoversLength(count)
+		if err := e.WriteExtensionBit(outside); err != nil {
+			return err
+		}
+
+		if outside {
+			return e._EncodeOctetFragments(value, _Unbounded())
+		}
+
+		size = size._Root()
+	}
+
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return e._EncodeOctetFragments(value, size)
+	}
+
+	// Clause 17.5: a type fixed at zero octets has no encoding.
+	if fixed == 0 {
+		return nil
+	}
+
+	if count != fixed {
+		return fmt.Errorf(
+			"octet string of %d in a type fixed at %d: %w",
+			count, fixed, ErrLengthMismatch,
+		)
+	}
+
+	// Clause 17.7 aligns a fixed string above two octets; clause 17.6 leaves a
+	// shorter one where it falls.
+	if e.aligned && fixed > OCTET_STRING_DIRECT_MAX {
+		if err := e.codec.Align(); err != nil {
+			return err
+		}
+	}
+
+	return e.codec.WriteBytes(value)
+}
+
+// EncodeNull encodes a NULL, per X.691 clause 18, which adds nothing.
+//
+// Revisions:
+//   - 2026-01-29 23:50: initial creation
+func (e *Encoder) EncodeNull() error {
 	return nil
 }
 
-func (e *Encoder) EncodeBitString(value *asn1.BitString, lb *uint64,
-	ub *uint64, extensible bool) error {
-	// 16.6 If the type is extensible, add a bit indicating if the length is in
-	// the extension root
-	if extensible {
-		extended := false
-		if lb != nil && uint64(value.BitLength) < *lb {
-			extended = true
-		}
-		if ub != nil && uint64(value.BitLength) > *ub {
-			extended = true
-		}
+// EncodeString encodes a string whose ASN.1 type is one of X.691 clause 30.5,
+// such as UTF8String, whose values PER carries as an octet string.
+//
+// EncodeRestrictedString is what a known-multiplier type needs; this is the
+// clause 30.5 half, kept apart because the two pack characters differently.
+//
+// Revisions:
+//   - 2026-02-09 23:42: initial creation
+//   - 2026-09-22 06:43: says in its name and its documentation which half of
+//     clause 30 it implements, since it was being used for both
+func (e *Encoder) EncodeString(value string, size *Constraint) error {
+	return e.EncodeOctetString(_StringBytes(value), size)
+}
 
-		if extended {
-			if err := e.WriteExtensionBit(true); err != nil {
-				return err
-			}
-			// Encode length as semi-constrained whole number (16.11) with
-			// fragmentation
-			zero := uint64(0)
-			if err := e.EncodeBitStringFragments(value.Bytes,
-				uint64(value.BitLength), &zero, nil); err != nil {
-				return err
-			}
-			return nil
-		} else {
-			if err := e.WriteExtensionBit(false); err != nil {
-				return err
-			}
+// EncodeObjectIdentifier encodes an OBJECT IDENTIFIER, per X.691 clause 24: the
+// contents octets of its BER encoding behind a length determinant.
+//
+// Revisions:
+//   - 2026-02-09 23:42: initial creation
+func (e *Encoder) EncodeObjectIdentifier(oid asn1.ObjectIdentifier) error {
+	encoded, err := asn1.Marshal(oid)
+	if err != nil {
+		return fmt.Errorf("object identifier: %w", err)
+	}
+
+	contents, err := _DERContents(encoded)
+	if err != nil {
+		return err
+	}
+
+	return e.EncodeOctetString(contents, Unconstrained())
+}
+
+// EncodeChoiceId encodes the index of a root CHOICE alternative, per X.691
+// clauses 23.6 and 23.7. root gives the indices of the extension root.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
+//   - 2026-09-22 06:43: takes the root as a Constraint, and the extension case
+//     moved to EncodeChoiceExtensionId, which is what the flag used to select
+func (e *Encoder) EncodeChoiceId(index int64, root *Constraint) error {
+	lower, _ := root.Lower()
+	upper, _ := root.Upper()
+
+	return e.EncodeConstrainedWholeNumber(lower, upper, index)
+}
+
+// EncodeChoiceExtensionId encodes the index of an extension CHOICE alternative,
+// per X.691 clause 23.8.
+//
+// The extension alternatives are numbered from zero again, independently of the
+// root, so a caller has to say which list the index belongs to; it cannot be
+// worked out from the index itself.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split from EncodeChoiceId
+func (e *Encoder) EncodeChoiceExtensionId(index int64) error {
+	return e.EncodeNormallySmallNonNegativeWholeNumber(uint64(index))
+}
+
+// EncodeSequence encodes a struct as a SEQUENCE, per X.691 clause 19.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+//   - 2026-09-22 06:43: tracks presence in a slice indexed alongside the
+//     metadata's optional fields rather than in a map built per call
+func (e *Encoder) EncodeSequence(value any) error {
+	rv := _Deref(reflect.ValueOf(value))
+	if !rv.IsValid() {
+		return fmt.Errorf("sequence: %w", ErrNilValue)
+	}
+
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("sequence is a %s: %w", rv.Kind(), ErrNotStruct)
+	}
+
+	meta, err := GetStructMeta(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return e._EncodeSequence(rv, meta)
+}
+
+// EncodeSequenceOf encodes a slice or array as a SEQUENCE OF, per X.691
+// clause 20.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+func (e *Encoder) EncodeSequenceOf(value any, size *Constraint, elem *Tag) error {
+	rv := _Deref(reflect.ValueOf(value))
+	if !rv.IsValid() {
+		return fmt.Errorf("sequence-of: %w", ErrNilValue)
+	}
+
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return fmt.Errorf("sequence-of is a %s: %w", rv.Kind(), ErrNotList)
+	}
+
+	return e._EncodeSequenceOf(rv, size, elem)
+}
+
+// EncodeChoice encodes a struct as a CHOICE, per X.691 clause 23.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation
+//   - 2026-09-22 06:43: reports a struct with two alternatives set. The root
+//     alternatives were searched first and the extension alternatives only if
+//     none was found, so a value carrying one of each encoded the root and
+//     dropped the extension without a word
+func (e *Encoder) EncodeChoice(value any) error {
+	rv := _Deref(reflect.ValueOf(value))
+	if !rv.IsValid() {
+		return fmt.Errorf("choice: %w", ErrNilValue)
+	}
+
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("choice is a %s: %w", rv.Kind(), ErrNotStruct)
+	}
+
+	meta, err := GetStructMeta(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return e._EncodeChoice(rv, meta)
+}
+
+// _EncodeIndefinite encodes the indefinite length case of X.691 clause 11.5.7.4:
+// the value in the fewest octets, behind a length that says how many.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of
+//     EncodeConstrainedWholeNumber
+func (e *Encoder) _EncodeIndefinite(span, offset uint64) error {
+	width := OctetsNonNegativeBinaryIntegerLength(offset)
+
+	// Clause 13.2.6 a): the length is itself constrained, from one octet to as
+	// many as the whole range would need.
+	bounds := Constrained(1, int64(OctetsNonNegativeBinaryIntegerLength(span)))
+	if _, err := e.EncodeLengthDeterminant(uint64(width), bounds); err != nil {
+		return err
+	}
+
+	if err := e.codec.Align(); err != nil {
+		return err
+	}
+
+	return e.codec.Write(uint8(width*BITS_PER_BYTE), offset)
+}
+
+// _EncodeOctetAligned encodes a value in width octets behind an unconstrained
+// length determinant, which is the shape clauses 11.7.4 and 11.8.3 share.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, shared by the semi-constrained and
+//     unconstrained whole number encoders
+func (e *Encoder) _EncodeOctetAligned(width int, value uint64) error {
+	if width == 0 {
+		width = 1
+	}
+
+	if e.aligned {
+		if err := e.codec.Align(); err != nil {
+			return err
 		}
 	}
 
-	// 16.8 If constrained to zero length, no encoding
-	if ub != nil && *ub == 0 {
+	if _, err := e.EncodeLengthDeterminant(uint64(width), Unconstrained()); err != nil {
+		return err
+	}
+
+	return e.codec.Write(uint8(width*BITS_PER_BYTE), value)
+}
+
+// _EncodeBitString encodes a bit string whose length lies in the extension root,
+// per X.691 clauses 16.8 to 16.11.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeBitString
+func (e *Encoder) _EncodeBitString(data []byte, count uint64, size *Constraint) error {
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return e._EncodeBitFragments(data, count, size)
+	}
+
+	// Clause 16.8: a type fixed at zero bits has no encoding.
+	if fixed == 0 {
 		return nil
 	}
 
-	// 16.9 If fixed length <= 16 bits, place in bit-field (no length
-	// determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= BITSTRING_DIRECT_MAX_BITS {
-		return e.WriteBits(value.Bytes, uint(*ub))
+	if count != fixed {
+		return fmt.Errorf(
+			"bit string of %d bits in a type fixed at %d: %w",
+			count, fixed, ErrLengthMismatch,
+		)
 	}
 
-	// 16.10 If fixed length > 16 bits but < 64K, place in bit-field
-	// octet-aligned (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		if e.aligned {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
+	// Clause 16.10 aligns a fixed string above sixteen bits; clause 16.9 leaves
+	// a shorter one where it falls.
+	if e.aligned && fixed > BITSTRING_DIRECT_MAX_BITS {
+		if err := e.codec.Align(); err != nil {
+			return err
 		}
-		return e.WriteBits(value.Bytes, uint(*ub))
 	}
 
-	// 16.11 Otherwise, encode with length determinant (with fragmentation
-	// support)
-	return e.EncodeBitStringFragments(value.Bytes, uint64(value.BitLength),
-		lb, ub)
+	return e.WriteBits(data, fixed)
 }
 
-func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
-	lb *uint64, ub *uint64) error {
-	// Only align at entry for unconstrained/semi-constrained length determinant paths
-	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), EncodeConstrainedWholeNumber
-	// handles its own alignment per section 11.5.
-	if e.aligned {
-		if ub == nil || lb == nil {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
-		}
-		if ub != nil && lb != nil {
-			if *ub >= MAX_CONSTRAINED_LENGTH {
-				if err := e.codec.Align(); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	// Handle empty value: still need to encode length determinant of 0
-	if count == 0 {
-		_, err := e.EncodeLengthDeterminant(0, lb, ub)
+// _EncodeBitFragments encodes a bit string behind a length determinant,
+// fragmenting when clause 11.9.3.8 calls for it.
+//
+// Revisions:
+//   - 2026-01-31 00:03: initial creation as EncodeBitStringFragments
+//   - 2026-09-22 06:43: took its alignment decision from the Constraint, which
+//     knows that an absent lower bound on a length means zero
+func (e *Encoder) _EncodeBitFragments(data []byte, count uint64, size *Constraint) error {
+	if err := e._AlignForLength(size); err != nil {
 		return err
 	}
 
 	offset := uint64(0)
 
-	// Encode with length determinant and handle fragmentation
-	for offset < count {
-		remaining := count - offset
-		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+	for {
+		pending, err := e.EncodeLengthDeterminant(count-offset, size)
 		if err != nil {
 			return err
 		}
 
-		// Determine how much to encode in this fragment
-		var length uint64
-		if pending == 0 {
-			// No pending length - encode everything remaining
-			length = remaining
-		} else {
-			// Fragmented - encode only what was encoded by length determinant
-			length = remaining - pending
-		}
-
-		// In ALIGNED variant, octet-align before writing data
-		if e.aligned {
+		length := count - offset - pending
+		if e.aligned && length > 0 {
 			if err := e.codec.Align(); err != nil {
 				return err
 			}
 		}
 
-		// Write the fragment data
-		nbytes := offset / 8
-		if err := e.WriteBits(value[nbytes:], uint(length)); err != nil {
+		if err := e.WriteBits(data[offset/BITS_PER_BYTE:], length); err != nil {
 			return err
 		}
 
@@ -1361,1168 +700,738 @@ func (e *Encoder) EncodeBitStringFragments(value []byte, count uint64,
 			continue
 		}
 
-		// Per section 11.9.3.8: if fragmentation was used (remaining >= FRAGMENT_SIZE
-		// in unconstrained mode) and all data fit exactly, a trailing 0-length
-		// determinant is needed to terminate the fragmentation sequence.
-		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
-			if remaining >= FRAGMENT_SIZE {
-				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
-					return err
-				}
-			}
-		}
-		break
+		return e._CloseFragments(count, offset, size)
 	}
-
-	return nil
 }
 
-// 17 Encoding the octetstring type
-// |- NOTE - Octet strings of fixed length less than or equal to two octets are not
-// |  |  octet-aligned.
-// |  |  All other octet strings are octet-aligned in the ALIGNED variant.
-// |  |  Fixed length octet strings encode with no length octets if they are shorter than
-// |  |  64K.
-// |  |  For unconstrained octet strings the length is explicitly encoded (with
-// |  |  fragmentation if necessary).
-// |- 17.1 PER-visible constraints can only constrain the length of the octetstring.
-// |- 17.2 Let the maximum number of octets in the octetstring (as determined by
-// |  |  PER-visible constraints on the length) be "ub" and the minimum number of octets be
-// |  |  "lb".
-// |  |  If there is no finite maximum, we say that "ub" is unset.
-// |  |  If there is no constraint on the minimum, then "lb" has the value zero.
-// |  |  Let the length of the actual octetstring value to be encoded be "n" octets.
-// |- 17.3 If the type is extensible for PER encodings (see 10.3.9), then a bit-field
-// |  |  consisting of a single bit shall be added to the field-list.
-// |  |  The bit shall be set to 1 if the length of this encoding is not within the range of
-// |  |  the extension root, and zero otherwise.
-// |  |  In the former case 17.8 shall be invoked to add the length as a
-// |  |  semi-constrained whole number to the field-list, followed by the octetstring value.
-// |  |  In the latter case the length and value shall be encoded as if no extension is
-// |  |  present in the constraint.
-// |- 17.4 If an extension marker is not present in the constraint specification of the
-// |  |  octetstring type, then 17.5 to 17.8 apply.
-// |- 17.5 If the octetstring is constrained to be of zero length ("ub" equals zero), then
-// |  |  it shall not be encoded (no additions to the field-list), completing the
-// |  |  procedures of this clause.
-// |- 17.6 If all values of the octetstring are constrained to be of the same length ("ub"
-// |  |  equals "lb") and that length is less than or equal to two octets, the octetstring
-// |  |  shall be placed in a bit-field with a number of bits equal to the constrained length
-// |  |  "ub" multiplied by eight which shall be appended to the field-list with no length
-// |  |  determinant, completing the procedures of this clause.
-// |- 17.7 If all values of the octetstring are constrained to be of the same length ("ub"
-// |  |  equals "lb") and that length is greater than two octets but less than 64K, then
-// |  |  the octetstring shall be placed in a bit-field (octet-aligned in the ALIGNED
-// |  |  variant) with the constrained length "ub" octets which shall be appended to the
-// |  |  field-list with no length determinant, completing the procedures of this clause.
-// |- 17.8 If 17.5 to 17.7 do not apply, the octetstring shall be placed in a bit-field
-// |  |  (octet-aligned in the ALIGNED variant) of length "n" octets and the procedures of
-// |  |  11.9 shall be invoked to add this bit-field (octet-aligned in the ALIGNED variant)
-// |  |  of "n" octets to the field-list, preceded by a length determinant equal to "n"
-// |  |  octets as a constrained whole number if "ub" is set, and as a semi-constrained
-// |  |  whole number if "ub" is unset.
-// |  |  "lb" is as determined above.
-// |  |- NOTE - The fragmentation procedures may apply after 16K, 32K, 48K, or 64K octets.
-
-func (e *Encoder) EncodeOctetString(value []byte, lb *uint64, ub *uint64, extensible bool) error {
-	n := uint64(len(value))
-
-	// 17.3 If extensible, add a bit indicating if the length is in the extension root
-	if extensible {
-		extended := false
-		if lb != nil && n < *lb {
-			extended = true
-		}
-		if ub != nil && n > *ub {
-			extended = true
-		}
-
-		if extended {
-			if err := e.WriteExtensionBit(true); err != nil {
-				return err
-			}
-			// Encode length as semi-constrained whole number (17.8) with fragmentation
-			zero := uint64(0)
-			return e.EncodeOctetStringFragments(value, &zero, nil)
-		} else {
-			if err := e.WriteExtensionBit(false); err != nil {
-				return err
-			}
-		}
-	}
-
-	// 17.5 If constrained to zero length, no encoding
-	if ub != nil && *ub == 0 {
-		return nil
-	}
-
-	// 17.6 If fixed length <= 2 octets, place in bit-field (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= OCTET_STRING_DIRECT_MAX {
-		return e.codec.WriteBytes(value)
-	}
-
-	// 17.7 If fixed length > 2 octets but < 64K, place in bit-field octet-aligned
-	// (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		if e.aligned {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
-		}
-		return e.codec.WriteBytes(value)
-	}
-
-	// 17.8 Otherwise, encode with length determinant (with fragmentation support)
-	return e.EncodeOctetStringFragments(value, lb, ub)
-}
-
-// EncodeOctetStringFragments encodes an octet string with length determinant,
-// supporting fragmentation for lengths >= 16K per section 11.9.3.8
-func (e *Encoder) EncodeOctetStringFragments(value []byte, lb *uint64, ub *uint64) error {
-	// Only align at entry for unconstrained/semi-constrained length determinant paths
-	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), EncodeConstrainedWholeNumber
-	// handles its own alignment per section 11.5.
-	if e.aligned {
-		if ub == nil || lb == nil {
-			if err := e.codec.Align(); err != nil {
-				return err
-			}
-		}
-		if ub != nil && lb != nil {
-			if *ub >= MAX_CONSTRAINED_LENGTH {
-				if err := e.codec.Align(); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	n := uint64(len(value))
-
-	// Handle empty value: still need to encode length determinant of 0
-	if n == 0 {
-		_, err := e.EncodeLengthDeterminant(0, lb, ub)
+// _EncodeOctetFragments encodes an octet string behind a length determinant,
+// fragmenting when clause 11.9.3.8 calls for it.
+//
+// Revisions:
+//   - 2026-01-29 23:50: initial creation as EncodeOctetStringFragments
+//   - 2026-09-22 06:43: took its alignment decision from the Constraint
+func (e *Encoder) _EncodeOctetFragments(data []byte, size *Constraint) error {
+	if err := e._AlignForLength(size); err != nil {
 		return err
 	}
 
-	offset := uint64(0)
+	var (
+		count  = uint64(len(data))
+		offset = uint64(0)
+	)
 
-	// Encode with length determinant and handle fragmentation
-	for offset < n {
-		remaining := n - offset
-		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+	for {
+		pending, err := e.EncodeLengthDeterminant(count-offset, size)
 		if err != nil {
 			return err
 		}
 
-		// Determine how much to encode in this fragment
-		var length uint64
-		if pending == 0 {
-			// No pending length - encode everything remaining
-			length = remaining
-		} else {
-			// Fragmented - encode only what was encoded by length determinant
-			length = remaining - pending
-		}
-
-		// In ALIGNED variant, octet-align before writing data (section 17.8)
-		if e.aligned {
+		length := count - offset - pending
+		if e.aligned && length > 0 {
 			if err := e.codec.Align(); err != nil {
 				return err
 			}
 		}
 
-		// Write the fragment data
-		if err := e.codec.WriteBytes(value[offset : offset+length]); err != nil {
+		if err := e.codec.WriteBytes(data[offset : offset+length]); err != nil {
 			return err
 		}
 
-		offset += length
+		offset = offset + length
 
 		if pending != 0 {
 			continue
 		}
 
-		// Per section 11.9.3.8: if fragmentation was used (remaining >= FRAGMENT_SIZE
-		// in unconstrained mode) and all data fit exactly, a trailing 0-length
-		// determinant is needed to terminate the fragmentation sequence.
-		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
-			if remaining >= FRAGMENT_SIZE {
-				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
-					return err
-				}
-			}
-		}
-		break
+		return e._CloseFragments(count, offset, size)
+	}
+}
+
+// _AlignForLength aligns before a length determinant that is not a constrained
+// whole number, which is the only case clause 11.9.3.5 leaves to the caller;
+// EncodeConstrainedWholeNumber aligns for itself, per clause 11.5.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, shared by the three fragmenting
+//     encoders, which each carried a copy of it
+func (e *Encoder) _AlignForLength(size *Constraint) error {
+	if !e.aligned {
+		return nil
 	}
 
-	return nil
+	if upper, bounded := size._SizeUpper(); bounded && upper < MAX_CONSTRAINED_LENGTH {
+		return nil
+	}
+
+	return e.codec.Align()
 }
 
-// 18 Encoding the null type
-// |- NOTE - (Tutorial) The null type is essentially a place holder, with practical meaning
-// |  |  only in the case of a choice or an optional set or sequence component.
-// |  |  Identification of the null in a choice, or its presence as an optional element, is
-// |  |  performed in these encoding rules without the need to have octets representing the
-// |  |  null.
-// |  |  Null values therefore never contribute to the octets of an encoding.
-// |  |  There shall be no addition to the field-list for a null value.
+// _CloseFragments writes the terminating zero length that clause 11.9.3.8.3
+// requires when a fragmented value ended on an exact multiple of 16K.
+//
+// A length bounded below 64K is written once as a constrained whole number and
+// never fragments, however long the value is, so it takes no terminator.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (e *Encoder) _CloseFragments(count, offset uint64, size *Constraint) error {
+	if count < FRAGMENT_SIZE || offset != count {
+		return nil
+	}
 
-func (e *Encoder) EncodeNull() error {
-	return nil
+	if upper, bounded := size._SizeUpper(); bounded && upper < MAX_CONSTRAINED_LENGTH {
+		return nil
+	}
+
+	_, err := e.EncodeLengthDeterminant(0, size)
+
+	return err
 }
 
-// 24 Encoding the object identifier type
-// |- NOTE - (Tutorial) An object identifier type encoding uses the contents octets of BER preceded by a length determinant that will
-// |  |  in practice be a single octet.
-// |  |  The encoding specified for BER shall be applied to give a bit-field (octet-aligned in the ALIGNED variant) which is the
-// |  |  contents octets of the BER encoding. The contents octets of this BER encoding consists of "n" (say) octets and is placed
-// |  |  in a bit-field (octet-aligned in the ALIGNED variant) of "n" octets. The procedures of 11.9 shall be invoked to append
-// |  |  this bit-field (octet-aligned in the ALIGNED variant) to the field-list, preceded by a length determinant equal to "n" as a
-// |  |  semi-constrained whole number octet count.
+// _EncodeOpenType writes an inner encoding as an open type field, per X.691
+// clause 11.2.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation. The three call sites wrote the inner
+//     bytes straight out, so a value whose encoding is empty - a NULL, an
+//     integer with one possible value - was carried as a length of zero, where
+//     clause 11.1.3 requires the one zero octet an empty complete encoding has
+func (e *Encoder) _EncodeOpenType(inner []byte) error {
+	if len(inner) == 0 {
+		inner = []byte{0}
+	}
 
-// EncodeObjectIdentifier encodes an OBJECT IDENTIFIER value per section 24 of ITU-T X.691.
-// The OID is encoded as an octet string containing the DER value octets.
-func (e *Encoder) EncodeObjectIdentifier(oid asn1.ObjectIdentifier) error {
-	// Marshal the OID to DER encoding using Go's encoding/asn1 package
-	// DER format: tag (0x06) + length + value octets
-	data, err := asn1.Marshal(oid)
+	return e.EncodeOctetString(inner, Unconstrained())
+}
+
+// _Nested returns an Encoder for the same variant, for an inner encoding that
+// has to be measured before it is written.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (e *Encoder) _Nested() *Encoder {
+	if e.aligned {
+		return NewAlignedEncoder()
+	}
+
+	return NewUnalignedEncoder()
+}
+
+// _EncodeSequence writes the preamble, the root components and the extension
+// additions of clause 19.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeSequence
+func (e *Encoder) _EncodeSequence(rv reflect.Value, meta *StructMeta) error {
+	present, err := e._EncodePreamble(rv, meta)
 	if err != nil {
 		return err
 	}
 
-	// Extract value octets by parsing the DER structure
-	if data[1]&0x80 == 0 {
-		// Short form: length in low 7 bits
-		data = data[2:]
-	} else {
-		// Long form: next (data[1] & 0x7f) bytes contain the length
-		data = data[2+int(data[1]&0x7f):]
+	if err := e._EncodeRoot(rv, meta, present); err != nil {
+		return err
 	}
 
-	// Encode the value octets as an unconstrained octet string
-	return e.EncodeOctetString(data, nil, nil, false)
+	return e._EncodeExtensions(rv, meta)
 }
 
-// 25 Encoding the relative object identifier type
-// |- NOTE - (Tutorial) A relative object identifier type encoding uses the contents octets of BER preceded by a length determinant that
-// |  |  will in practice be a single octet. The following text is identical to that of clause 24.
-// |  |  The encoding specified for BER shall be applied to give a bit-field (octet-aligned in the ALIGNED variant) which is the
-// |  |  contents octets of the BER encoding. The contents octets of this BER encoding consists of "n" (say) octets and is placed
-// |  |  in a bit-field (octet-aligned in the ALIGNED variant) of "n" octets. The procedures of 11.9 shall be invoked to append
-// |  |  this bit-field (octet-aligned in the ALIGNED variant) to the field-list, preceded by a length determinant equal to "n" as a
-// |  |  semi-constrained whole number octet count.
-
-// 30 Encoding the restricted character string types
-// |- NOTE 1 - (Tutorial ALIGNED variant) Character strings of fixed length less than or equal
-// |  |  to two octets are not octet-aligned. Character strings of variable length that are
-// |  |  constrained to have a maximum length of less than two octets are not octet-aligned. All
-// |  |  other character strings are octet-aligned in the ALIGNED variant. Fixed length character
-// |  |  strings encode with no length octets if they are shorter than 64K characters. For
-// |  |  unconstrained character strings or constrained character strings longer than 64K-1, the
-// |  |  length is explicitly encoded (with fragmentation if necessary). Each NumericString,
-// |  |  PrintableString, VisibleString (ISO646String), IA5String, BMPString and UniversalString
-// |  |  character is encoded into the number of bits that is the smallest power of two that can
-// |  |  accommodate all characters allowed by the effective permitted-alphabet constraint.
-// |- NOTE 2 - (Tutorial UNALIGNED variant) Character strings are not octet-aligned. If there
-// |  |  is only one possible length value there is no length encoding if they are shorter than
-// |  |  64K characters. For unconstrained character strings or constrained character strings
-// |  |  longer than 64K-1, the length is explicitly encoded (with fragmentation if necessary).
-// |  |  Each NumericString, PrintableString, VisibleString (ISO646String), IA5String, BMPString
-// |  |  and UniversalString character is encoded into the number of bits that is the smallest
-// |  |  that can accommodate all characters allowed by the effective permitted-alphabet
-// |  |  constraint.
-// |- NOTE 3 - (Tutorial on size of each encoded character) Encoding of each character depends
-// |  |  on the effective permitted-alphabet constraint (see 10.3.12), which defines the alphabet
-// |  |  in use for the type. Suppose this alphabet consists of a set of characters ALPHA (say).
-// |  |  For each of the known-multiplier character string types (see 3.7.16), there is an
-// |  |  integer value associated with each character, obtained by reference to some code table
-// |  |  associated with the restricted character string type. The set of values BETA (say)
-// |  |  corresponding to the set of characters ALPHA is used to determine the encoding to be
-// |  |  used, as follows: the number of bits for the encoding of each character is determined
-// |  |  solely by the number of elements, N, in the set BETA (or ALPHA). For the UNALIGNED
-// |  |  variant is the smallest number of bits that can encode the value N - 1 as a non-negative
-// |  |  binary integer. For the ALIGNED variant this is the smallest number of bits that is a
-// |  |  power of two and that can encode the value N - 1. Suppose the selected number of bits
-// |  |  is B. Then if every value in the set BETA can be encoded (with no transformation) in B
-// |  |  bits, then the value in set BETA is used to represent the corresponding characters in
-// |  |  the set ALPHA. Otherwise, the values in set BETA are taken in ascending order and
-// |  |  replaced by values 0, 1, 2, and so on up to N - 1, and it is these values that are used
-// |  |  to represent the corresponding character. In summary: minimum bits (taken to the next
-// |  |  power of two for the ALIGNED variant) are always used. Preference is then given to using
-// |  |  the value normally associated with the character, but if any of these values cannot be
-// |  |  encoded in the minimum number of bits a compaction is applied. The following restricted
-// |  |  character string types are known-multiplier character string types: NumericString,
-// |  |  PrintableString, VisibleString (ISO646String), IA5String, BMPString, and UniversalString.
-// |  |  Effective permitted-alphabet constraints are PER-visible only for these types.
-// |- 30.1 The effective size constraint notation may determine an upper bound "aub" for the
-// |  |  length of the abstract character string. Otherwise, "aub" is unset.
-// |- 30.2 The effective size constraint notation may determine a non-zero lower bound "alb"
-// |  |  for the length of the abstract character string. Otherwise, "alb" is zero.
-// |  |- NOTE - PER-visible constraints only apply to known-multiplier character string types.
-// |  |  For other restricted character string types "aub" will be unset and "alb" will be zero.
-// |- 30.3 If the type is extensible for PER encodings (see 10.3.18), then a bit-field
-// |  |  consisting of a single bit shall be added to the field-list. The single bit shall be set
-// |  |  to zero if the value is within the range of the extension root, and to one otherwise. If
-// |  |  the value is outside the range of the extension root, then the following encoding shall be
-// |  |  as if there was no effective size constraint, and shall have the effective
-// |  |  permitted-alphabet constraint specified in 10.3.12.
-// |  |- NOTE 1 - Only the known-multiplier character string types can be extensible for PER
-// |  |  encodings. Extensibility markers on other character string types do not affect the PER
-// |  |  encoding.
-// |  |- NOTE 2 - Effective permitted-alphabet constraints can never be extensible, as
-// |  |  extensible permitted-alphabet constraints are not PER-visible (see 10.3.11).
-// |- 30.4 This subclause applies to known-multiplier character strings. Encoding of the other
-// |  |  restricted character string types is specified in 30.5.
-// |  |- 30.4.1 The effective permitted alphabet is defined to be that alphabet permitted by
-// |  |  |  the permitted-alphabet constraint, or the entire alphabet of the built-in type if there
-// |  |  |  is no PermittedAlphabet constraint.
-// |  |- 30.4.2 Let N be the number of characters in the effective permitted alphabet. Let B be
-// |  |  |  the smallest integer such that 2 to the power B is greater than or equal to N. Let B2 be
-// |  |  |  the smallest power of 2 that is greater than or equal to B. Then in the ALIGNED variant,
-// |  |  |  each character shall encode into B2 bits, and in the UNALIGNED variant into B bits. Let
-// |  |  |  the number of bits identified by this rule be "b".
-// |  |- 30.4.3 A numerical value "v" is associated with each character by reference to Rec.
-// |  |  |  ITU-T X.680 | ISO/IEC 8824-1, clause 43 as follows. For UniversalString, the value is
-// |  |  |  that used to determine the canonical order in Rec. ITU-T X.680 | ISO/IEC 8824-1, 43.3
-// |  |  |  (the value is in the range 0 to 232 - 1). For BMPString, the value is that used to
-// |  |  |  determine the canonical order in Rec. ITU-T X.680 | ISO/IEC 8824-1, 43.3 (the value is
-// |  |  |  in the range 0 to 216 - 1). For NumericString and PrintableString and VisibleString
-// |  |  |  and IA5String the value is that defined for the ISO/IEC 646 encoding of the
-// |  |  |  corresponding character. (For IA5String the range is 0 to 127, for VisibleString it is
-// |  |  |  32 to 126, for NumericString it is 32 to 57, and for PrintableString it is 32 to 122.
-// |  |  |  For IA5String and VisibleString all values in the range are present, but for
-// |  |  |  NumericString and PrintableString not all values in the range are in use.)
-// |  |- 30.4.4 Let the smallest value in the range for the set of characters in the permitted
-// |  |  |  alphabet be "lb" and the largest value be "ub". Then the encoding of a character into
-// |  |  |  "b" bits is the non-negative-binary-integer encoding of the value "v" identified as
-// |  |  |  follows: a) if "ub" is less than or equal to 2b - 1, then "v" is the value specified in
-// |  |  |  above; otherwise b) the characters are placed in the canonical order defined in Rec.
-// |  |  |  ITU-T X.680 | ISO/IEC 8824-1, clause 43. The first is assigned the value zero and the
-// |  |  |  next in canonical order is assigned a value that is one greater than the value assigned
-// |  |  |  to the previous character in the canonical order. These are the values "v". NOTE - Item
-// |  |  |  a) above can never apply to a constrained or unconstrained NumericString character,
-// |  |  |  which always encodes into four bits or less using b).
-// |  |- 30.4.5 The encoding of the entire character string shall be obtained by encoding each
-// |  |  |  character (using an appropriate value "v") as a non-negative-binary-integer into "b"
-// |  |  |  bits which shall be concatenated to form a bit-field that is a multiple of "b" bits.
-// |  |- 30.4.6 If "aub" equals "alb" and is less than 64K, then the bit-field shall be added
-// |  |  |  to the field-list as a field (octet-aligned in the ALIGNED variant) if "aub" times "b"
-// |  |  |  is greater than 16, but shall otherwise be added as a bit-field that is not
-// |  |  |  octet-aligned. This completes the procedures of this subclause.
-// |  |- 30.4.7 If "aub" does not equal "alb" or is greater than or equal to 64K, then 11.9
-// |  |  |  shall be invoked to add the bit-field preceded by a length determinant with "n" as a
-// |  |  |  count of the characters in the character string with a lower bound for the length
-// |  |  |  determinant of "alb" and an upper bound of "aub". The bit-field shall be added as a
-// |  |  |  field (octet-aligned in the ALIGNED variant) if "aub" times "b" is greater than or equal
-// |  |  |  to 16, but shall otherwise be added as a bit-field that is not octet-aligned. This
-// |  |  |  completes the procedures of this subclause. NOTE - Both 30.4.6 and 30.4.7 specify no
-// |  |  |  alignment if "aub" times "b" is less than 16, and alignment if the product is greater
-// |  |  |  than 16. For a value exactly equal to 16, 30.4.6 specifies no alignment and 30.4.7
-// |  |  |  specifies alignment.
-// |- 30.5 This subclause applies to character strings that are not known-multiplier character
-// |  |  |  strings. In this case, constraints are never PER-visible, and the type can never be
-// |  |  |  extensible for PER encoding.
-// |  |- 30.5.1 For BASIC-PER, reference below to "base encoding" means production of the
-// |  |  |  octet string specified in Rec. ITU-T X.690 | ISO/IEC 8825-1, 8.23.5. For CANONICAL-PER
-// |  |  |  it means the production of the same octet string subject to the restrictions specified
-// |  |  |  for CER and DER in Rec. ITU-T X.690 | ISO/IEC 8825-1, 11.4.
-// |  |- 30.5.2 The "base encoding" shall be applied to the character string to give a field of
-// |  |  |  "n" octets.
-// |  |- 30.5.3 Subclause 11.9 shall be invoked to add the field of "n" octets as a bit-field
-// |  |  |  (octet-aligned in the ALIGNED variant), preceded by an unconstrained length determinant
-// |  |  |  with "n" as a count in octets, completing the procedures of this subclause.
-
-// 31 Encoding the unrestricted character string type
-// |- 31.1 There are two ways in which an unrestricted character string type can be encoded:
-// |  |  a) the syntaxes alternative of the unrestricted character string type is constrained
-// |  |  with a PER-visible inner type constraint to a single value or identification is
-// |  |  constrained with a PER-visible inner type constraint to the fixed alternative, in which
-// |  |  case only the string-value shall be encoded; this is called the "predefined" case; b) an
-// |  |  inner type constraint is not employed to constrain the syntaxes alternative to a single
-// |  |  value, nor to constrain identification to the fixed alternative, in which case both the
-// |  |  identification and string-value shall be encoded; this is called the "general" case.
-// |- 31.2 For the "predefined" case, the encoding of the value of the CHARACTER STRING type
-// |  |  shall be the PER-encoding of a value of the OCTET STRING type. The value of the OCTET
-// |  |  STRING shall be the octets which form the complete encoding of the character string
-// |  |  value referenced in Rec. ITU-T X.680 | ISO/IEC 8824-1, 44.3 a).
-// |- 31.3 In the "general" case, the encoding of a value of the unrestricted character string
-// |  |  type shall be the PER encoding of the type defined in Rec. ITU-T X.680 | ISO/IEC
-// |  |  8824-1, 44.5, with the data-value-descriptor component removed (that is, there shall be
-// |  |  no OPTIONAL bit-map at the head of the encoding of the SEQUENCE). The value of the
-// |  |  string-value component of type OCTET STRING shall be the octets which form the complete
-// |  |  encoding of the character string value referenced in Rec. ITU-T X.680 | ISO/IEC 8824-1,
-// |  |  44.3 a).
-
-func (e *Encoder) EncodeString(value string, lb *uint64, ub *uint64, extensible bool) error {
-	// This is suitable for restricted character string types that use a full byte (or more)
-	// per character in their native encoding, where PER treats the value as an opaque
-	// octet string with no per-character bit optimization:
-	//   - VisibleString    (ISO 646, 1 byte/char, unconstrained alphabet)
-	//   - IA5String        (ISO 646, 1 byte/char, unconstrained alphabet)
-	//   - PrintableString  (ISO 646 subset, 1 byte/char, unconstrained alphabet)
-	return e.EncodeOctetString(unsafe.Slice(unsafe.StringData(value), len(value)), lb, ub, extensible)
-}
-
-// TODO - EncodeNumericString (section 30.4) - known-multiplier character string
-// Input: string, lb, ub, extensible
-// Implements per-character bit-packing with 4 bits per character for permitted alphabet
-
-// TODO - EncodeBMPString (section 30.4) - known-multiplier character string
-// Input: string, lb, ub, extensible
-// Implements per-character bit-packing with 16 bits per character for UCS-2 alphabet
-
-// TODO - EncodeUniversalString (section 30.4) - known-multiplier character string
-// Input: string, lb, ub, extensible
-// Implements per-character bit-packing with 32 bits per character for UCS-4 alphabet
-
-// TODO - EncodeTeletexString (section 30.5) - non-known-multiplier character string
-// Input: []byte, lb, ub, extensible
-// Requires BER encoding as intermediate step per X.690 8.23.5
-
-// TODO - EncodeVideotexString (section 30.5) - non-known-multiplier character string
-// Input: []byte, lb, ub, extensible
-// Requires BER encoding as intermediate step per X.690 8.23.5
-
-// TODO - EncodeGraphicString (section 30.5) - non-known-multiplier character string
-// Input: []byte, lb, ub, extensible
-// Requires BER encoding as intermediate step per X.690 8.23.5
-
-// TODO - EncodeGeneralString (section 30.5) - non-known-multiplier character string
-// Input: []byte, lb, ub, extensible
-// Requires BER encoding as intermediate step per X.690 8.23.5
-
-// TODO - EncodeUnrestrictedCharacterString (section 31) - unrestricted character string
-// Per ITU-T X.680 clause 44, the CHARACTER STRING type is:
+// _EncodePreamble writes the extension bit of clause 19.1 and the presence
+// bitmap of clause 19.2, and returns what it recorded there.
 //
-//   CHARACTER STRING ::= SEQUENCE {
-//       identification Identification,
-//       string-value   OCTET STRING
-//   }
-//
-// Where Identification is a CHOICE with the following alternatives:
-//   Identification ::= CHOICE {
-//       syntaxes [0]            SEQUENCE { abstract PrintableString,
-//                                          transfer PrintableString },
-//       syntax [1]              OBJECT IDENTIFIER,
-//       presentation-context-id [2] INTEGER,
-//       context-negotiation [3] SEQUENCE { presentation-context-id INTEGER,
-//                                          transfer-syntax OBJECT IDENTIFIER },
-//       transfer-syntax [4]     OBJECT IDENTIFIER,
-//       fixed [5]               NULL
-//   }
-//
-// Input: struct with identification (CHOICE) and string-value (OCTET STRING)
-// Requires PER encoding of SEQUENCE type per X.680 44.5 (data-value-descriptor removed)
-
-// 19 Encoding the sequence type
-// |- NOTE - (Tutorial) A sequence type begins with a preamble which is a bit-map. If the
-// |  |  sequence type has no extension marker, then the bit-map merely records the presence
-// |  |  or absence of default and optional components in the type, encoded as a fixed length
-// |  |  bit-field. If the sequence type does have an extension marker, then the bit-map is
-// |  |  preceded by a single bit that says whether values of extension additions are actually
-// |  |  present in the encoding. The preamble is encoded without any length determinant
-// |  |  provided it is less than 64K bits long, otherwise a length determinant is encoded to
-// |  |  obtain fragmentation. The preamble is followed by the fields that encode each of the
-// |  |  components, taken in turn. If there are extension additions, then immediately before
-// |  |  the first one is encoded there is the encoding (as a normally small length) of a count
-// |  |  of the number of extension additions in the type being encoded, followed by a bit-map
-// |  |  equal in length to this count which records the presence or absence of values of each
-// |  |  extension addition. This is followed by the encodings of the extension additions as if
-// |  |  each one was the value of an open type field.
-// |- 19.1 If the sequence type has an extension marker in the "ComponentTypeLists" or in the
-// |  |  "SequenceType" productions, then a single bit shall first be added to the field-list in
-// |  |  a bit-field of length one. The bit shall be one if values of extension additions are
-// |  |  present in this encoding, and zero otherwise. (This bit is called the "extension bit" in
-// |  |  the following text.) If there is no extension marker in the "ComponentTypeLists" or in
-// |  |  the "SequenceType" productions, there shall be no extension bit added.
-// |- 19.2 If the sequence type has "n" components in the extension root that are marked
-// |  |  OPTIONAL or DEFAULT, then a single bit-field with "n" bits shall be produced for
-// |  |  addition to the field-list. The bits of the bit-field shall, taken in order, encode
-// |  |  the presence or absence of an encoding of each optional or default component in the
-// |  |  sequence type. A bit value of 1 shall encode the presence of the encoding of the
-// |  |  component, and a bit value of 0 shall encode the absence of the encoding of the
-// |  |  component. The leading bit in the preamble shall encode the presence or absence of the
-// |  |  first optional or default component, and the trailing bit shall encode the presence or
-// |  |  absence of the last optional or default component.
-// |- 19.3 If "n" is less than 64K, the bit-field shall be appended to the field-list. If "n"
-// |  |  is greater than or equal to 64K, then the procedures of 11.9 shall be invoked to add
-// |  |  this bit-field of "n" bits to the field-list, preceded by a length determinant equal
-// |  |  to "n" bits as a constrained whole number with "ub" and "lb" both set to "n".
-// |  |- NOTE - In this case, "ub" and "lb" will be ignored by the length procedures. These
-// |  |  |  procedures are invoked here in order to provide fragmentation of a large preamble.
-// |  |  |  The situation is expected to arise only rarely.
-// |- 19.4 The preamble shall be followed by the field-lists of each of the components of the
-// |  |  sequence value which are present, taken in turn.
-// |- 19.5 For CANONICAL-PER, encodings of components marked DEFAULT shall always be absent if
-// |  |  the value to be encoded is the default value. For BASIC-PER, encodings of components
-// |  |  marked DEFAULT shall always be absent if the value to be encoded is the default value
-// |  |  of a simple type (see 3.7.25), otherwise it is a sender's option whether or not to
-// |  |  encode it.
-// |- 19.6 This completes the encoding if the extension bit is absent or is zero. If the
-// |  |  extension bit is present and set to one, then the following procedures apply.
-// |- 19.7 Let the number of extension additions in the type being encoded be "n", then a
-// |  |  bit-field with "n" bits shall be produced for addition to the field-list. The bits of
-// |  |  the bit-field shall, taken in order, encode the presence or absence of an encoding of
-// |  |  each extension addition in the type being encoded. A bit value of 1 shall encode the
-// |  |  presence of the encoding of the extension addition, and a bit value of 0 shall encode
-// |  |  the absence of the encoding of the extension addition. The leading bit in the bit-field
-// |  |  shall encode the presence or absence of the first extension addition, and the trailing
-// |  |  bit shall encode the presence or absence of the last extension addition.
-// |  |- NOTE - If conformance is claimed to a particular version of a specification, then the
-// |  |  |  value "n" is always equal to the number of extension additions in that version.
-// |- 19.8 The procedures of 11.9 shall be invoked to add this bit-field of "n" bits to the
-// |  |  field-list, preceded by a length determinant equal to "n" as a normally small length.
-// |  |- NOTE - "n" cannot be zero, as this procedure is only invoked if there is at least one
-// |  |  |  extension addition being encoded.
-// |- 19.9 This shall be followed by field-lists containing the encodings of each extension
-// |  |  addition that is present, taken in turn. Each extension addition that is a
-// |  |  "ComponentType" (i.e., not an "ExtensionAdditionGroup") shall be encoded as if it were
-// |  |  the value of an open type field as specified in 11.2.1. Each extension addition that
-// |  |  is an "ExtensionAdditionGroup" shall be encoded as a sequence type as specified in
-// |  |  19.2 to 19.6, which is then encoded as if it were the value of an open type field as
-// |  |  specified in 11.2.1. If all components values of the "ExtensionAdditionGroup" are
-// |  |  missing then, the "ExtensionAdditionGroup" shall be encoded as a missing extension
-// |  |  addition (i.e., the corresponding bit in the bit-field described in 19.7 shall be set
-// |  |  to 0).
-// |  |- NOTE 1 - If an "ExtensionAdditionGroup" contains components marked OPTIONAL or
-// |  |  |  DEFAULT, then the "ExtensionAdditionGroup" is prefixed with a bit-map that indicates
-// |  |  |  the presence/absence of values for each component marked OPTIONAL or DEFAULT.
-// |  |- NOTE 2 - "RootComponentTypeList" components that are defined after the extension
-// |  |  |  marker pair are encoded as if they were defined immediately before the extension
-// |  |  |  marker pair.
-
-// EncodeSequence encodes a struct value as an ASN.1 SEQUENCE per ITU-T X.691 section 19.
-//
-// The struct uses the following tag conventions from props.go:
-//   - `per:"opt"`            — field is OPTIONAL
-//   - `per:"ext"`            — on a `_ struct{}` field, acts as the extension marker separator
-//   - `per:"lb=N,ub=M"`     — lower/upper bounds for INTEGER, OCTET STRING, BIT STRING, etc.
-//   - `per:"lb=N,ub=M,ext"` — bounds with extensibility on the field's own type
-//   - `per:"enum=N,ext"`    — ENUMERATED with N root values, extensible
-//   - `per:"def=V"`         — DEFAULT value (field may be absent if equal to default)
-//
-// Pointer fields are not implicitly OPTIONAL; optionality is controlled by tags.
-//
-// The encoding follows these steps:
-//  1. Split fields into root components and extension additions at the `_ struct{} per:"ext"` marker
-//  2. Determine if the sequence is extensible (marker present)
-//  3. If extensible: encode extension bit (1 if any extension additions are present, 0 otherwise)
-//  4. Build and encode the root preamble bitmap (one bit per OPTIONAL/DEFAULT root field)
-//  5. Encode each present root component value
-//  6. If extension bit is 1: encode extension presence bitmap as normally-small-length + bits,
-//     then encode each present extension addition as an open type field
-func (e *Encoder) EncodeSequence(value any) error {
-	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Pointer {
-		if rv.IsNil() {
-			return fmt.Errorf("EncodeSequence: nil pointer")
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeSequence
+func (e *Encoder) _EncodePreamble(rv reflect.Value, meta *StructMeta) ([]bool, error) {
+	if meta.Extensible {
+		if err := e.WriteExtensionBit(_HasExtensions(rv, meta)); err != nil {
+			return nil, err
 		}
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.Struct {
-		return fmt.Errorf("EncodeSequence: expected struct, got %s", rv.Kind())
 	}
 
 	rt := rv.Type()
+	present := make([]bool, len(meta.Optionals))
 
-	// --- Phase 1: Get cached struct metadata ---
-	meta, err := GetStructMeta(rt)
-	if err != nil {
-		return fmt.Errorf("EncodeSequence: %w", err)
-	}
+	for i, idx := range meta.Optionals {
+		field := rt.Field(idx)
 
-	// --- Phase 2: Determine if any extension additions are present ---
-	hasExtensions := false
-	if meta.Extensible {
-		for _, idx := range meta.Extensions {
-			if FieldPresent(rv.Field(idx)) {
-				hasExtensions = true
-				break
-			}
+		tag, err := GetFieldTag(field, rt, idx)
+		if err != nil {
+			return nil, err
+		}
+
+		has, err := FieldPresentForEncoding(rv.Field(idx), tag)
+		if err != nil {
+			return nil, fmt.Errorf("field %q: %w", field.Name, err)
+		}
+
+		present[i] = has
+		if err := e.EncodeBoolean(has); err != nil {
+			return nil, err
 		}
 	}
 
-	// --- Phase 3: Encode extension bit (section 19.1) ---
-	if meta.Extensible {
-		if err := e.WriteExtensionBit(hasExtensions); err != nil {
+	return present, nil
+}
+
+// _EncodeRoot writes the root components of clause 19.4, skipping those the
+// preamble said were absent.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeSequence
+func (e *Encoder) _EncodeRoot(rv reflect.Value, meta *StructMeta, present []bool) error {
+	var (
+		rt     = rv.Type()
+		cursor = 0
+	)
+
+	for _, idx := range meta.Fields {
+		field := rt.Field(idx)
+
+		tag, err := GetFieldTag(field, rt, idx)
+		if err != nil {
+			return err
+		}
+
+		if tag.Optional() {
+			skip := !present[cursor]
+			cursor++
+
+			if skip {
+				continue
+			}
+		}
+
+		if err := e._EncodeField(rv.Field(idx), tag); err != nil {
+			return fmt.Errorf("field %q: %w", field.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// _EncodeExtensions writes the extension bitmap of clause 19.7 and the additions
+// of clause 19.9, each as an open type field.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeSequence
+func (e *Encoder) _EncodeExtensions(rv reflect.Value, meta *StructMeta) error {
+	if !meta.Extensible || !_HasExtensions(rv, meta) {
+		return nil
+	}
+
+	if _, err := e.EncodeNormallySmallLength(uint64(len(meta.Extensions))); err != nil {
+		return err
+	}
+
+	for _, idx := range meta.Extensions {
+		if err := e.EncodeBoolean(FieldPresent(rv.Field(idx))); err != nil {
 			return err
 		}
 	}
 
-	// --- Phase 4: Encode root preamble bitmap (section 19.2-19.3) ---
-	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent. For a DEFAULT field,
-	// present means "value differs from the default" (§19.5); for OPTIONAL, non-nil pointer.
-	// NOTE: Per §19.3, if len(meta.Optionals) >= 65536, the bitmap should be encoded
-	// as a constrained bit string with a length determinant. In practice no SEQUENCE
-	// has that many optional fields, so we write bits directly here.
-	present := make(map[int]bool, len(meta.Optionals))
-	for _, idx := range meta.Optionals {
-		field := rt.Field(idx)
-		tag, err := GetFieldTag(field, rt, idx)
-		if err != nil {
-			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
-		}
-		has, err := FieldPresentForEncoding(rv.Field(idx), tag)
-		if err != nil {
-			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
-		}
-		present[idx] = has
-		if err := e.EncodeBoolean(has); err != nil {
-			return fmt.Errorf("EncodeSequence: root preamble: %w", err)
-		}
-	}
+	rt := rv.Type()
 
-	// --- Phase 5: Encode root component values (section 19.4) ---
-	for _, id := range meta.Fields {
-		field := rt.Field(id)
-		tag, err := GetFieldTag(field, rt, id)
-		if err != nil {
-			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
-		}
-
-		if (tag.Opt || tag.Def != nil) && !present[id] {
-			continue // absent optional field, or default-valued field omitted per §19.5
-		}
-
-		if err := e.encodeField(rv.Field(id), tag); err != nil {
-			return fmt.Errorf("EncodeSequence: field %q: %w", field.Name, err)
-		}
-	}
-
-	// --- Phase 6: Encode extension additions (sections 19.6-19.9) ---
-	if !meta.Extensible || !hasExtensions {
-		return nil // section 19.6: done if no extension bit or extension bit is 0
-	}
-
-	// Section 19.7-19.8: Encode extension bitmap preceded by normally-small-length
-	n := len(meta.Extensions)
-	if _, err := e.EncodeNormallySmallLength(uint64(n)); err != nil {
-		return fmt.Errorf("EncodeSequence: extension bitmap length: %w", err)
-	}
-	// One bit per extension addition: 1 = present, 0 = absent
-	for _, idx := range meta.Extensions {
-		if err := e.EncodeBoolean(FieldPresent(rv.Field(idx))); err != nil {
-			return fmt.Errorf("EncodeSequence: extension bitmap: %w", err)
-		}
-	}
-
-	// Section 19.9: Encode each present extension addition as open type
 	for _, idx := range meta.Extensions {
 		if !FieldPresent(rv.Field(idx)) {
 			continue
 		}
+
 		field := rt.Field(idx)
+
 		tag, err := GetFieldTag(field, rt, idx)
 		if err != nil {
-			return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
+			return err
 		}
 
-		// Section 19.9 / 11.2: encode extension addition as open type field.
-		// Encode into a temporary encoder, then write as unconstrained octet string.
-		{
-			tmp := NewEncoder(e.aligned)
-			if err := tmp.encodeField(rv.Field(idx), tag); err != nil {
-				return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
-			}
-			if err := e.EncodeOctetString(tmp.Bytes(), nil, nil, false); err != nil {
-				return fmt.Errorf("EncodeSequence: extension field %q: %w", field.Name, err)
-			}
+		if err := e._EncodeNested(rv.Field(idx), tag); err != nil {
+			return fmt.Errorf("extension %q: %w", field.Name, err)
 		}
 	}
 
 	return nil
 }
 
-// 20 Encoding the sequence-of type
-// |- 20.1 PER-visible constraints can constrain the number of components of the sequence-of
-// |  |  type.
-// |- 20.2 Let the maximum number of components in the sequence-of (as determined by
-// |  |  PER-visible constraints) be "ub" components and the minimum number of components be
-// |  |  "lb". If there is no finite maximum or "ub" is greater than or equal to 64K we say
-// |  |  that "ub" is unset. If there is no constraint on the minimum, then "lb" has the value
-// |  |  zero. Let the number of components in the actual sequence-of value to be encoded be
-// |  |  "n" components.
-// |- 20.3 The encoding of each component of the sequence-of will generate a number of fields
-// |  |  to be appended to the field-list for the sequence-of type.
-// |- 20.4 If there is a PER-visible constraint and an extension marker is present in it, a
-// |  |  single bit shall be added to the field-list in a bit-field of length one. The bit
-// |  |  shall be set to 1 if the number of components in this encoding is not within the range
-// |  |  of the extension root, and zero otherwise. In the former case 11.9 shall be invoked to
-// |  |  add the length determinant as a semi-constrained whole number to the field-list,
-// |  |  followed by the component values. In the latter case the length and value shall be
-// |  |  encoded as if the extension marker is not present.
-// |- 20.5 If the number of components is fixed ("ub" equals "lb") and "ub" is less than 64K,
-// |  |  then there shall be no length determinant for the sequence-of, and the fields of each
-// |  |  component shall be appended in turn to the field-list of the sequence-of.
-// |- 20.6 Otherwise, the procedures of 11.9 shall be invoked to add the list of fields
-// |  |  generated by the "n" components to the field-list, preceded by a length determinant
-// |  |  equal to "n" components as a constrained whole number if "ub" is set, and as a
-// |  |  semi-constrained whole number if "ub" is unset. "lb" is as determined above.
-// |  |- NOTE 1 - The fragmentation procedures may apply after 16K, 32K, 48K, or 64K
-// |  |  |  components.
-// |  |- NOTE 2 - The break-points for fragmentation are between fields. The number of bits
-// |  |  |  prior to a break-point are not necessarily a multiple of eight.
-
-// EncodeSequenceOf encodes a SEQUENCE OF value per ITU-T X.691 section 20.
+// _EncodeSequenceOf writes the extension bit, length and components of clause 20.
 //
-// The value must be a slice or array. Each element is encoded in order.
-// lb/ub constrain the number of components; extensible indicates an extension marker.
-//
-// Encoding steps:
-//  1. §20.4: If extensible and count outside [lb..ub], encode extension bit=1 +
-//     semi-constrained length + all components. Otherwise extension bit=0 and proceed.
-//  2. §20.5: If fixed length (lb==ub) and < 64K, no length determinant — just encode components.
-//  3. §20.6: Encode length determinant (constrained if ub set, semi-constrained otherwise)
-//     with fragmentation support for large lists, then encode components.
-func (e *Encoder) EncodeSequenceOf(value any, lb *uint64, ub *uint64, extensible bool, elemTag *Tag) error {
-	rv := reflect.ValueOf(value)
-	// Resolve pointer indirection
-	if rv.Kind() == reflect.Pointer {
-		if rv.IsNil() {
-			return fmt.Errorf("EncodeSequenceOf: nil pointer")
-		}
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
-		return fmt.Errorf("EncodeSequenceOf: expected slice or array, got %s", rv.Kind())
-	}
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeSequenceOf
+func (e *Encoder) _EncodeSequenceOf(rv reflect.Value, size *Constraint, elem *Tag) error {
+	count := uint64(rv.Len())
 
-	n := uint64(rv.Len())
-
-	// §20.4: If extensible, encode extension bit
-	if extensible {
-		extended := false
-		if lb != nil && n < *lb {
-			extended = true
-		}
-		if ub != nil && n > *ub {
-			extended = true
-		}
-
-		if extended {
-			if err := e.WriteExtensionBit(true); err != nil {
-				return err
-			}
-			// Encode as semi-constrained: length determinant with lb=0, then all components
-			zero := uint64(0)
-			return e.encodeSequenceOfComponents(rv, n, &zero, nil, elemTag)
-		}
-		if err := e.WriteExtensionBit(false); err != nil {
+	if size.HasExtension() {
+		outside := !size._CoversLength(count)
+		if err := e.WriteExtensionBit(outside); err != nil {
 			return err
 		}
-	}
 
-	// §20.5: Fixed length (lb == ub) and < 64K — no length determinant
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		for i := range int(n) {
-			if err := e.encodeField(rv.Index(i), elemTag); err != nil {
-				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
-			}
+		if outside {
+			return e._EncodeElements(rv, count, _Unbounded(), elem)
 		}
-		return nil
+
+		size = size._Root()
 	}
 
-	// §20.6: Length determinant + components (with fragmentation)
-	return e.encodeSequenceOfComponents(rv, n, lb, ub, elemTag)
+	// Clause 20.5: a fixed count below 64K needs no length determinant.
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return e._EncodeElements(rv, count, size, elem)
+	}
+
+	if count != fixed {
+		return fmt.Errorf(
+			"sequence-of %d in a type fixed at %d: %w",
+			count, fixed, ErrLengthMismatch,
+		)
+	}
+
+	return e._EncodeRange(rv, 0, count, elem)
 }
 
-// encodeSequenceOfComponents encodes length determinant(s) and components,
-// handling fragmentation per §11.9 for large lists.
-func (e *Encoder) encodeSequenceOfComponents(rv reflect.Value, n uint64, lb *uint64, ub *uint64, elemTag *Tag) error {
+// _EncodeElements writes a length determinant and the components it counts,
+// fragmenting when clause 11.9.3.8 calls for it.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation as encodeSequenceOfComponents
+func (e *Encoder) _EncodeElements(
+	rv reflect.Value,
+	count uint64,
+	size *Constraint,
+	elem *Tag,
+) error {
 	offset := uint64(0)
 
-	for offset < n {
-		remaining := n - offset
-		pending, err := e.EncodeLengthDeterminant(remaining, lb, ub)
+	for {
+		pending, err := e.EncodeLengthDeterminant(count-offset, size)
 		if err != nil {
 			return err
 		}
 
-		// Determine how many components to encode in this fragment
-		var count uint64
-		if pending == 0 {
-			count = remaining
-		} else {
-			count = remaining - pending
+		length := count - offset - pending
+		if err := e._EncodeRange(rv, offset, length, elem); err != nil {
+			return err
 		}
 
-		// Encode components in this fragment
-		for i := offset; i < offset+count; i++ {
-			if err := e.encodeField(rv.Index(int(i)), elemTag); err != nil {
-				return fmt.Errorf("EncodeSequenceOf: element %d: %w", i, err)
-			}
-		}
-
-		offset += count
+		offset = offset + length
 
 		if pending != 0 {
 			continue
 		}
 
-		// Per §11.9.3.8: trailing zero-length if fragmentation was used and all fit exactly
-		if ub == nil || lb == nil || *ub >= MAX_CONSTRAINED_LENGTH {
-			if remaining >= FRAGMENT_SIZE {
-				if _, err := e.EncodeLengthDeterminant(0, lb, ub); err != nil {
-					return err
-				}
-			}
-		}
-		break
+		return e._CloseFragments(count, offset, size)
 	}
+}
 
-	// Handle empty list: still need to encode length determinant of 0
-	if n == 0 {
-		_, err := e.EncodeLengthDeterminant(0, lb, ub)
-		return err
+// _EncodeRange writes length components starting at from.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (e *Encoder) _EncodeRange(rv reflect.Value, from, length uint64, elem *Tag) error {
+	for i := from; i < from+length; i++ {
+		if err := e._EncodeField(rv.Index(int(i)), elem); err != nil {
+			return fmt.Errorf("element %d: %w", i, err)
+		}
 	}
 
 	return nil
 }
 
-// 23 Encoding the choice type
-// |- NOTE - (Tutorial) A choice type is encoded by encoding an index specifying the chosen
-// |  |  alternative. This is encoded as for a constrained integer (unless the extension marker
-// |  |  is present in the choice type, in which case it is a normally small non-negative whole
-// |  |  number) and would therefore typically occupy a fixed length bit-field of the minimum
-// |  |  number of bits needed to encode the index. (Although it could in principle be
-// |  |  arbitrarily large.) This is followed by the encoding of the chosen alternative, with
-// |  |  alternatives that are extension additions encoded as if they were the value of an open
-// |  |  type field. Where the choice has only one alternative, there is no encoding for the
-// |  |  index.
-// |- 23.1 Encoding of choice types are not affected by PER-visible constraints.
-// |- 23.2 Each component of a choice has an index associated with it which has the value zero
-// |  |  for the first alternative in the root of the choice (taking the alternatives in the
-// |  |  canonical order specified in Rec. ITU-T X.680 | ISO/IEC 8824-1, 8.6), one for the
-// |  |  second, and so on up to the last component in the extension root of the choice. An
-// |  |  index value is similarly assigned to each "NamedType" within the
-// |  |  "ExtensionAdditionAlternativesList", starting with 0 just as with the components of
-// |  |  the extension root. Let "n" be the value of the largest index in the root.
-// |  |- NOTE - Rec. ITU-T X.680 | ISO/IEC 8824-1, 29.7, requires that each successive
-// |  |  |  extension addition shall have a greater tag value than the last added to the
-// |  |  |  "ExtensionAdditionAlternativesList".
-// |- 23.3 For the purposes of canonical ordering of choice alternatives that contain an
-// |  |  untagged choice, each untagged choice type shall be ordered as though it has a tag
-// |  |  equal to that of the smallest tag in the extension root of either that choice type or
-// |  |  any untagged choice types nested within.
-// |- 23.4 If the choice has only one alternative in the extension root, there shall be no
-// |  |  encoding for the index if that alternative is chosen.
-// |- 23.5 If the choice type has an extension marker in the "AlternativeTypeLists"
-// |  |  production, then a single bit shall first be added to the field-list in a bit-field of
-// |  |  length one. The bit shall be 1 if a value of an extension addition is present in the
-// |  |  encoding, and zero otherwise. (This bit is called the "extension bit" in the following
-// |  |  text.) If there is no extension marker in the "AlternativeTypeLists" production, there
-// |  |  shall be no extension bit added.
-// |- 23.6 If the extension bit is absent, then the choice index of the chosen alternative
-// |  |  shall be encoded into a field according to the procedures of clause 13 as if it were a
-// |  |  value of an integer type (with no extension marker in its subtype constraint)
-// |  |  constrained to the range 0 to "n", and that field shall be appended to the field-list.
-// |  |  This shall then be followed by the fields of the chosen alternative, completing the
-// |  |  procedures of this clause.
-// |- 23.7 If the extension bit is present and the chosen alternative lies within the
-// |  |  extension root, the choice index of the chosen alternative shall be encoded as if the
-// |  |  extension marker is absent, according to the procedure of clause 13. This shall then
-// |  |  be followed by the fields of the chosen alternative, completing the procedures of this
-// |  |  clause.
-// |- 23.8 If the extension bit is present and the chosen alternative does not lie within the
-// |  |  extension root, the choice index of the chosen alternative shall be encoded as a
-// |  |  normally small non-negative whole number with "lb" set to 0 and that field shall be
-// |  |  appended to the field-list. This shall then be followed by a field-list containing the
-// |  |  encoding of the chosen alternative encoded as if it were the value of an open type
-// |  |  field as specified in 11.2, completing the procedures of this clause.
-// |  |- NOTE - Version brackets in the definition of choice extension additions have no effect
-// |  |  |  on how "ExtensionAdditionAlternatives" are encoded.
-
-// EncodeChoiceId encodes a CHOICE alternative index per ITU-T X.691 section
-// 23. lb/ub give the bounds of the extension root (§23.6/23.7) — typically
-// 0 and the number of root alternatives minus one ("n"). Unlike EncodeInteger,
-// extensible here cannot be inferred from value falling outside [lb,ub]:
-// extension alternative indices are renumbered from zero independently of
-// the root (§23.2), so the caller must say directly whether value is a root
-// index (extensible=false, §23.6/23.7: constrained whole number [lb,ub]) or
-// an extension index (extensible=true, §23.8: normally small non-negative
-// whole number). This does not write the extension bit itself (§23.5) —
-// that is a separate, single bit shared by the whole CHOICE encoding, not
-// part of the index.
-func (e *Encoder) EncodeChoiceId(value int64, lb *int64, ub *int64, extensible bool) error {
-	if extensible {
-		return e.EncodeNormallySmallNonNegativeWholeNumber(uint64(value))
-	}
-
-	l, u := int64(0), int64(0)
-	if lb != nil {
-		l = *lb
-	}
-	if ub != nil {
-		u = *ub
-	}
-	return e.EncodeConstrainedWholeNumber(l, u, value)
-}
-
-// EncodeChoice encodes a CHOICE value per ITU-T X.691 section 23.
+// _EncodeChoice writes the extension bit, index and value of clause 23.
 //
-// A CHOICE struct has fields tagged `per:"choice=N"` where N is the alternative index.
-// Exactly one field (pointer) must be non-nil, representing the chosen alternative.
-// Root alternatives appear before the `_ struct{} per:"ext"` marker; extensions after.
-//
-// Encoding steps:
-//  1. Find the single present (non-nil) field and its choice index
-//  2. Determine if it is a root alternative or an extension addition
-//  3. If extensible (§23.5): encode extension bit (1 if extension, 0 if root)
-//  4. Root (§23.6/23.7): encode choice index as constrained integer [0..n], then value
-//  5. Extension (§23.8): encode choice index as normally small non-negative whole number,
-//     then encode value as open type field (§11.2)
-func (e *Encoder) EncodeChoice(value any) error {
-	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Pointer {
-		if rv.IsNil() {
-			return fmt.Errorf("EncodeChoice: nil pointer")
-		}
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.Struct {
-		return fmt.Errorf("EncodeChoice: expected struct, got %s", rv.Kind())
-	}
-
-	rt := rv.Type()
-
-	meta, err := GetStructMeta(rt)
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeChoice
+func (e *Encoder) _EncodeChoice(rv reflect.Value, meta *StructMeta) error {
+	pos, extended, err := _FindAlternative(rv, meta)
 	if err != nil {
-		return fmt.Errorf("EncodeChoice: %w", err)
+		return fmt.Errorf("%v: %w", rv.Type(), err)
 	}
 
-	// --- Find the chosen alternative ---
-	// Scan root fields first, then extensions
-	var (
-		choiceIndex   = -1 // struct field index
-		fieldPosition = -1 // position within root or extension alternatives (0-based)
-		extended      = false
-	)
-	for pos, idx := range meta.Fields {
-		if FieldPresent(rv.Field(idx)) {
-			if choiceIndex != -1 {
-				return fmt.Errorf("EncodeChoice: multiple alternatives present in %v", rt)
-			}
-			choiceIndex = idx
-			fieldPosition = pos
-		}
-	}
-	if choiceIndex == -1 {
-		for pos, idx := range meta.Extensions {
-			if FieldPresent(rv.Field(idx)) {
-				if choiceIndex != -1 {
-					return fmt.Errorf("EncodeChoice: multiple alternatives present in %v", rt)
-				}
-				choiceIndex = idx
-				fieldPosition = pos
-				extended = true
-			}
-		}
-	}
-	if choiceIndex == -1 {
-		return fmt.Errorf("EncodeChoice: no alternative present in %v", rt)
-	}
-
-	field := rt.Field(choiceIndex)
-	tag, err := GetFieldTag(field, rt, choiceIndex)
-	if err != nil {
-		return fmt.Errorf("EncodeChoice: field %q: %w", field.Name, err)
-	}
-
-	n := int64(len(meta.Fields) - 1) // largest root index
-
-	// --- Section 23.5: Extension bit ---
 	if meta.Extensible {
 		if err := e.WriteExtensionBit(extended); err != nil {
 			return err
 		}
 	}
 
-	// --- Section 23.4/23.6/23.7/23.8: Encode the choice index ---
-	// (§23.4 "no index for a single root alternative" falls out automatically:
-	// EncodeConstrainedWholeNumber writes zero bits when lb==ub.)
-	zero := int64(0)
-	if err := e.EncodeChoiceId(int64(fieldPosition), &zero, &n, extended); err != nil {
-		return fmt.Errorf("EncodeChoice: index: %w", err)
+	idx := meta.Fields[pos]
+	if extended {
+		idx = meta.Extensions[pos]
 	}
 
-	if !extended {
-		// Encode the chosen alternative value
-		return e.encodeField(rv.Field(choiceIndex), tag)
+	var (
+		rt    = rv.Type()
+		field = rt.Field(idx)
+	)
+
+	tag, err := GetFieldTag(field, rt, idx)
+	if err != nil {
+		return err
 	}
 
-	// Encode the value as open type field (§11.2):
-	// encode into temporary encoder, then write as unconstrained octet string
-	{
-		tmp := NewEncoder(e.aligned)
-		if err := tmp.encodeField(rv.Field(choiceIndex), tag); err != nil {
-			return fmt.Errorf("EncodeChoice: extension field %q: %w", field.Name, err)
+	if extended {
+		if err := e.EncodeChoiceExtensionId(int64(pos)); err != nil {
+			return err
 		}
-		if err := e.EncodeOctetString(tmp.Bytes(), nil, nil, false); err != nil {
-			return fmt.Errorf("EncodeChoice: extension field %q: %w", field.Name, err)
-		}
+
+		return e._EncodeNested(rv.Field(idx), tag)
 	}
 
-	return nil
+	// Clause 23.4: one root alternative needs no index, which falls out of a
+	// range of one carrying no bits.
+	root := Constrained(0, int64(len(meta.Fields)-1))
+	if err := e.EncodeChoiceId(int64(pos), root); err != nil {
+		return err
+	}
+
+	return e._EncodeField(rv.Field(idx), tag)
 }
 
-// encodeField encodes a single struct field value according to its type and PER tag.
-// It resolves pointer indirection and dispatches to the appropriate type-specific encoder.
-func (e *Encoder) encodeField(v reflect.Value, tag *Tag) error {
-	// Resolve pointer indirection
-	if v.Kind() == reflect.Pointer {
+// _EncodeNested writes one value as an open type field, per clause 11.2.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, shared by the extension paths of
+//     SEQUENCE and CHOICE and by an open type field
+func (e *Encoder) _EncodeNested(v reflect.Value, tag *Tag) error {
+	inner := e._Nested()
+	if err := inner._EncodeField(v, tag); err != nil {
+		return err
+	}
+
+	return e._EncodeOpenType(inner.Bytes())
+}
+
+// _EncodeField writes one struct field or one list element.
+//
+// Revisions:
+//   - 2026-03-02 22:36: initial creation as encodeField
+//   - 2026-09-22 06:43: dispatches on the field's reflect.Type rather than on
+//     the dynamic type of a boxed copy of it, which allocated for every
+//     non-pointer field and panicked for one reached through an unexported one
+func (e *Encoder) _EncodeField(v reflect.Value, tag *Tag) error {
+	v = _Deref(v)
+	if !v.IsValid() || v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		return nil
+	}
+
+	if tag.open {
+		return e._EncodeNested(v, tag._WithoutOpen())
+	}
+
+	if done, err := e._EncodeWellKnown(v, tag); done {
+		return err
+	}
+
+	return e._EncodeByKind(v, tag)
+}
+
+// _EncodeWellKnown writes a value of one of the standard library types this
+// package maps onto an ASN.1 type, and reports whether it did.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of encodeField
+func (e *Encoder) _EncodeWellKnown(v reflect.Value, tag *Tag) (bool, error) {
+	switch v.Type() {
+	case TYPE_BITSTRING:
+		value := v.Interface().(asn1.BitString)
+
+		return true, e.EncodeBitString(&value, tag.Constraint())
+	case TYPE_OID:
+		value := v.Interface().(asn1.ObjectIdentifier)
+
+		return true, e.EncodeObjectIdentifier(value)
+	case TYPE_NULL:
+		return true, e.EncodeNull()
+	case TYPE_EMPTY:
+		return true, e.EncodeNull()
+	default:
+		return false, nil
+	}
+}
+
+// _EncodeByKind writes a value according to its Go kind.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of encodeField
+func (e *Encoder) _EncodeByKind(v reflect.Value, tag *Tag) error {
+	kind := v.Kind()
+
+	switch {
+	case kind == reflect.Bool:
+		return e.EncodeBoolean(v.Bool())
+	case _IsSigned(kind):
+		return e.EncodeInteger(v.Int(), tag.Constraint())
+	case _IsUnsigned(kind):
+		return e._EncodeUnsigned(v, tag)
+	case _IsFloat(kind):
+		return e.EncodeReal(v.Float())
+	case kind == reflect.String:
+		return e.EncodeRestrictedString(v.String(), tag.kind, tag.Constraint())
+	case kind == reflect.Slice:
+		return e._EncodeSlice(v, tag)
+	case kind == reflect.Array:
+		return e._EncodeArray(v, tag)
+	case kind == reflect.Struct:
+		return e._EncodeStruct(v)
+	default:
+		return fmt.Errorf("%s: %w", v.Type(), ErrUnsupportedType)
+	}
+}
+
+// _EncodeUnsigned writes an unsigned field, which is an ENUMERATED when the tag
+// says how many enumerators its root has and an INTEGER otherwise.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of encodeField
+func (e *Encoder) _EncodeUnsigned(v reflect.Value, tag *Tag) error {
+	if tag.enum == nil {
+		return e.EncodeInteger(int64(v.Uint()), tag.Constraint())
+	}
+
+	root := Constrained(0, int64(*tag.enum)-1)
+	if tag.ext {
+		root = root.Extensible()
+	}
+
+	return e.EncodeEnumerated(v.Uint(), root)
+}
+
+// _EncodeSlice writes a slice, which is an OCTET STRING when its elements are
+// bytes and a SEQUENCE OF otherwise.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of encodeField
+func (e *Encoder) _EncodeSlice(v reflect.Value, tag *Tag) error {
+	if v.Type().Elem().Kind() == reflect.Uint8 {
+		return e.EncodeOctetString(v.Bytes(), tag.Constraint())
+	}
+
+	return e._EncodeSequenceOf(v, tag.Constraint(), tag.Elem())
+}
+
+// _EncodeArray writes an array, whose length its Go type already fixes.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation. An array was sent through the
+//     sequence-of path with the field's own bounds, which wrote a length
+//     determinant the decoder never read back, so an array round-tripped to a
+//     rotation of itself
+func (e *Encoder) _EncodeArray(v reflect.Value, tag *Tag) error {
+	return e._EncodeRange(v, 0, uint64(v.Len()), tag.Elem())
+}
+
+// _EncodeStruct writes a struct, which is a CHOICE when its fields carry choice
+// indices and a SEQUENCE otherwise.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of encodeField
+func (e *Encoder) _EncodeStruct(v reflect.Value) error {
+	meta, err := GetStructMeta(v.Type())
+	if err != nil {
+		return err
+	}
+
+	if meta.Choice {
+		return e._EncodeChoice(v, meta)
+	}
+
+	return e._EncodeSequence(v, meta)
+}
+
+// BitsNonNegativeBinaryInteger returns the bits a non-negative whole number
+// needs, per X.691 clause 11.3. Zero needs one bit, not none.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+func BitsNonNegativeBinaryInteger(value uint64) int {
+	if value == 0 {
+		return 1
+	}
+
+	return bits.Len64(value)
+}
+
+// OctetsNonNegativeBinaryIntegerLength returns the octets a non-negative whole
+// number needs, per X.691 clause 11.3.6.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+func OctetsNonNegativeBinaryIntegerLength(value uint64) int {
+	return (BitsNonNegativeBinaryInteger(value) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
+}
+
+// BitsTwosComplementBinaryInteger returns the bits a whole number needs in two's
+// complement, per X.691 clause 11.4.6: the leading nine bits may be neither all
+// zero nor all one, which is what the extra sign bit below accounts for.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+func BitsTwosComplementBinaryInteger(value int64) int {
+	if value == 0 {
+		return 1
+	}
+
+	if value > 0 {
+		return bits.Len64(uint64(value)) + 1
+	}
+
+	return bits.Len64(uint64(^value)) + 1
+}
+
+// OctetsTwosComplementBinaryInteger returns the octets a whole number needs in
+// two's complement, per X.691 clause 11.4.6.
+//
+// Revisions:
+//   - 2026-02-07 01:42: initial creation
+func OctetsTwosComplementBinaryInteger(value int64) int {
+	return (BitsTwosComplementBinaryInteger(value) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
+}
+
+// CalculateFragmentSize returns how much of n a fragment carries, per X.691
+// clause 11.9.3.8.1: the largest multiple of 16K, up to four, that n covers.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation
+func CalculateFragmentSize(n uint64) uint64 {
+	multiple := n / FRAGMENT_SIZE
+	if multiple > FRAGMENT_MULTIPLIER_MAX {
+		multiple = FRAGMENT_MULTIPLIER_MAX
+	}
+
+	return multiple * FRAGMENT_SIZE
+}
+
+// _DERContents strips the tag and length from a DER encoding, leaving the
+// contents octets that X.691 clause 24 carries.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeObjectIdentifier
+func _DERContents(encoded []byte) ([]byte, error) {
+	if len(encoded) < DER_HEADER_OCTETS {
+		return nil, fmt.Errorf("der encoding of %d octets: %w", len(encoded), ErrNilValue)
+	}
+
+	if encoded[1]&LENGTH_MSB_FLAG == 0 {
+		return encoded[DER_HEADER_OCTETS:], nil
+	}
+
+	start := DER_HEADER_OCTETS + int(encoded[1]&LENGTH_SIX_BIT_MASK)
+	if start > len(encoded) {
+		return nil, fmt.Errorf("der length of %d octets: %w", start, ErrNilValue)
+	}
+
+	return encoded[start:], nil
+}
+
+// _Bit returns the bit X.691 clause 12.1 assigns to a boolean: one for TRUE and
+// zero for FALSE.
+//
+// Go has no branchless conversion from a boolean to a number, so the branch has
+// to be somewhere; it is here, in one place, rather than at every caller. The
+// parameter is the value being encoded and not a mode, which is why
+// .golangci.yml excludes exactly this function from revive's flag-parameter.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeBoolean
+func _Bit(datum bool) uint64 {
+	if datum {
+		return 1
+	}
+
+	return 0
+}
+
+// _Deref resolves a pointer or interface to the value behind it.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _Deref(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
 		if v.IsNil() {
-			return nil // absent optional field
+			return v
 		}
+
 		v = v.Elem()
 	}
 
-	// Open type: the field is an interface whose concrete value must be
-	// encoded as an open type (length-determinant + inner encoding).
-	// The caller (typically generated code) is responsible for setting the
-	// correct concrete value; here we just wrap it.
-	// All other tag directives (lb, ub, ext, enum, etc.) are retained and
-	// passed through to the inner encoding.
-	if tag.Open {
-		if v.Kind() == reflect.Interface {
-			if v.IsNil() {
-				return fmt.Errorf("encodeField: open type field is nil")
-			}
-			v = v.Elem() // resolve interface to concrete value
+	return v
+}
+
+// _HasExtensions reports whether any extension addition carries a value, which
+// is what the extension bit of clause 19.1 says.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _HasExtensions(rv reflect.Value, meta *StructMeta) bool {
+	for _, idx := range meta.Extensions {
+		if FieldPresent(rv.Field(idx)) {
+			return true
 		}
-		ttag := *tag      // copy all existing constraints
-		ttag.Open = false // prevent infinite recursion
-		tmp := NewEncoder(e.aligned)
-		if err := tmp.encodeField(v, &ttag); err != nil {
-			return fmt.Errorf("encodeField: open type: %w", err)
-		}
-		return e.EncodeOctetString(tmp.Bytes(), nil, nil, false)
 	}
 
-	fieldType := v.Type()
+	return false
+}
 
-	// Handle well-known concrete types via type assertion first
-	switch v.Interface().(type) {
-	case asn1.BitString:
-		bs := v.Interface().(asn1.BitString)
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
+// _FindAlternative returns the position of the one alternative a CHOICE carries,
+// and whether it is an extension addition.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of EncodeChoice
+func _FindAlternative(rv reflect.Value, meta *StructMeta) (int, bool, error) {
+	var (
+		pos      = 0
+		extended = false
+		found    = false
+	)
+
+	for i, idx := range meta.Fields {
+		if !FieldPresent(rv.Field(idx)) {
+			continue
 		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
+
+		if found {
+			return 0, false, ErrManyAlternatives
 		}
-		return e.EncodeBitString(&bs, lb, ub, tag.Ext)
 
-	case asn1.ObjectIdentifier:
-		oid := v.Interface().(asn1.ObjectIdentifier)
-		return e.EncodeObjectIdentifier(oid)
-
-	case NULL:
-		return e.EncodeNull()
-
-	case Empty:
-		return e.EncodeNull()
+		pos, extended, found = i, false, true
 	}
 
-	// Dispatch by reflect.Kind for primitive and generic types
-	switch fieldType.Kind() {
-	case reflect.Bool:
-		return e.EncodeBoolean(v.Bool())
+	for i, idx := range meta.Extensions {
+		if !FieldPresent(rv.Field(idx)) {
+			continue
+		}
 
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return e.EncodeInteger(v.Int(), tag.LB, tag.UB, tag.Ext)
+		if found {
+			return 0, false, ErrManyAlternatives
+		}
 
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if tag.Enum != nil {
-			return e.EncodeEnumerated(v.Uint(), *tag.Enum, tag.Ext)
-		}
-		return e.EncodeInteger(int64(v.Uint()), tag.LB, tag.UB, tag.Ext)
-
-	case reflect.Float32, reflect.Float64:
-		return e.EncodeReal(v.Float())
-
-	case reflect.String:
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		return e.EncodeString(v.String(), lb, ub, tag.Ext)
-
-	case reflect.Slice:
-		// []byte (OCTET STRING)
-		if fieldType.Elem().Kind() == reflect.Uint8 {
-			data := v.Bytes()
-			var lb, ub *uint64
-			if tag.LB != nil {
-				l := uint64(*tag.LB)
-				lb = &l
-			}
-			if tag.UB != nil {
-				u := uint64(*tag.UB)
-				ub = &u
-			}
-			return e.EncodeOctetString(data, lb, ub, tag.Ext)
-		}
-		// SEQUENCE OF
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		elemTag := tag.Elem
-		if elemTag == nil {
-			elemTag = &Tag{}
-		}
-		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext, elemTag)
-
-	case reflect.Array:
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		elemTag := tag.Elem
-		if elemTag == nil {
-			elemTag = &Tag{}
-		}
-		return e.EncodeSequenceOf(v.Interface(), lb, ub, tag.Ext, elemTag)
-
-	case reflect.Struct:
-		meta, err := GetStructMeta(fieldType)
-		if err != nil {
-			return fmt.Errorf("encodeField: %s: %w", fieldType, err)
-		}
-		if meta.Choice {
-			return e.EncodeChoice(v.Interface())
-		}
-		return e.EncodeSequence(v.Interface())
-
-	case reflect.Interface:
-		// Untagged interface field — resolve to concrete value and re-dispatch.
-		// For open type interfaces, the tag.Open path above handles wrapping;
-		// this branch handles the rare case of an interface field without the open tag.
-		if v.IsNil() {
-			return fmt.Errorf("encodeField: nil interface value")
-		}
-		return e.encodeField(v.Elem(), tag)
-
-	default:
-		return fmt.Errorf("encodeField: unsupported type %s", fieldType)
+		pos, extended, found = i, true, true
 	}
+
+	if !found {
+		return 0, false, ErrNoAlternative
+	}
+
+	return pos, extended, nil
+}
+
+// _IsSigned reports whether kind is one of Go's signed integer kinds, which
+// reflect numbers consecutively.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _IsSigned(kind reflect.Kind) bool {
+	return kind >= reflect.Int && kind <= reflect.Int64
+}
+
+// _IsUnsigned reports whether kind is one of Go's unsigned integer kinds.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _IsUnsigned(kind reflect.Kind) bool {
+	return kind >= reflect.Uint && kind <= reflect.Uint64
+}
+
+// _IsFloat reports whether kind is one of Go's floating point kinds.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _IsFloat(kind reflect.Kind) bool {
+	return kind == reflect.Float32 || kind == reflect.Float64
 }

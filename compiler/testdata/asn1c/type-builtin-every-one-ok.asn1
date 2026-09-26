@@ -1,0 +1,33 @@
+-- OK: every built-in type X.680 defines, in one module.
+Sample DEFINITIONS ::= BEGIN
+    B ::= BOOLEAN
+    I ::= INTEGER { low(1), high(10) }
+    E ::= ENUMERATED { red, green }
+    R ::= REAL
+    N ::= NULL
+    Bs ::= BIT STRING { unread(0) }
+    Os ::= OCTET STRING
+    Oi ::= OBJECT IDENTIFIER
+    Ro ::= RELATIVE-OID
+    Ir ::= OID-IRI
+    Rr ::= RELATIVE-OID-IRI
+    Ex ::= EXTERNAL
+    Ep ::= EMBEDDED PDV
+    Cs ::= CHARACTER STRING
+    U8 ::= UTF8String
+    Ia ::= IA5String
+    Gt ::= GeneralizedTime
+    Ut ::= UTCTime
+    Od ::= ObjectDescriptor
+    T  ::= TIME
+    D  ::= DATE
+    Td ::= TIME-OF-DAY
+    Dt ::= DATE-TIME
+    Du ::= DURATION
+    Sq ::= SEQUENCE { a INTEGER }
+    St ::= SET { a INTEGER }
+    Ch ::= CHOICE { a INTEGER }
+    So ::= SEQUENCE OF INTEGER
+    Zo ::= SET OF INTEGER
+    Nm ::= SEQUENCE OF item INTEGER
+END

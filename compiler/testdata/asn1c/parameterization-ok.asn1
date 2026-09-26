@@ -1,0 +1,9 @@
+-- OK: X.683, in the forms that do not need an object class.
+Sample DEFINITIONS ::= BEGIN
+    Pair { Item }              ::= SEQUENCE OF Item
+    Bounded { INTEGER : top }  ::= INTEGER (0..top)
+    Names                      ::= Pair { IA5String }
+    Ten                        ::= Bounded { 10 }
+    Few { Item } Item          ::= { 1 | 2 }
+    top { Bound } Bound        ::= 5
+END

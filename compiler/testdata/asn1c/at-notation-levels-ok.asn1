@@ -1,0 +1,25 @@
+-- X.682's component relation constraint, at every level the notation allows.
+-- Level is one full stop and then a rule that may be empty, so a path may
+-- start any number of components up from the one being constrained, and the
+-- grammar counts the stops rather than writing an empty alternative.
+-- lib/review.md 11.16.
+Sample DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    ITEM ::= CLASS {
+        &id     INTEGER UNIQUE,
+        &Value
+    } WITH SYNTAX { ID &id TYPE &Value }
+
+    Items ITEM ::= {
+        { ID 1 TYPE INTEGER } |
+        { ID 2 TYPE BOOLEAN }
+    }
+
+    Outer {ITEM : Set} ::= SEQUENCE {
+        id      ITEM.&id ({Set}),
+        here    ITEM.&Value ({Set}{@id}),
+        parent  ITEM.&Value ({Set}{@.id}),
+        above   ITEM.&Value ({Set}{@..id}),
+        higher  ITEM.&Value ({Set}{@...id}),
+        nested  ITEM.&Value ({Set}{@outer.inner.id})
+    }
+END

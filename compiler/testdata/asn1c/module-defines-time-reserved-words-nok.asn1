@@ -1,0 +1,887 @@
+-- Formal ASN.1 notation for the ITU-T X.680 (02/2021) built-in types that the
+-- specification itself expresses in terms of other ASN.1 constructs, rather
+-- than leaving fully opaque/primitive.
+--
+-- Source: X6801.docx (X.680-202102), extracted by hand from the clauses noted
+-- above each type below. Four of these types are reserved keywords in ASN.1
+-- (REAL, EXTERNAL, EMBEDDED PDV, CHARACTER STRING) and therefore cannot be
+-- used as a type reference name in a real type assignment; the spec calls the
+-- SEQUENCE shown for each of them "the associated type", used only to define
+-- value/subtype notation for that built-in type. Here they are given the same
+-- names X.680's own BNF metalanguage uses for the corresponding notation
+-- (RealType, ExternalType, EmbeddedPDVType, UnrestrictedCharacterStringType)
+-- so the mapping back to the spec is unambiguous.
+--
+-- GeneralizedTime, UTCTime, ObjectDescriptor, DATE, TIME-OF-DAY, DATE-TIME
+-- and DURATION are not reserved words (they are ordinary predefined type
+-- references, tagged derivations of VisibleString/GraphicString/TIME), so
+-- they are reproduced verbatim as the spec itself writes them.
+--
+-- The types below the Annex B banner comment are reproduced verbatim from
+-- Annex B, "The defined time types", which the spec gives as a complete,
+-- standalone ASN.1 module in its own right ("These types can be imported
+-- into an ASN.1 specification and used in that specification, or can be
+-- used as a model for the definition of additional time types.", X.680
+-- B.1.1). They are folded into this single module rather than kept as a
+-- separate one.
+--
+-- The types below the X.691 banner comment are reproduced from ITU-T X.691
+-- (02/2021, Packed Encoding Rules) clause 32, which defines exactly how the
+-- TIME type and its subtypes are PER-encoded. Unlike everything above, the
+-- spec itself says these names are not available for use by an application
+-- designer (X.691 32.1.4 NOTE 1) -- they're PER's own internal bit-layout
+-- model, kept here as reference for implementing TIME support in lib/per.
+
+Builtin-Types DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+EXPORTS ALL;
+
+-- X.680 clause 21.5: associated type of the REAL built-in type, used to
+-- define its value and subtype notation.
+
+RealType ::= SEQUENCE {
+    mantissa INTEGER,
+    base     INTEGER (2 | 10),
+    exponent INTEGER
+    -- The associated mathematical real number is "mantissa"
+    -- multiplied by "base" raised to the power "exponent"
+}
+
+-- X.680 clause 36.5: associated type of the EMBEDDED PDV built-in type.
+-- Unlike EXTERNAL/CHARACTER STRING, EMBEDDED PDV never carries a
+-- data-value-descriptor, hence the trailing WITH COMPONENTS constraint.
+
+EmbeddedPDVType ::= SEQUENCE {
+    identification CHOICE {
+        syntaxes SEQUENCE {
+            abstract OBJECT IDENTIFIER,
+            transfer OBJECT IDENTIFIER
+        },
+        -- Abstract and transfer syntax object identifiers --
+        syntax OBJECT IDENTIFIER,
+        -- A single object identifier for identification of the abstract
+        -- and transfer syntaxes --
+        presentation-context-id INTEGER,
+        -- (Applicable only to OSI environments)
+        -- The negotiated OSI presentation context identifies the
+        -- abstract and transfer syntaxes --
+        context-negotiation SEQUENCE {
+            presentation-context-id INTEGER,
+            transfer-syntax         OBJECT IDENTIFIER
+        },
+        -- (Applicable only to OSI environments)
+        -- Context-negotiation in progress, presentation-context-id
+        -- identifies only the abstract syntax
+        -- so the transfer syntax shall be specified --
+        transfer-syntax OBJECT IDENTIFIER,
+        -- The type of the value (for example, specification that it is
+        -- the value of an ASN.1 type) is fixed by the application designer
+        -- (and hence known to both sender and receiver). This case is
+        -- provided primarily to support selective-field-encryption (or
+        -- other encoding transformations) of an ASN.1 type --
+        fixed NULL
+        -- The data value is the value of a fixed ASN.1 type (and hence
+        -- known to both sender and receiver) --
+    },
+    data-value-descriptor ObjectDescriptor OPTIONAL,
+    -- This provides human-readable identification of the class of the
+    -- value --
+    data-value OCTET STRING
+} ( WITH COMPONENTS {
+    ...,
+    data-value-descriptor ABSENT
+} )
+
+-- X.680 clause 37.5: associated type of the EXTERNAL built-in type. Same
+-- shape as EmbeddedPDVType, but data-value-descriptor may be present, and
+-- identification is restricted to the syntax alternative (syntaxes,
+-- transfer-syntax and fixed are excluded).
+
+ExternalType ::= SEQUENCE {
+    identification CHOICE {
+        syntaxes SEQUENCE {
+            abstract OBJECT IDENTIFIER,
+            transfer OBJECT IDENTIFIER
+        },
+        syntax                  OBJECT IDENTIFIER,
+        presentation-context-id INTEGER,
+        context-negotiation SEQUENCE {
+            presentation-context-id INTEGER,
+            transfer-syntax         OBJECT IDENTIFIER
+        },
+        transfer-syntax OBJECT IDENTIFIER,
+        fixed           NULL
+    },
+    data-value-descriptor ObjectDescriptor OPTIONAL,
+    data-value OCTET STRING
+} ( WITH COMPONENTS {
+    ...,
+    identification ( WITH COMPONENTS {
+        ...,
+        syntaxes        ABSENT,
+        transfer-syntax ABSENT,
+        fixed           ABSENT
+    } )
+} )
+
+-- X.680 clause 44.5: associated type of the unrestricted CHARACTER STRING
+-- built-in type. Same shape as EmbeddedPDVType, with the final OCTET STRING
+-- component named string-value instead of data-value.
+
+UnrestrictedCharacterStringType ::= SEQUENCE {
+    identification CHOICE {
+        syntaxes SEQUENCE {
+            abstract OBJECT IDENTIFIER,
+            transfer OBJECT IDENTIFIER
+        },
+        syntax                  OBJECT IDENTIFIER,
+        presentation-context-id INTEGER,
+        context-negotiation SEQUENCE {
+            presentation-context-id INTEGER,
+            transfer-syntax         OBJECT IDENTIFIER
+        },
+        transfer-syntax OBJECT IDENTIFIER,
+        fixed           NULL
+    },
+    data-value-descriptor ObjectDescriptor OPTIONAL,
+    string-value OCTET STRING
+} ( WITH COMPONENTS {
+    ...,
+    data-value-descriptor ABSENT
+} )
+
+-- X.680 clause 38.4.1: DATE, tag UNIVERSAL 31.
+
+DATE ::= [UNIVERSAL 31] IMPLICIT TIME (SETTINGS "Basic=Date Date=YMD Year=Basic")
+
+-- X.680 clause 38.4.2: TIME-OF-DAY, tag UNIVERSAL 32. Allows midnight at
+-- start of day (00:00:00) as well as midnight at end of day (24:00:00).
+
+TIME-OF-DAY ::= [UNIVERSAL 32] IMPLICIT TIME (SETTINGS "Basic=Time Time=HMS Local-or-UTC=L")
+
+-- X.680 clause 38.4.3: DATE-TIME, tag UNIVERSAL 33. Same midnight note as
+-- TIME-OF-DAY applies.
+
+DATE-TIME ::= [UNIVERSAL 33] IMPLICIT TIME
+    (SETTINGS "Basic=Date-Time Date=YMD Year=Basic Time=HMS Local-or-UTC=L")
+
+-- X.680 clause 38.4.4: DURATION, tag UNIVERSAL 34. Any subset of TIME whose
+-- abstract values all have the property settings "Basic=Interval
+-- Interval-type=D" (whether UNIVERSAL 34 or UNIVERSAL 14) is a duration
+-- subtype, and can be constrained using the DURATION-EQUIVALENT sequence
+-- type below (clause 38.4.4.2) as an inner subtyping constraint.
+
+DURATION ::= [UNIVERSAL 34] IMPLICIT TIME (SETTINGS "Basic=Interval Interval-type=D")
+
+-- X.680 clause 38.4.4.2: the equivalent sequence type used to place inner
+-- subtyping constraints on a duration subtype (forbidding/requiring
+-- particular time components, or range-constraining their values). The
+-- years component corresponds to the years time component of the duration
+-- abstract value, and so on.
+
+DURATION-EQUIVALENT ::= SEQUENCE {
+    years           INTEGER (0..MAX) OPTIONAL,
+    months          INTEGER (0..MAX) OPTIONAL,
+    weeks           INTEGER (0..MAX) OPTIONAL,
+    days            INTEGER (0..MAX) OPTIONAL,
+    hours           INTEGER (0..MAX) OPTIONAL,
+    minutes         INTEGER (0..MAX) OPTIONAL,
+    seconds         INTEGER (0..MAX) OPTIONAL,
+    fractional-part SEQUENCE {
+        number-of-digits  INTEGER (1..MAX),
+        fractional-value  INTEGER (0..MAX)
+    } OPTIONAL
+}
+
+-- X.680 clause 46.3: GeneralizedTime, tag UNIVERSAL 24.
+
+GeneralizedTime ::= [UNIVERSAL 24] IMPLICIT VisibleString
+
+-- X.680 clause 47.3: UTCTime, tag UNIVERSAL 23.
+
+UTCTime ::= [UNIVERSAL 23] IMPLICIT VisibleString
+
+-- X.680 clause 48.3: ObjectDescriptor, tag UNIVERSAL 7.
+
+ObjectDescriptor ::= [UNIVERSAL 7] IMPLICIT GraphicString
+
+-- ===========================================================================
+-- X.680 Annex B: "The defined time types" (normative). Reproduced verbatim
+-- as a complete, self-contained, importable ASN.1 module -- the spec itself
+-- presents it this way (B.1.1): "This annex contains an ASN.1 module that
+-- specifies the defined time types. These types can be imported into an
+-- ASN.1 specification and used in that specification, or can be used as a
+-- model for the definition of additional time types. They cannot be used
+-- without importation."
+--
+-- Some of these types are only useful when further subtyped with one of the
+-- date or time-of-day *-SUBSET types also defined here (see the per-type
+-- comments below), e.g.:
+--     APPLICATION-DATE-TIME ::=
+--         DATE-TIME (YEAR-MONTH-DAY-SUBSET) (SECONDS-SUBSET)
+-- ===========================================================================
+
+    -- Date types
+
+    CENTURY            ::= TIME((SETTINGS "Basic=Date Date=C Year=Basic")|
+        (SETTINGS "Basic=Date Date=C Year=Proleptic"))
+    ANY-CENTURY        ::= TIME((SETTINGS "Basic=Date Date=C Year=Negative")|
+        (SETTINGS "Basic=Date Date=C Year=L5"))
+    -- This allows only a 3-digit century if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+    -- Note that L5 is used for century if the specification
+    -- of the year would require 5 digits.  See Table 6.
+    YEAR               ::= TIME((SETTINGS "Basic=Date Date=Y Year=Basic")|
+        (SETTINGS "Basic=Date Date=Y Year=Proleptic"))
+    ANY-YEAR           ::= TIME((SETTINGS "Basic=Date Date=Y Year=Negative")|
+        (SETTINGS "Basic=Date Date=Y Year=L5"))
+    -- This allows only a 5-digit year if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+    YEAR-MONTH         ::= TIME((SETTINGS "Basic=Date Date=YM Year=Basic")|
+        (SETTINGS "Basic=Date Date=YM Year=Proleptic"))
+    ANY-YEAR-MONTH     ::= TIME((SETTINGS "Basic=Date Date=YM Year=Negative")|
+        (SETTINGS "Basic=Date Date=YM Year=L5"))
+    -- This allows only a 5-digit year if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+    YEAR-MONTH-DAY     ::= TIME((SETTINGS "Basic=Date Date=YMD Year=Basic")|
+        (SETTINGS "Basic=Date Date=YMD Year=Proleptic"))
+    ANY-YEAR-MONTH-DAY ::= TIME((SETTINGS "Basic=Date Date=YMD Year=Negative")|
+        (SETTINGS "Basic=Date Date=YMD Year=L5"))
+    -- This allows only a 5-digit year if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+    YEAR-WEEK          ::= TIME((SETTINGS "Basic=Date Date=YW Year=Basic")|
+        (SETTINGS "Basic=Date Date=YW Year=Proleptic"))
+    ANY-YEAR-WEEK      ::= TIME((SETTINGS "Basic=Date Date=YW Year=Negative")|
+        (SETTINGS "Basic=Date Date=YW Year=L5"))
+    -- This allows only a 5-digit year if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+    YEAR-WEEK-DAY      ::= TIME((SETTINGS "Basic=Date Date=YWD Year=Basic")|
+        (SETTINGS "Basic=Date Date=YWD Year=Proleptic"))
+    ANY-YEAR-WEEK-DAY  ::= TIME((SETTINGS "Basic=Date Date=YWD Year=Negative")|
+        (SETTINGS "Basic=Date Date=YWD Year=L5"))
+    -- This allows only a 5-digit year if positive.
+    -- A type with a greater number of digits can be
+    -- defined as an additional time type.
+
+    -- Types related to time-of-day
+
+    HOURS                         ::= TIME(SETTINGS "Basic=Time Time=H Local-or-UTC=L")
+    HOURS-UTC                     ::= TIME(SETTINGS "Basic=Time Time=H Local-or-UTC=Z")
+    HOURS-AND-DIFF                ::= TIME(SETTINGS "Basic=Time Time=H Local-or-UTC=LD")
+    MINUTES                       ::= TIME(SETTINGS "Basic=Time Time=HM Local-or-UTC=L")
+    MINUTES-UTC                   ::= TIME(SETTINGS "Basic=Time Time=HM Local-or-UTC=Z")
+    MINUTES-AND-DIFF              ::= TIME(SETTINGS "Basic=Time Time=HM Local-or-UTC=LD")
+    SECONDS                       ::= TIME(SETTINGS "Basic=Time Time=HMS Local-or-UTC=L")
+    SECONDS-UTC                   ::= TIME(SETTINGS "Basic=Time Time=HMS Local-or-UTC=Z")
+    SECONDS-AND-DIFF              ::= TIME(SETTINGS "Basic=Time Time=HMS Local-or-UTC=LD")
+    HOURS-AND-FRACTION            ::= TIME(SETTINGS "Basic=Time Time=HF3 Local-or-UTC=L")
+    -- 3 digit fraction
+    HOURS-UTC-AND-FRACTION        ::= TIME(SETTINGS "Basic=Time Time=HF3 Local-or-UTC=Z")
+    -- 3-digit fraction
+    HOURS-AND-DIFF-AND-FRACTION   ::= TIME(SETTINGS "Basic=Time Time=HF3 Local-or-UTC=LD")
+    -- 3-digit fraction
+    MINUTES-AND-FRACTION          ::= TIME(SETTINGS "Basic=Time Time=HMF3 Local-or-UTC=L")
+    -- 3-digit fraction
+    MINUTES-UTC-AND-FRACTION      ::= TIME(SETTINGS "Basic=Time Time=HMF3 Local-or-UTC=Z")
+    -- 3-digit fraction
+    MINUTES-AND-DIFF-AND-FRACTION ::= TIME(SETTINGS "Basic=Time Time=HMF3 Local-or-UTC=LD")
+    -- 3-digit fraction
+    SECONDS-AND-FRACTION          ::= TIME(SETTINGS "Basic=Time Time=HMSF3 Local-or-UTC=L")
+    -- 3-digit fraction
+    SECONDS-UTC-AND-FRACTION      ::= TIME(SETTINGS "Basic=Time Time=HMSF3 Local-or-UTC=Z")
+    -- 3-digit fraction
+    SECONDS-AND-DIFF-AND-FRACTION ::= TIME(SETTINGS "Basic=Time Time=HMSF3 Local-or-UTC=LD")
+    -- 3-digit fraction
+
+    -- Interval types (DURATION is not included as this is a useful type).
+
+    START-END-DATE-INTERVAL           ::= TIME(SETTINGS "Basic=Interval Interval-type=SE SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    START-END-TIME-INTERVAL           ::= TIME(SETTINGS "Basic=Interval Interval-type=SE SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    START-END-DATE-TIME-INTERVAL      ::= TIME(SETTINGS "Basic=Interval Interval-type=SE SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+    START-DATE-DURATION-INTERVAL      ::= TIME(SETTINGS "Basic=Interval Interval-type=SD SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    START-TIME-DURATION-INTERVAL      ::= TIME(SETTINGS "Basic=Interval Interval-type=SD SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    START-DATE-TIME-DURATION-INTERVAL ::= TIME(SETTINGS "Basic=Interval Interval-type=SD SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+    DURATION-END-DATE-INTERVAL        ::= TIME(SETTINGS "Basic=Interval Interval-type=DE SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    DURATION-END-TIME-INTERVAL        ::= TIME(SETTINGS "Basic=Interval Interval-type=DE SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    DURATION-END-DATE-TIME-INTERVAL   ::= TIME(SETTINGS "Basic=Interval Interval-type=DE SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+
+    -- Recurring interval types.
+
+    REC-START-END-DATE-INTERVAL           ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SE SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    REC-START-END-TIME-INTERVAL           ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SE SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    REC-START-END-DATE-TIME-INTERVAL      ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SE SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+    REC-DURATION-INTERVAL                 ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=D")
+    REC-START-DATE-DURATION-INTERVAL      ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SD SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    REC-START-TIME-DURATION-INTERVAL      ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SD SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    REC-START-DATE-TIME-DURATION-INTERVAL ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=SD SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+    REC-DURATION-END-DATE-INTERVAL        ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=DE SE-point=Date")
+    -- This is only useful if subtyped with a DATE subset (see below).
+    REC-DURATION-END-TIME-INTERVAL        ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=DE SE-point=Time")
+    -- This is only useful if subtyped with a TIME-OF-DAY subset
+    -- (see below).
+    REC-DURATION-END-DATE-TIME-INTERVAL   ::= TIME(SETTINGS "Basic=Rec-Interval Interval-type=DE SE-point=Date-Time")
+    -- This is only useful if subtyped with a DATE subset and a
+    -- TIME-OF-DAY subset (see below).
+
+    -- Date subsets
+
+    CENTURY-SUBSET            ::= TIME((SETTINGS "Date=C Year=Basic")|
+        (SETTINGS "Date=C Year=Proleptic"))
+    ANY-CENTURY-SUBSET        ::= TIME((SETTINGS "Date=C Year=Negative")|
+        (SETTINGS "Date=C Year=L5"))
+    YEAR-SUBSET               ::= TIME((SETTINGS "Date=Y Year=Basic")|
+        (SETTINGS "Date=Y Year=Proleptic"))
+    ANY-YEAR-SUBSET           ::= TIME((SETTINGS "Date=Y Year=Negative")|
+        (SETTINGS "Date=Y Year=L5"))
+    YEAR-MONTH-SUBSET         ::= TIME((SETTINGS "Date=YM Year=Basic")|
+        (SETTINGS "Date=YM Year=Proleptic"))
+    ANY-YEAR-MONTH-SUBSET     ::= TIME((SETTINGS "Date=YM Year=Negative")|
+        (SETTINGS "Date=YM Year=L5"))
+    YEAR-MONTH-DAY-SUBSET     ::= TIME((SETTINGS "Date=YMD Year=Basic")|
+        (SETTINGS "Date=YMD Year=Proleptic"))
+    ANY-YEAR-MONTH-DAY-SUBSET ::= TIME((SETTINGS "Date=YMD Year=Negative")|
+        (SETTINGS "Date=YMD Year=L5"))
+    YEAR-WEEK-SUBSET          ::= TIME((SETTINGS "Date=YW Year=Basic")|
+        (SETTINGS "Date=YW Year=Proleptic"))
+    ANY-YEAR-WEEK-SUBSET      ::= TIME((SETTINGS "Date=YW Year=Negative")|
+        (SETTINGS "Date=YW Year=L5"))
+    YEAR-WEEK-DAY-SUBSET      ::= TIME((SETTINGS "Date=YWD Year=Basic")|
+        (SETTINGS "Date=YWD Year=Proleptic"))
+    ANY-YEAR-WEEK-DAY-SUBSET  ::= TIME((SETTINGS "Date=YWD Year=Negative")|
+        (SETTINGS "Date=YWD Year=L5"))
+
+    -- Time subsets
+
+    HOURS-SUBSET                         ::= TIME(SETTINGS "Time=H Local-or-UTC=L")
+    HOURS-UTC-SUBSET                     ::= TIME(SETTINGS "Time=H Local-or-UTC=Z")
+    HOURS-AND-DIFF-SUBSET                ::= TIME(SETTINGS "Time=H Local-or-UTC=LD")
+    MINUTES-SUBSET                       ::= TIME(SETTINGS "Time=HM Local-or-UTC=L")
+    MINUTES-UTC-SUBSET                   ::= TIME(SETTINGS "Time=HM Local-or-UTC=Z")
+    MINUTES-AND-DIFF-SUBSET              ::= TIME(SETTINGS "Time=HM Local-or-UTC=LD")
+    SECONDS-SUBSET                       ::= TIME(SETTINGS "Time=HMS Local-or-UTC=L")
+    SECONDS-UTC-SUBSET                   ::= TIME(SETTINGS "Time=HMS Local-or-UTC=Z")
+    SECONDS-AND-DIFF-SUBSET              ::= TIME(SETTINGS "Time=HMS Local-or-UTC=LD")
+    HOURS-AND-FRACTION-SUBSET            ::= TIME(SETTINGS "Time=HF3 Local-or-UTC=L")
+    HOURS-UTC-AND-FRACTION-SUBSET        ::= TIME(SETTINGS "Time=HF3 Local-or-UTC=Z")
+    HOURS-AND-DIFF-AND-FRACTION-SUBSET   ::= TIME(SETTINGS "Time=HF3 Local-or-UTC=LD")
+    MINUTES-AND-FRACTION-SUBSET          ::= TIME(SETTINGS "Time=HMF3 Local-or-UTC=L")
+    MINUTES-UTC-AND-FRACTION-SUBSET      ::= TIME(SETTINGS "Time=HMF3 Local-or-UTC=Z")
+    MINUTES-AND-DIFF-AND-FRACTION-SUBSET ::= TIME(SETTINGS "Time=HMF3 Local-or-UTC=LD")
+    SECONDS-AND-FRACTION-SUBSET          ::= TIME(SETTINGS "Time=HMSF3 Local-or-UTC=L")
+    SECONDS-UTC-AND-FRACTION-SUBSET      ::= TIME(SETTINGS "Time=HMSF3 Local-or-UTC=Z")
+    SECONDS-AND-DIFF-AND-FRACTION-SUBSET ::= TIME(SETTINGS "Time=HMSF3 Local-or-UTC=LD")
+
+-- ===========================================================================
+-- X.691 (02/2021) clause 32: PER encoding of the TIME type and its subtypes.
+-- Reproduced verbatim from the "X-ENCODING type is: X-ENCODING ::= ..."
+-- definitions in 32.2-32.11. Per 32.1.4 NOTE 1: "The use of these type
+-- reference names in the specification of PER encodings does not make them
+-- available for use by an application designer in an ASN.1 specification,
+-- nor are they reserved words in such a specification." I.e. these are
+-- PER-specific internal encoding types (informative/illustrative, unlike
+-- REAL/EXTERNAL/EMBEDDED PDV/CHARACTER STRING/DURATION-EQUIVALENT above,
+-- which are genuine importable X.680 abstract types) -- kept here because
+-- they directly specify the PER bit layout for TIME, which is exactly what
+-- lib/per would need to implement TIME support. X.696 (OER) defines its own
+-- same-named types with different (OER) bit layouts -- not included here to
+-- avoid name collisions within this single module; see X.696 clause 27 if
+-- OER support is ever needed.
+-- ===========================================================================
+
+-- 32.2: encoding subtypes with the "Basic=Date" property setting (14 types).
+
+CENTURY-ENCODING ::= INTEGER (0..99) -- 7 bits
+-- first two digits of the year component
+
+ANY-CENTURY-ENCODING ::= INTEGER (MIN..MAX)
+-- year component, ignoring the last two digits
+
+YEAR-ENCODING ::= CHOICE { -- 2 bits for choice determinant
+    immediate   INTEGER (2005..2020), -- 4 bits
+    near-future INTEGER (2021..2276), -- 8 bits
+    near-past   INTEGER (1749..2004), -- 8 bits
+    remainder   INTEGER (MIN..1748 | 2277..MAX)
+}
+-- optimized to provide a 6-bit or 10-bit encoding in common cases
+
+ANY-YEAR-ENCODING ::= INTEGER (MIN..MAX)
+
+YEAR-MONTH-ENCODING ::= SEQUENCE {
+    year  YEAR-ENCODING,
+    month INTEGER (1..12) -- 4 bits
+}
+-- optimized to provide a 10-bit or 14-bit encoding in common cases
+
+ANY-YEAR-MONTH-ENCODING ::= SEQUENCE {
+    year  ANY-YEAR-ENCODING,
+    month INTEGER (1..12)
+}
+
+DATE-ENCODING ::= SEQUENCE {
+    year  YEAR-ENCODING,
+    month INTEGER (1..12), -- 4 bits
+    day   INTEGER (1..31)  -- 5 bits
+}
+-- optimized to provide a 15-bit or 19-bit encoding in common cases
+
+ANY-DATE-ENCODING ::= SEQUENCE {
+    year  ANY-YEAR-ENCODING,
+    month INTEGER (1..12),
+    day   INTEGER (1..31)
+}
+
+YEAR-DAY-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+ANY-YEAR-DAY-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    week INTEGER (1..53) -- 6 bits
+}
+-- optimized to provide a 12-bit or 16-bit encoding in common cases
+
+ANY-YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    week INTEGER (1..53)
+}
+
+YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year YEAR-ENCODING,
+    week INTEGER (1..53), -- 6 bits
+    day  INTEGER (1..7)   -- 3 bits
+}
+-- optimized to provide a 15-bit or 19-bit encoding in common cases
+
+ANY-YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year ANY-YEAR-ENCODING,
+    week INTEGER (1..53),
+    day  INTEGER (1..7)
+}
+
+-- 32.3: encoding subtypes with the "Basic=Time" property setting (18 types).
+-- TIME-DIFFERENCE is a shared helper used by every "-AND-DIFF" variant below.
+
+TIME-DIFFERENCE ::= SEQUENCE {
+    sign    ENUMERATED { positive, negative },
+    hours   INTEGER (0..15),
+    minutes INTEGER (1..59) OPTIONAL -- omitted if zero
+}
+
+HOURS-ENCODING ::= INTEGER (0..24) -- 5 bits
+
+HOURS-UTC-ENCODING ::= INTEGER (0..24) -- 5 bits
+
+HOURS-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24),
+    time-difference TIME-DIFFERENCE
+}
+
+MINUTES-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59)  -- 5 bits
+}
+-- optimized to provide a 10-bit encoding
+
+MINUTES-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59)  -- 5 bits
+}
+-- optimized to provide a 10-bit encoding
+
+MINUTES-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+TIME-OF-DAY-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59), -- 5 bits
+    seconds INTEGER (0..60)  -- 5 bits
+}
+-- optimized to provide a 15-bit encoding
+
+TIME-OF-DAY-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59), -- 5 bits
+    seconds INTEGER (0..60)  -- 5 bits
+}
+-- optimized to provide a 15-bit encoding
+
+TIME-OF-DAY-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59),
+        seconds INTEGER (0..60)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+HOURS-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 16-bit encoding for up to 3-digit accuracy
+
+HOURS-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 16-bit encoding for up to 3-digit accuracy
+
+HOURS-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24), -- 5 bits
+    fraction        INTEGER (0..999, ..., 1000..MAX), -- 11 bits for up to 3-digit accuracy
+    time-difference TIME-DIFFERENCE
+}
+
+MINUTES-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 21-bit encoding for up to 3-digit accuracy
+
+MINUTES-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 21-bit encoding for up to 3-digit accuracy
+
+MINUTES-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+TIME-OF-DAY-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    seconds  INTEGER (0..60), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 26-bit encoding
+
+TIME-OF-DAY-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    seconds  INTEGER (0..60), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 26-bit encoding
+
+TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        seconds  INTEGER (0..60),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+-- 32.4: encoding subtypes with the "Basic=Date-Time" property setting.
+-- Date-Type/Time-Type are instantiated with the row-specific types from
+-- 32.2/32.3 that match the abstract value's actual property settings.
+
+DATE-TIME-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    date Date-Type,
+    time Time-Type
+}
+-- optimized to provide a 32-bit encoding in common cases
+
+-- 32.5: encoding subtypes with the "Basic=Interval Interval-type=SE"
+-- property setting (start/end interval).
+
+START-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    start Date-Type,
+    end   Date-Type
+}
+
+START-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    start Time-Type,
+    end   Time-Type
+}
+
+START-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    start DATE-TIME-ENCODING {Date-Type, Time-Type},
+    end   DATE-TIME-ENCODING {Date-Type, Time-Type}
+}
+
+-- 32.6: encoding subtypes with the "Basic=Interval Interval-type=D" property
+-- setting (duration). The weeks component is present iff years/months/days/
+-- hours/minutes/seconds are all absent; a zero-valued time element is
+-- present only if it is the least-significant one, or has a fractional
+-- part, keeping the encoding canonical.
+
+DURATION-INTERVAL-ENCODING ::= SEQUENCE { -- 8 bits for optionality
+    years   INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 years
+    months  INTEGER (0..15, ..., 16..MAX) OPTIONAL, -- 4 bits for up to 15 months
+    weeks   INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 weeks
+    days    INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 days
+    hours   INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 hours
+    minutes INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 minutes
+    seconds INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 seconds
+    fractional-part SEQUENCE {
+        number-of-digits INTEGER (1..3, ..., 4..MAX),  -- 3 bits for up to 3-digit accuracy
+        fractional-value INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+    } OPTIONAL
+}
+
+-- 32.7: encoding subtypes with the "Basic=Interval Interval-type=SD" or
+-- "Basic=Interval Interval-type=DE" property setting (start+duration, or
+-- duration+end).
+
+START-DATE-DURATION-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    start    Date-Type,
+    duration DURATION-INTERVAL-ENCODING
+}
+
+START-TIME-DURATION-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    start    Time-Type,
+    duration DURATION-INTERVAL-ENCODING
+}
+
+START-DATE-TIME-DURATION-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    start    DATE-TIME-ENCODING {Date-Type, Time-Type},
+    duration DURATION-INTERVAL-ENCODING
+}
+
+DURATION-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    duration DURATION-INTERVAL-ENCODING,
+    end      Date-Type
+}
+
+DURATION-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    duration DURATION-INTERVAL-ENCODING,
+    end      Time-Type
+}
+
+DURATION-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    duration DURATION-INTERVAL-ENCODING,
+    end      DATE-TIME-ENCODING {Date-Type, Time-Type}
+}
+
+-- 32.8: encoding subtypes with the "Basic=Rec-Interval Interval-type=SE"
+-- property setting (recurring start/end interval). recurrence is absent
+-- for an unlimited number of recurrences, else the recurrence count.
+
+REC-START-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Date-Type,
+    end        Date-Type
+}
+
+REC-START-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Time-Type,
+    end        Time-Type
+}
+
+REC-START-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      DATE-TIME-ENCODING {Date-Type, Time-Type},
+    end        DATE-TIME-ENCODING {Date-Type, Time-Type}
+}
+
+-- 32.9: encoding subtypes with the "Basic=Rec-Interval Interval-type=D"
+-- property setting (recurring duration).
+
+REC-DURATION-INTERVAL-ENCODING ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   DURATION-INTERVAL-ENCODING
+}
+
+-- 32.10: encoding subtypes with the "Basic=Rec-Interval Interval-type=SD"
+-- or "Basic=Rec-Interval Interval-type=DE" property setting (recurring
+-- start+duration, or duration+end).
+
+REC-START-DATE-DURATION-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Date-Type,
+    duration   DURATION-INTERVAL-ENCODING
+}
+
+REC-START-TIME-DURATION-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Time-Type,
+    duration   DURATION-INTERVAL-ENCODING
+}
+
+REC-START-DATE-TIME-DURATION-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      DATE-TIME-ENCODING {Date-Type, Time-Type},
+    duration   DURATION-INTERVAL-ENCODING
+}
+
+REC-DURATION-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   DURATION-INTERVAL-ENCODING,
+    end        Date-Type
+}
+
+REC-DURATION-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   DURATION-INTERVAL-ENCODING,
+    end        Time-Type
+}
+
+REC-DURATION-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   DURATION-INTERVAL-ENCODING,
+    end        DATE-TIME-ENCODING {Date-Type, Time-Type}
+}
+
+-- 32.11: encoding subtypes with mixed settings of the Basic property (the
+-- unconstrained TIME type, or any subset spanning more than one row of
+-- Table 2). DATE-TYPE/TIME-TYPE select the row-specific date/time-of-day
+-- encoding that matches the abstract value's actual property settings;
+-- MIXED-ENCODING is the top-level type used whenever a TIME value doesn't
+-- fall entirely within one single row of Table 2.
+
+FRACTIONAL-TIME {Time-Type} ::= SEQUENCE {
+    number-of-digits INTEGER (1..MAX),
+    time-value       Time-Type
+}
+
+DATE-TYPE ::= CHOICE {
+    row-1  CENTURY-ENCODING,
+    row-2  ANY-CENTURY-ENCODING,
+    row-3  YEAR-ENCODING,
+    row-4  ANY-YEAR-ENCODING,
+    row-5  YEAR-MONTH-ENCODING,
+    row-6  ANY-YEAR-MONTH-ENCODING,
+    row-7  DATE-ENCODING,
+    row-8  ANY-DATE-ENCODING,
+    row-9  YEAR-DAY-ENCODING,
+    row-10 ANY-YEAR-DAY-ENCODING,
+    row-11 YEAR-WEEK-ENCODING,
+    row-12 ANY-YEAR-WEEK-ENCODING,
+    row-13 YEAR-WEEK-DAY-ENCODING,
+    row-14 ANY-YEAR-WEEK-DAY-ENCODING
+}
+
+TIME-TYPE ::= SEQUENCE {
+    number-of-digits INTEGER (1..MAX) OPTIONAL, -- present iff time-type is row-24..row-32
+    time-type CHOICE {
+        row-15 HOURS-ENCODING,
+        row-16 HOURS-UTC-ENCODING,
+        row-17 HOURS-AND-DIFF-ENCODING,
+        row-18 MINUTES-ENCODING,
+        row-19 MINUTES-UTC-ENCODING,
+        row-20 MINUTES-AND-DIFF-ENCODING,
+        row-21 TIME-OF-DAY-ENCODING,
+        row-22 TIME-OF-DAY-UTC-ENCODING,
+        row-23 TIME-OF-DAY-AND-DIFF-ENCODING,
+        row-24 HOURS-AND-FRACTION-ENCODING,
+        row-25 HOURS-UTC-AND-FRACTION-ENCODING,
+        row-26 HOURS-AND-DIFF-AND-FRACTION-ENCODING,
+        row-27 MINUTES-AND-FRACTION-ENCODING,
+        row-28 MINUTES-UTC-AND-FRACTION-ENCODING,
+        row-29 MINUTES-AND-DIFF-AND-FRACTION-ENCODING,
+        row-30 TIME-OF-DAY-AND-FRACTION-ENCODING,
+        row-31 TIME-OF-DAY-UTC-AND-FRACTION-ENCODING,
+        row-32 TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING
+    }
+}
+
+MIXED-ENCODING ::= CHOICE {
+    row-1  CENTURY-ENCODING,
+    row-2  ANY-CENTURY-ENCODING,
+    row-3  YEAR-ENCODING,
+    row-4  ANY-YEAR-ENCODING,
+    row-5  YEAR-MONTH-ENCODING,
+    row-6  ANY-YEAR-MONTH-ENCODING,
+    row-7  DATE-ENCODING,
+    row-8  ANY-DATE-ENCODING,
+    row-9  YEAR-DAY-ENCODING,
+    row-10 ANY-YEAR-DAY-ENCODING,
+    row-11 YEAR-WEEK-ENCODING,
+    row-12 ANY-YEAR-WEEK-ENCODING,
+    row-13 YEAR-WEEK-DAY-ENCODING,
+    row-14 ANY-YEAR-WEEK-DAY-ENCODING,
+    row-15 HOURS-ENCODING,
+    row-16 HOURS-UTC-ENCODING,
+    row-17 HOURS-AND-DIFF-ENCODING,
+    row-18 MINUTES-ENCODING,
+    row-19 MINUTES-UTC-ENCODING,
+    row-20 MINUTES-AND-DIFF-ENCODING,
+    row-21 TIME-OF-DAY-ENCODING,
+    row-22 TIME-OF-DAY-UTC-ENCODING,
+    row-23 TIME-OF-DAY-AND-DIFF-ENCODING,
+    row-24 FRACTIONAL-TIME {HOURS-AND-FRACTION-ENCODING},
+    row-25 FRACTIONAL-TIME {HOURS-UTC-AND-FRACTION-ENCODING},
+    row-26 FRACTIONAL-TIME {HOURS-AND-DIFF-AND-FRACTION-ENCODING},
+    row-27 FRACTIONAL-TIME {MINUTES-AND-FRACTION-ENCODING},
+    row-28 FRACTIONAL-TIME {MINUTES-UTC-AND-FRACTION-ENCODING},
+    row-29 FRACTIONAL-TIME {MINUTES-AND-DIFF-AND-FRACTION-ENCODING},
+    row-30 FRACTIONAL-TIME {TIME-OF-DAY-AND-FRACTION-ENCODING},
+    row-31 FRACTIONAL-TIME {TIME-OF-DAY-UTC-AND-FRACTION-ENCODING},
+    row-32 FRACTIONAL-TIME {TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING},
+    row-33 DATE-TIME-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-34 START-END-DATE-INTERVAL-ENCODING {DATE-TYPE},
+    row-35 START-END-TIME-INTERVAL-ENCODING {TIME-TYPE},
+    row-36 START-END-DATE-TIME-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-37 DURATION-INTERVAL-ENCODING,
+    row-38 START-DATE-DURATION-INTERVAL-ENCODING {DATE-TYPE},
+    row-39 START-TIME-DURATION-INTERVAL-ENCODING {TIME-TYPE},
+    row-40 START-DATE-TIME-DURATION-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-41 DURATION-END-DATE-INTERVAL-ENCODING {DATE-TYPE},
+    row-42 DURATION-END-TIME-INTERVAL-ENCODING {TIME-TYPE},
+    row-43 DURATION-END-DATE-TIME-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-44 REC-START-END-DATE-INTERVAL-ENCODING {DATE-TYPE},
+    row-45 REC-START-END-TIME-INTERVAL-ENCODING {TIME-TYPE},
+    row-46 REC-START-END-DATE-TIME-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-47 REC-DURATION-INTERVAL-ENCODING,
+    row-48 REC-START-DATE-DURATION-INTERVAL-ENCODING {DATE-TYPE},
+    row-49 REC-START-TIME-DURATION-INTERVAL-ENCODING {TIME-TYPE},
+    row-50 REC-START-DATE-TIME-DURATION-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE},
+    row-51 REC-DURATION-END-DATE-INTERVAL-ENCODING {DATE-TYPE},
+    row-52 REC-DURATION-END-TIME-INTERVAL-ENCODING {TIME-TYPE},
+    row-53 REC-DURATION-END-DATE-TIME-INTERVAL-ENCODING {DATE-TYPE, TIME-TYPE}
+}
+
+END

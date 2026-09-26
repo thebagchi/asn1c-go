@@ -1,0 +1,21 @@
+The 3GPP protocol specifications, kept at the root rather than under a
+package because they are not one package's fixtures: they are whole protocols,
+and more than the parser will want to read them.
+
+3gpp/
+    13 protocol specifications, taken from the 3GPP specification archive on
+    2026-09-24 by tools/corpus/extract.py, which downloads each one and lifts
+    the ASN.1 out of the Word document it is written in. Run that script to
+    refresh them; it names the specifications it reads and the ones it cannot.
+
+    Licence: these are 3GPP's own technical specifications, which 3GPP
+    publishes for the purpose of implementing them. They are taken from the
+    source rather than from another project that had already copied them, so
+    that what they are and where they came from is not in question.
+
+    They are here because they are the largest ASN.1 anyone writes and were
+    not written with any parser in mind. The radio resource protocols carry
+    constructed types and extension markers at a size no hand-written module
+    reaches; the application protocols are information object classes almost
+    end to end, a class per message and an object set per message's contents.
+    Between them they found two defects the asn1c corpus did not.

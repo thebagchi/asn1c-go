@@ -8,8 +8,27 @@ erl_crash.dump
 
 # Rust build artifacts
 lib/per/testing/rust/target/
-
+*.md
 *.pdf
 *.doc
 *.docx
 __pycache__/
+.go/
+
+# Build and test artefacts (CLAUDE.md, Build: binaries always carry an extension)
+*.bin
+*.exe
+*.test
+*.out
+coverage.*
+profile.cov
+tools/bin/
+
+# A pinned Go toolchain fetched by "make toolchain"; 70 MB of someone else's build
+.go/
+
+# The 3GPP archives tools/corpus/extract.py downloads. It re-fetches them and
+# "--clean" removes them, and the .asn1 modules extracted out of them are
+# committed under testdata/3gpp/ - so the archives are a build artefact, not a
+# source, and 38MB of them does not belong in history.
+tools/corpus/downloads/

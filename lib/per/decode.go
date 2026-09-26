@@ -1,1397 +1,1395 @@
 package per
 
 import (
-	"bytes"
 	"encoding/asn1"
+	"errors"
 	"fmt"
-	"math"
 	"reflect"
 
 	"github.com/thebagchi/asn1c-go/lib/bitbuffer"
 )
 
-// Decoder represents a PER decoder
+// Sentinel errors reported while decoding.
+var (
+	ErrLengthTooLarge   = errors.New("length determinant is wider than a value holds")
+	ErrLengthFragmented = errors.New("value cannot be fragmented but its length is")
+	ErrFragmentCount    = errors.New("fragment multiplier is not between one and four")
+	ErrNotPointer       = errors.New("target is not a non-nil pointer")
+	ErrChoiceIndex      = errors.New("choice index has no alternative")
+	ErrOpenTypeNil      = errors.New("open type has no concrete value to decode into")
+)
+
+// Decoder reads a PER encoding, in the variant it was created for.
 type Decoder struct {
 	codec   *bitbuffer.Codec
 	aligned bool
 }
 
-// NewDecoder creates a new PER decoder from encoded data
-// aligned: true for APER, false for UPER
-func NewDecoder(data []byte, aligned bool) *Decoder {
+// NewAlignedDecoder returns a Decoder for the ALIGNED variant, APER.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation as NewDecoder(data, aligned bool)
+//   - 2026-09-22 06:43: split into one constructor per variant
+func NewAlignedDecoder(data []byte) *Decoder {
 	return &Decoder{
 		codec:   bitbuffer.CreateReader(data),
-		aligned: aligned,
+		aligned: true,
 	}
 }
 
-// DecodeConstrainedWholeNumber decodes a constrained whole number
-// with lower bound lb and upper bound ub.
-// Returns the decoded value n, or an error if decoding fails.
-func (d *Decoder) DecodeConstrainedWholeNumber(lb, ub int64) (int64, error) {
-	vr := ub - lb + 1
+// NewUnalignedDecoder returns a Decoder for the UNALIGNED variant, UPER.
+//
+// Revisions:
+//   - 2026-01-28 22:17: initial creation as NewDecoder(data, aligned bool)
+//   - 2026-09-22 06:43: split into one constructor per variant
+func NewUnalignedDecoder(data []byte) *Decoder {
+	return &Decoder{
+		codec:   bitbuffer.CreateReader(data),
+		aligned: false,
+	}
+}
 
-	// If range is 1, only one value is possible
-	if vr == 1 {
+// Aligned reports whether this Decoder reads the ALIGNED variant.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) Aligned() bool {
+	return d.aligned
+}
+
+// DecodeConstrainedWholeNumber reads the field X.691 clause 11.5 selects from
+// the range, which is ub - lb + 1.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: derives the ALIGNED bit-field width from the range
+//     rather than from a table of eight cases, whose fall-through left the width
+//     at zero for a range it did not list
+func (d *Decoder) DecodeConstrainedWholeNumber(lb, ub int64) (int64, error) {
+	span := ub - lb + 1
+
+	// Clause 11.5.4: a range of one carries no bits at all.
+	if span == 1 {
 		return lb, nil
 	}
 
-	if !d.aligned {
-		// UNALIGNED: encode (n - lb) as non-negative-binary-integer
-		// with minimum bits necessary to represent the range
-		bits := BitsNonNegativeBinaryInteger(uint64(vr - 1))
-		value, err := d.codec.Read(uint8(bits))
-		if err != nil {
-			return 0, err
-		}
-		return lb + int64(value), nil
+	if !d.aligned || span <= RANGE_BITFIELD_MAX {
+		width := BitsNonNegativeBinaryInteger(uint64(span - 1))
+
+		return d._ReadOffset(lb, uint8(width))
 	}
 
-	// ALIGNED variant
-	// 11.5.7.1: Bit-field case (range <= 255)
-	if vr <= RANGE_BITFIELD_MAX {
-		var bits int
-		switch {
-		case vr == 0x02:
-			bits = 1
-		case vr >= 0x03 && vr <= 0x04:
-			bits = 2
-		case vr >= 0x05 && vr <= 0x08:
-			bits = 3
-		case vr >= 0x09 && vr <= 0x10:
-			bits = 4
-		case vr >= 0x11 && vr <= 0x20:
-			bits = 5
-		case vr >= 0x21 && vr <= 0x40:
-			bits = 6
-		case vr >= 0x41 && vr <= 0x80:
-			bits = 7
-		case vr >= 0x81 && vr <= 0xFF:
-			bits = 8
-		}
-		value, err := d.codec.Read(uint8(bits))
-		if err != nil {
-			return 0, err
-		}
-		return lb + int64(value), nil
-	}
-
-	// 11.5.7.2: One-octet case (range == 256) - octet-aligned
-	if vr == RANGE_ONE_OCTET {
+	if span <= RANGE_TWO_OCTET_MAX {
 		if err := d.codec.Advance(); err != nil {
 			return 0, err
 		}
-		value, err := d.codec.Read(8)
-		if err != nil {
-			return 0, err
+
+		width := uint8(BITS_PER_BYTE)
+		if span > RANGE_ONE_OCTET {
+			width = DOUBLE_OCTET_BITS
 		}
-		return lb + int64(value), nil
+
+		return d._ReadOffset(lb, width)
 	}
 
-	// 11.5.7.3: Two-octet case (range 257-64K) - octet-aligned
-	if vr >= RANGE_TWO_OCTET_MIN && vr <= RANGE_TWO_OCTET_MAX {
-		if err := d.codec.Advance(); err != nil {
-			return 0, err
-		}
-		value, err := d.codec.Read(16)
-		if err != nil {
-			return 0, err
-		}
-		return lb + int64(value), nil
-	}
-
-	// 11.5.7.4: Indefinite length case (range > 64K)
-	// Decode length determinant first, then octet-aligned value
-	var (
-		octetsRange = OctetsNonNegativeBinaryIntegerLength(uint64(ub - lb))
-		lbRange     = uint64(1)
-		ubRange     = uint64(octetsRange)
-	)
-	octets, _, err := d.DecodeLengthDeterminant(&lbRange, &ubRange)
-	if err != nil {
-		return 0, err
-	}
-
-	// 11.5.7.4: Value is octet-aligned
-	if err := d.codec.Advance(); err != nil {
-		return 0, err
-	}
-	value, err := d.codec.Read(uint8(octets * 8))
-	if err != nil {
-		return 0, err
-	}
-	return lb + int64(value), nil
+	return d._DecodeIndefinite(lb, uint64(ub-lb))
 }
 
-// DecodeNormallySmallNonNegativeWholeNumber decodes a normally small non-negative whole number.
-// This is used when a non-negative whole number is expected to be small but whose size
-// is potentially unlimited due to the presence of an extension marker.
+// DecodeNormallySmallNonNegativeWholeNumber reads a number encoded per X.691
+// clause 11.6.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
 func (d *Decoder) DecodeNormallySmallNonNegativeWholeNumber() (uint64, error) {
-	// Read 1 bit to determine the case
 	bit, err := d.codec.Read(1)
 	if err != nil {
 		return 0, err
 	}
 
-	// 11.6.1: If the bit is 0, read 6-bit value
 	if bit == 0 {
-		value, err := d.codec.Read(NORMALLY_SMALL_BITS)
-		if err != nil {
-			return 0, err
-		}
-		return value, nil
+		return d.codec.Read(NORMALLY_SMALL_BITS)
 	}
 
-	// 11.6.2: If the bit is 1, decode as semi-constrained whole number with lb=0
-	return d.DecodeSemiConstrainedWholeNumber(0)
+	value, err := d.DecodeSemiConstrainedWholeNumber(0)
+
+	return uint64(value), err
 }
 
-// DecodeSemiConstrainedWholeNumber decodes a semi-constrained whole number
-// with lower bound lb. The value can be arbitrarily large, so a length
-// determinant is decoded to determine how many octets to read.
-func (d *Decoder) DecodeSemiConstrainedWholeNumber(lb int64) (uint64, error) {
-	// 11.7.4: octet-aligned in the ALIGNED variant only
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return 0, err
-		}
-	}
-
-	// Decode the length determinant (number of octets)
-	octets, _, err := d.DecodeLengthDeterminant(nil, nil)
+// DecodeSemiConstrainedWholeNumber reads a number encoded per X.691 clause 11.7
+// as an offset from lb.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: returns int64 rather than uint64, since the value it
+//     reconstructs is lb plus an offset and lb may be negative
+func (d *Decoder) DecodeSemiConstrainedWholeNumber(lb int64) (int64, error) {
+	raw, _, err := d._ReadOctetAligned()
 	if err != nil {
 		return 0, err
 	}
 
-	// 11.7.4: octet-aligned in the ALIGNED variant only
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return 0, err
-		}
-	}
-
-	// Read the value (octets * 8 bits)
-	value, err := d.codec.Read(uint8(octets * 8))
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64(lb + int64(value)), nil
+	return lb + int64(raw), nil
 }
 
-// DecodeUnconstrainedWholeNumber decodes an unconstrained whole number.
-// This is used for INTEGER values with no bounds.
-// The value is encoded as a 2's-complement-binary-integer in the minimum
-// number of octets required to represent it.
+// DecodeUnconstrainedWholeNumber reads a number encoded per X.691 clause 11.8 in
+// two's complement.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: rejects a length above eight octets. It multiplied the
+//     octet count by eight into a uint8, so a length of 32 asked for zero bits
+//     and returned zero and no error, while 33 consumed one octet and left the
+//     stream pointing into the middle of a value
 func (d *Decoder) DecodeUnconstrainedWholeNumber() (int64, error) {
-	// 11.8.3: octet-aligned in the ALIGNED variant only
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return 0, err
-		}
-	}
-
-	// Decode the length determinant (number of octets)
-	octets, _, err := d.DecodeLengthDeterminant(nil, nil)
+	raw, width, err := d._ReadOctetAligned()
 	if err != nil {
 		return 0, err
 	}
 
-	// Read the value (octets * 8 bits) as 2's-complement
-	value, err := d.codec.Read(uint8(octets * 8))
-	if err != nil {
-		return 0, err
-	}
-
-	// Convert from unsigned to signed (2's-complement)
-	// If the most significant bit is set, this is a negative number
-	if octets > 0 {
-		msb := uint64(1) << (uint(octets*8) - 1)
-		if value&msb != 0 {
-			// Negative number: convert from 2's-complement
-			// Create a mask for the bits we have
-			mask := (uint64(1) << uint(octets*8)) - 1
-			// Perform sign extension
-			return -int64((^value & mask) + 1), nil
-		}
-	}
-
-	// Positive number
-	return int64(value), nil
+	return _SignExtend(raw, width), nil
 }
 
-// DecodeLengthDeterminant decodes a length determinant.
-// If both lb and ub are provided and ub < MAX_CONSTRAINED_LENGTH, the length is decoded as a constrained whole number.
-// Otherwise, it is decoded as an unconstrained length.
-// Returns (length, hasMoreFragments, error).
-func (d *Decoder) DecodeLengthDeterminant(lb, ub *uint64) (uint64, bool, error) {
-	// 11.9.3.3 / 11.9.4.1: constrained when "ub" is less than MAX_CONSTRAINED_LENGTH
-	if ub != nil && lb != nil && *ub < MAX_CONSTRAINED_LENGTH {
-		value, err := d.DecodeConstrainedWholeNumber(int64(*lb), int64(*ub))
-		if err != nil {
-			return 0, false, err
-		}
-		return uint64(value), false, nil
+// DecodeLengthDeterminant reads a length, per X.691 clause 11.9, and reports
+// whether another fragment follows.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: takes a Constraint, whose lower bound for a length is
+//     zero when the type states none
+func (d *Decoder) DecodeLengthDeterminant(size *Constraint) (uint64, bool, error) {
+	upper, bounded := size._SizeUpper()
+	if !bounded || upper >= MAX_CONSTRAINED_LENGTH {
+		return d.DecodeUnconstrainedLength()
 	}
 
-	// Otherwise, decode as unconstrained length
-	return d.DecodeUnconstrainedLength()
-}
+	lower := size._SizeLower()
 
-// DecodeUnconstrainedLength decodes an unconstrained length determinant.
-// This is used for unbounded length fields.
-// Returns (length, hasMoreFragments, error):
-// - hasMoreFragments is true if length == 63*16384, indicating more fragment octets follow
-// - hasMoreFragments is false if this is the final length determinant
-func (d *Decoder) DecodeUnconstrainedLength() (uint64, bool, error) {
-	// 11.9.4.2: octet-aligned in the ALIGNED variant only
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return 0, false, err
-		}
-	}
-
-	// Read the first octet
-	first, err := d.codec.Read(8)
+	value, err := d.DecodeConstrainedWholeNumber(int64(lower), int64(upper))
 	if err != nil {
 		return 0, false, err
 	}
 
-	// 11.9.4.2: If most significant bit is 0, length is in range 0-127
+	return uint64(value), false, nil
+}
+
+// DecodeUnconstrainedLength reads a length with no upper bound, per X.691
+// clauses 11.9.3.6 to 11.9.3.8.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+func (d *Decoder) DecodeUnconstrainedLength() (uint64, bool, error) {
+	if d.aligned {
+		if err := d.codec.Advance(); err != nil {
+			return 0, false, err
+		}
+	}
+
+	first, err := d.codec.Read(BITS_PER_BYTE)
+	if err != nil {
+		return 0, false, err
+	}
+
 	if first&LENGTH_MSB_FLAG == 0 {
 		return first, false, nil
 	}
 
-	// 11.9.4.2: If most significant 2 bits are 10, length is in range 128-16383
 	if first&LENGTH_FORM_MASK == LENGTH_LONG_FORM {
-		second, err := d.codec.Read(8)
+		second, err := d.codec.Read(BITS_PER_BYTE)
 		if err != nil {
 			return 0, false, err
 		}
-		// Combine first and second octets (remove the 10 prefix)
-		length := ((first & LENGTH_SIX_BIT_MASK) << 8) | (second & 0xFF)
-		return length, false, nil
+
+		return (first&LENGTH_SIX_BIT_MASK)<<BITS_PER_BYTE | second, false, nil
 	}
 
-	// 11.9.4.2: If most significant 2 bits are 11, length is given in fragments
-	// The next 6 bits indicate the number of fragments
-	// Each fragment is FRAGMENT_SIZE bytes
-	fragments := first & LENGTH_SIX_BIT_MASK
-	// 11.9.3.8: the fragment multiplier is restricted to 1-4 (64K max via fragmentation);
-	// values outside that range are not a valid encoding.
-	if fragments < 1 || fragments > 4 {
-		return 0, false, fmt.Errorf("invalid fragment count %d (must be 1-4)", fragments)
+	// Clause 11.9.3.8 restricts the multiplier to one through four, so that an
+	// implementation never has to hold more than 64K at once.
+	multiple := first & LENGTH_SIX_BIT_MASK
+	if multiple < FRAGMENT_MULTIPLIER_MIN || multiple > FRAGMENT_MULTIPLIER_MAX {
+		return 0, false, fmt.Errorf("multiplier %d: %w", multiple, ErrFragmentCount)
 	}
-	length := uint64(fragments) * FRAGMENT_SIZE
 
-	// Fragmentation marker always means more length determinants follow
-	// (either another fragment or a terminating length <= 16383)
-	return length, true, nil
+	return multiple * FRAGMENT_SIZE, true, nil
 }
 
-// DecodeNormallySmallLength decodes a normally small length determinant.
-// This is used for lengths that are expected to be small (1-64) but can be larger.
-// Returns (length, hasMoreFragments, error).
+// DecodeNormallySmallLength reads the length of an extension bitmap, per X.691
+// clause 11.9.3.4.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
 func (d *Decoder) DecodeNormallySmallLength() (uint64, bool, error) {
-	// Read 1 bit to determine the case
 	bit, err := d.codec.Read(1)
 	if err != nil {
 		return 0, false, err
 	}
 
-	// If bit is 0, length is in range 1-64 (encoded as 6 bits, value 0-63)
-	if bit == 0 {
-		value, err := d.codec.Read(NORMALLY_SMALL_BITS)
-		if err != nil {
-			return 0, false, err
-		}
-		// Value is n-1, so add 1 to get the original n
-		return value + 1, false, nil
+	if bit != 0 {
+		return d.DecodeUnconstrainedLength()
 	}
 
-	// If bit is 1, length is unconstrained, use DecodeUnconstrainedLength
-	return d.DecodeUnconstrainedLength()
+	value, err := d.codec.Read(NORMALLY_SMALL_BITS)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return value + 1, false, nil
 }
 
-// DecodeBoolean decodes a boolean value.
-// Per ITU-T X.691 Section 12, a boolean is encoded as a single bit:
-// - 1 for TRUE
-// - 0 for FALSE
+// DecodeBoolean reads a boolean from one bit, per X.691 clause 12.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
 func (d *Decoder) DecodeBoolean() (bool, error) {
 	bit, err := d.codec.Read(1)
 	if err != nil {
 		return false, err
 	}
+
 	return bit != 0, nil
 }
 
-// ReadExtensionBit decodes the single-bit "extension bit" that precedes the
-// value whenever a type has an extension marker in its constraint, the
-// counterpart to Encoder.WriteExtensionBit (X.691 §13.1 integer, §14.3
-// enumerated, §16.6 bitstring, §17.3 octetstring, §19.1 sequence, §20.4
-// sequence-of, §23.5 choice). Returns true if the decoded value lies
-// outside the extension root (or, for SEQUENCE/CHOICE, if an extension
-// addition/alternative is present), false otherwise.
+// ReadExtensionBit reads the bit that says whether what follows lies outside the
+// extension root, the counterpart of Encoder.WriteExtensionBit.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
 func (d *Decoder) ReadExtensionBit() (bool, error) {
 	return d.DecodeBoolean()
 }
 
-// DecodeInteger decodes an integer value with optional constraints and extensibility.
-// Parameters:
-// - lb: lower bound (nil if unconstrained)
-// - ub: upper bound (nil if unconstrained)
-// - extensible: whether the type has an extension marker
-// Returns the decoded integer or an error.
-func (d *Decoder) DecodeInteger(lb *int64, ub *int64, extensible bool) (int64, error) {
-	if extensible {
-		// Read extension bit
-		extended, err := d.ReadExtensionBit()
+// DecodeInteger reads an integer under its constraint, per X.691 clause 13.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+func (d *Decoder) DecodeInteger(size *Constraint) (int64, error) {
+	if size.HasExtension() {
+		outside, err := d.ReadExtensionBit()
 		if err != nil {
 			return 0, err
 		}
 
-		// If extended (bit = 1), decode as unconstrained
-		if extended {
+		if outside {
 			return d.DecodeUnconstrainedWholeNumber()
 		}
-		// Otherwise, continue with normal constrained/unconstrained decoding
+
+		size = size._Root()
 	}
 
-	// If both bounds are equal, there's only one possible value
-	if lb != nil && ub != nil && *lb == *ub {
-		return *lb, nil
-	}
+	lower, hasLower := size.Lower()
+	upper, hasUpper := size.Upper()
 
-	// If both lb and ub are set, decode as constrained whole number
-	if lb != nil && ub != nil {
-		return d.DecodeConstrainedWholeNumber(*lb, *ub)
+	switch {
+	case hasLower && hasUpper:
+		return d.DecodeConstrainedWholeNumber(lower, upper)
+	case hasLower:
+		return d.DecodeSemiConstrainedWholeNumber(lower)
+	default:
+		return d.DecodeUnconstrainedWholeNumber()
 	}
-
-	// If only lb is set, decode as semi-constrained whole number
-	if lb != nil && ub == nil {
-		value, err := d.DecodeSemiConstrainedWholeNumber(*lb)
-		if err != nil {
-			return 0, err
-		}
-		return int64(value), nil
-	}
-
-	// Otherwise (no bounds), decode as unconstrained whole number
-	return d.DecodeUnconstrainedWholeNumber()
 }
 
-// DecodeEnumerated decodes an enumerated value.
-// Parameters:
-// - count: the total number of enumeration values
-// - extensible: whether the enumeration has an extension marker
-// Returns the decoded enumeration index or an error.
-func (d *Decoder) DecodeEnumerated(count uint64, extensible bool) (uint64, error) {
-	if extensible {
-		// Read extension bit
-		extended, err := d.ReadExtensionBit()
+// DecodeEnumerated reads an enumeration index, per X.691 clause 14. root gives
+// the indices of the extension root and carries the extension marker.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: takes the root as a Constraint rather than a count and
+//     a flag
+func (d *Decoder) DecodeEnumerated(root *Constraint) (uint64, error) {
+	upper, bounded := root.Upper()
+	if !bounded || upper < 0 {
+		return 0, ErrEnumNoCount
+	}
+
+	if root.HasExtension() {
+		outside, err := d.ReadExtensionBit()
 		if err != nil {
 			return 0, err
 		}
 
-		// If extended (bit = 1), decode as normally small non-negative whole number
-		// and add count to get the original value
-		if extended {
-			value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
-			if err != nil {
-				return 0, err
-			}
-			return value + count, nil
+		if outside {
+			return d._DecodeAddedEnum(uint64(upper) + 1)
 		}
-		// Otherwise, continue with normal constrained decoding
 	}
 
-	// Decode as constrained whole number with lb=0 and ub=count-1
-	lb := int64(0)
-	ub := int64(count - 1)
-	value, err := d.DecodeConstrainedWholeNumber(lb, ub)
+	value, err := d.DecodeConstrainedWholeNumber(0, upper)
 	if err != nil {
 		return 0, err
 	}
+
 	return uint64(value), nil
 }
 
-// DecodeReal decodes a real value (float64) following PER encoding rules per section 8.5
-// Based on ITU-T X.690 specifications
+// DecodeReal reads a real, per X.691 clause 15.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: reports a malformed encoding instead of returning zero
+//     and no error, and reads the decimal form of X.690 clause 8.5.8 rather than
+//     parsing its ASCII digits as though they were a binary exponent
 func (d *Decoder) DecodeReal() (float64, error) {
-	// Section 15.2: Content octets are preceded by an unconstrained length determinant
-	if d.aligned {
-		if err := d.codec.Advance(); err != nil {
-			return 0, err
-		}
-	}
-
-	length, _, err := d.DecodeUnconstrainedLength()
+	contents, err := d.DecodeOctetString(Unconstrained())
 	if err != nil {
 		return 0, err
 	}
 
-	// Section 8.5.2: Plus zero has length = 0
-	if length == 0 {
-		return 0.0, nil
-	}
-
-	// Read the contents octets
-	contents, err := d.codec.ReadBytes(int(length))
-	if err != nil {
-		return 0, err
-	}
-
-	// Section 8.5.9: Special real values (length 1)
-	if length == 1 {
-		octet := contents[0]
-		switch octet {
-		case REAL_PLUS_INFINITY:
-			return math.Inf(1), nil // PLUS-INFINITY
-		case REAL_MINUS_INFINITY:
-			return math.Inf(-1), nil // MINUS-INFINITY
-		case REAL_NOT_A_NUMBER:
-			return math.NaN(), nil // NOT-A-NUMBER
-		case REAL_MINUS_ZERO:
-			return math.Copysign(0, -1), nil // Minus zero
-		}
-	}
-
-	// Section 8.5.7: Binary/decimal encoding for non-zero values
-	// Parse first octet per section 8.5.6-8.5.7:
-	// Bit 7: Binary encoding flag (1 for binary)
-	// Bit 6: Sign bit S (1 if negative, 0 if positive)
-	// Bits 5-4: Base B (00=base2, 01=base8, 10=base16, 11=base10)
-	// Bits 3-2: Scaling factor F (usually 00)
-	// Bits 1-0: Exponent format (0=1 octet, 1=2 octets, 2=3 octets, 3=length prefix)
-	first := contents[0]
-
-	// Extract all fields and initialize variables
-	var (
-		sign     = int64(1)
-		base     = 2
-		exponent int
-		offset   = 1
-		mantissa int64
-	)
-
-	if (first & REAL_BINARY_SIGN_BIT) != 0 {
-		sign = -1
-	}
-
-	// Extract and apply base (bits 5-4)
-	switch (first >> 4) & 0x03 {
-	case 0:
-		base = 2
-	case 1:
-		base = 8
-	case 2:
-		base = 16
-	case 3:
-		base = 10
-	}
-
-	// Decode exponent based on format (bits 1-0)
-	switch first & 0x03 {
-	case 0:
-		// Single octet exponent
-		if offset+1 > int(length) {
-			return 0, nil // Invalid format
-		}
-		exponent = int(int8(contents[offset]))
-		offset = offset + 1
-	case 1:
-		// Two octets exponent (big-endian)
-		if offset+2 > int(length) {
-			return 0, nil // Invalid format
-		}
-		exponent = int(int16((uint16(contents[offset]) << 8) | uint16(contents[offset+1])))
-		offset = offset + 2
-	case 2:
-		// Three octets exponent (big-endian)
-		if offset+3 > int(length) {
-			return 0, nil // Invalid format
-		}
-		raw := (uint32(contents[offset]) << 16) | (uint32(contents[offset+1]) << 8) | uint32(contents[offset+2])
-		exponent = int(raw)
-		if raw&SIGN_BIT_24 != 0 {
-			// Negative: two's complement
-			exponent = exponent - TWOS_COMPLEMENT_24
-		}
-		offset = offset + 3
-	case 3:
-		// Length prefix format: length octet followed by exponent octets
-		if offset+1 > int(length) {
-			return 0, nil // Invalid format
-		}
-
-		so := offset + 1
-		eo := so + int(contents[offset])
-		if eo > int(length) {
-			return 0, nil // Invalid format
-		}
-
-		// Read exponent as big-endian two's complement
-		raw := uint64(0)
-		for o := so; o < eo; o++ {
-			raw = (raw << 8) | uint64(contents[o])
-		}
-
-		// Convert from unsigned to signed
-		exponent = int(raw)
-		num := eo - so
-		if raw&(1<<(uint(num*8)-1)) != 0 {
-			// Negative: two's complement
-			exponent = exponent - (1 << uint(num*8))
-		}
-		offset = eo
-	}
-
-	// Decode mantissa N as unsigned binary integer (remaining octets)
-	if offset < int(length) {
-		for i := offset; i < int(length); i++ {
-			mantissa = (mantissa << 8) | int64(contents[i])
-		}
-	}
-
-	// Apply sign to mantissa
-	mantissa = mantissa * sign
-
-	// Use MakeFloat64 to reconstruct the value from base^exponent * mantissa
-	return MakeFloat64(mantissa, exponent, base), nil
+	return _ParseReal(contents)
 }
 
-// ReadBits reads bits from the codec and returns them as a byte slice.
-// The bits are read in MSB-first order.
-// Parameters:
-// - count: number of bits to read
-// Returns the read bytes or an error.
-func (d *Decoder) ReadBits(count uint) ([]byte, error) {
+// ReadBits reads count bits into a byte slice, the leading bit first.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: fills one slice of the final size instead of appending
+//     through a bytes.Buffer
+func (d *Decoder) ReadBits(count uint64) ([]byte, error) {
 	if count == 0 {
 		return []byte{}, nil
 	}
 
-	// Calculate number of full bytes and remaining bits
 	var (
-		num    = count / 8
-		buffer bytes.Buffer
+		whole = count / BITS_PER_BYTE
+		rest  = count % BITS_PER_BYTE
+		data  = make([]byte, 0, (count+BITS_PER_BYTE-1)/BITS_PER_BYTE)
 	)
 
-	if num > 0 {
-		bytes, err := d.codec.ReadBytes(int(num))
+	if whole > 0 {
+		chunk, err := d.codec.ReadBytes(int(whole))
 		if err != nil {
 			return nil, err
 		}
-		buffer.Write(bytes)
+
+		data = append(data, chunk...)
 	}
 
-	// Handle remaining bits
-	remaining := count % 8
-	if remaining > 0 {
-		value, err := d.codec.Read(uint8(remaining))
-		if err != nil {
-			return nil, err
-		}
-		// Shift left to align the bits to the MSB position of the byte
-		buffer.WriteByte(uint8(value << (8 - remaining)))
+	if rest == 0 {
+		return data, nil
 	}
-	return buffer.Bytes(), nil
+
+	value, err := d.codec.Read(uint8(rest))
+	if err != nil {
+		return nil, err
+	}
+
+	return append(data, byte(value<<(BITS_PER_BYTE-rest))), nil
 }
 
-// DecodeBitString decodes a bitstring value with optional constraints and extensibility.
-// Parameters:
-// - lb: lower bound on bitstring length in bits (nil if unconstrained)
-// - ub: upper bound on bitstring length in bits (nil if unconstrained)
-// - extensible: whether the type has an extension marker
-// Returns a pointer to an asn1.BitString or an error.
-func (d *Decoder) DecodeBitString(lb *uint64, ub *uint64, extensible bool) (*asn1.BitString, error) {
-	// 16.6 If extensible, read a bit indicating if the length is in the extension root
-	if extensible {
-		extended, err := d.ReadExtensionBit()
+// DecodeBitString reads a bit string under its size constraint, per X.691
+// clause 16.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+func (d *Decoder) DecodeBitString(size *Constraint) (*asn1.BitString, error) {
+	if size.HasExtension() {
+		outside, err := d.ReadExtensionBit()
 		if err != nil {
 			return nil, err
 		}
 
-		if extended {
-			// Extended: decode length as semi-constrained whole number with fragmentation
-			zero := uint64(0)
-			return d.DecodeBitStringFragments(&zero, nil)
+		if outside {
+			return d._DecodeBitFragments(_Unbounded())
 		}
+
+		size = size._Root()
 	}
 
-	// 16.8 If constrained to zero length, return empty bitstring
-	if ub != nil && *ub == 0 {
-		return &asn1.BitString{}, nil
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return d._DecodeBitFragments(size)
 	}
 
-	// 16.9 If fixed length <= 16 bits, read directly (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= BITSTRING_DIRECT_MAX_BITS {
-		data, err := d.ReadBits(uint(*ub))
-		if err != nil {
+	if fixed == 0 {
+		return new(asn1.BitString), nil
+	}
+
+	if d.aligned && fixed > BITSTRING_DIRECT_MAX_BITS {
+		if err := d.codec.Advance(); err != nil {
 			return nil, err
 		}
-		return &asn1.BitString{Bytes: data, BitLength: int(*ub)}, nil
 	}
 
-	// 16.10 If fixed length > 16 bits but < 64K, align then read (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
-		}
-		data, err := d.ReadBits(uint(*ub))
-		if err != nil {
-			return nil, err
-		}
-		return &asn1.BitString{Bytes: data, BitLength: int(*ub)}, nil
+	data, err := d.ReadBits(fixed)
+	if err != nil {
+		return nil, err
 	}
 
-	// 16.11 Otherwise, decode with length determinant (with fragmentation support)
-	return d.DecodeBitStringFragments(lb, ub)
+	return &asn1.BitString{Bytes: data, BitLength: int(fixed)}, nil
 }
 
-// DecodeBitStringFragments decodes a bitstring that may be fragmented.
-// This handles the indefinite-length case where the bitstring is split into fragments.
-func (d *Decoder) DecodeBitStringFragments(lb *uint64, ub *uint64) (*asn1.BitString, error) {
-	// Only align at entry for unconstrained/semi-constrained length determinant paths
-	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), DecodeConstrainedWholeNumber
-	// handles its own alignment per section 11.5.
-	if d.aligned {
-		if ub == nil || lb == nil {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
-		}
-		if ub != nil && lb != nil {
-			if *ub >= MAX_CONSTRAINED_LENGTH {
-				if err := d.codec.Advance(); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-
-	var (
-		count   uint64
-		content bytes.Buffer
-	)
-
-	for {
-		// Decode length determinant
-		length, more, err := d.DecodeLengthDeterminant(lb, ub)
+// DecodeOctetString reads an octet string under its size constraint, per X.691
+// clause 17.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+//   - 2026-09-22 06:43: returns what ReadBytes allocated rather than copying it
+//     into a second slice of the same size
+func (d *Decoder) DecodeOctetString(size *Constraint) ([]byte, error) {
+	if size.HasExtension() {
+		outside, err := d.ReadExtensionBit()
 		if err != nil {
 			return nil, err
 		}
 
-		// In ALIGNED variant, octet-align before reading data
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
+		if outside {
+			return d._DecodeOctetFragments(_Unbounded())
 		}
 
-		// Read the bits for this fragment
-		fragment, err := d.ReadBits(uint(length))
-		if err != nil {
-			return nil, err
-		}
-
-		// Write to buffer
-		content.Write(fragment)
-		count = count + length
-
-		// If no more fragments, we're done
-		if !more {
-			break
-		}
+		size = size._Root()
 	}
 
-	return &asn1.BitString{Bytes: content.Bytes(), BitLength: int(count)}, nil
-}
-
-// DecodeOctetString decodes an octet string value with optional constraints and extensibility.
-// Parameters:
-// - lb: lower bound on octet string length in bytes (nil if unconstrained)
-// - ub: upper bound on octet string length in bytes (nil if unconstrained)
-// - extensible: whether the type has an extension marker
-// Returns a byte slice or an error.
-func (d *Decoder) DecodeOctetString(lb *uint64, ub *uint64, extensible bool) ([]byte, error) {
-	// 17.3 If extensible, read a bit indicating if the length is in the extension root
-	if extensible {
-		extended, err := d.ReadExtensionBit()
-		if err != nil {
-			return nil, err
-		}
-
-		if extended {
-			// Extended: decode length as semi-constrained whole number with fragmentation
-			zero := uint64(0)
-			return d.DecodeOctetStringFragments(&zero, nil)
-		}
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return d._DecodeOctetFragments(size)
 	}
 
-	// 17.5 If constrained to zero length, return empty octet string
-	if ub != nil && *ub == 0 {
+	if fixed == 0 {
 		return []byte{}, nil
 	}
 
-	// 17.6 If fixed length <= 2 octets, read directly (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub <= OCTET_STRING_DIRECT_MAX {
-		data := make([]byte, *ub)
-		bytes, err := d.codec.ReadBytes(int(*ub))
-		if err != nil {
+	if d.aligned && fixed > OCTET_STRING_DIRECT_MAX {
+		if err := d.codec.Advance(); err != nil {
 			return nil, err
 		}
-		copy(data, bytes)
-		return data, nil
 	}
 
-	// 17.7 If fixed length > 2 octets but < 64K, align then read (no length determinant)
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
-		}
-		data := make([]byte, *ub)
-		bytes, err := d.codec.ReadBytes(int(*ub))
-		if err != nil {
-			return nil, err
-		}
-		copy(data, bytes)
-		return data, nil
-	}
-
-	// 17.8 Otherwise, decode with length determinant (with fragmentation support)
-	return d.DecodeOctetStringFragments(lb, ub)
+	return d.codec.ReadBytes(int(fixed))
 }
 
-// DecodeOctetStringFragments decodes an octet string that may be fragmented.
-// This handles the indefinite-length case where the octet string is split into fragments.
-func (d *Decoder) DecodeOctetStringFragments(lb *uint64, ub *uint64) ([]byte, error) {
-	// Only align at entry for unconstrained/semi-constrained length determinant paths
-	// (11.9.3.5-11.9.3.8). For constrained paths (11.9.3.3), DecodeConstrainedWholeNumber
-	// handles its own alignment per section 11.5.
-	if d.aligned {
-		if ub == nil || lb == nil {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
-		}
-		if ub != nil && lb != nil {
-			if *ub >= MAX_CONSTRAINED_LENGTH {
-				if err := d.codec.Advance(); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-
-	var content bytes.Buffer
-
-	for {
-		// Decode length determinant
-		length, more, err := d.DecodeLengthDeterminant(lb, ub)
-		if err != nil {
-			return nil, err
-		}
-
-		// In ALIGNED variant, octet-align before reading data
-		if d.aligned {
-			if err := d.codec.Advance(); err != nil {
-				return nil, err
-			}
-		}
-
-		// Read the bytes for this fragment
-		fragment, err := d.codec.ReadBytes(int(length))
-		if err != nil {
-			return nil, err
-		}
-
-		// Write to buffer
-		content.Write(fragment)
-
-		// If no more fragments, we're done
-		if !more {
-			break
-		}
-	}
-
-	return content.Bytes(), nil
-}
-
-// DecodeNull decodes a NULL value.
-// Per ITU-T X.691 Section 23, a NULL value never contributes any octets to the encoding.
-// Therefore, there is nothing to decode, and this function simply returns nil.
+// DecodeNull reads a NULL, per X.691 clause 18, which reads nothing.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
 func (d *Decoder) DecodeNull() error {
 	return nil
 }
 
-// DecodeString decodes a string value with optional constraints and extensibility.
-// This is suitable for restricted character string types where PER treats the value as an opaque octet string:
-//   - VisibleString    (ISO 646, 1 byte/char, unconstrained alphabet)
-//   - IA5String        (ISO 646, 1 byte/char, unconstrained alphabet)
-//   - PrintableString  (ISO 646 subset, 1 byte/char, unconstrained alphabet)
+// DecodeString reads a string whose ASN.1 type is one of X.691 clause 30.5.
 //
-// Parameters:
-// - lb: lower bound on string length in bytes (nil if unconstrained)
-// - ub: upper bound on string length in bytes (nil if unconstrained)
-// - extensible: whether the type has an extension marker
-// Returns the decoded string or an error.
-func (d *Decoder) DecodeString(lb *uint64, ub *uint64, extensible bool) (string, error) {
-	// Decode as octet string
-	octets, err := d.DecodeOctetString(lb, ub, extensible)
+// Revisions:
+//   - 2026-02-19 23:40: initial creation
+func (d *Decoder) DecodeString(size *Constraint) (string, error) {
+	octets, err := d.DecodeOctetString(size)
 	if err != nil {
 		return "", err
 	}
 
-	// Convert octets to string
 	return string(octets), nil
 }
 
-// DecodeSequence decodes a SEQUENCE value per ITU-T X.691 section 19.
+// DecodeObjectIdentifier reads an OBJECT IDENTIFIER, per X.691 clause 24.
 //
-// The target must be a pointer to a struct. Fields are decoded according to
-// their PER struct tags and the pre-computed StructMeta.
-//
-// Decoding steps:
-//  1. §19.1: If extensible, decode extension bit
-//  2. §19.2-19.3: Decode root preamble bitmap (one bit per OPTIONAL/DEFAULT field)
-//  3. §19.4: Decode root component values in order
-//  4. §19.6-19.9: If extension bit is set, decode extension bitmap then each
-//     present extension addition as an open type
-func (d *Decoder) DecodeSequence(value any) error {
-	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return fmt.Errorf("DecodeSequence: expected non-nil pointer, got %T", value)
-	}
-	rv = rv.Elem()
-	if rv.Kind() != reflect.Struct {
-		return fmt.Errorf("DecodeSequence: expected pointer to struct, got pointer to %s", rv.Kind())
-	}
-
-	rt := rv.Type()
-
-	// --- Phase 1: Get cached struct metadata ---
-	meta, err := GetStructMeta(rt)
+// Revisions:
+//   - 2026-09-22 06:43: initial creation. EncodeObjectIdentifier had no
+//     counterpart, so an OID field decoded as a SEQUENCE OF INTEGER over the
+//     same octets and failed on the first component
+func (d *Decoder) DecodeObjectIdentifier() (asn1.ObjectIdentifier, error) {
+	contents, err := d.DecodeOctetString(Unconstrained())
 	if err != nil {
-		return fmt.Errorf("DecodeSequence: %w", err)
+		return nil, err
 	}
 
-	// --- Phase 2: Decode extension bit (section 19.1) ---
-	hasExtensions := false
+	var oid asn1.ObjectIdentifier
+	if _, err := asn1.Unmarshal(_DERWrap(asn1.TagOID, contents), &oid); err != nil {
+		return nil, fmt.Errorf("object identifier: %w", err)
+	}
+
+	return oid, nil
+}
+
+// DecodeChoiceId reads the index of a root CHOICE alternative, per X.691
+// clauses 23.6 and 23.7.
+//
+// Revisions:
+//   - 2026-07-05 18:20: initial creation
+//   - 2026-09-22 06:43: takes the root as a Constraint, and the extension case
+//     moved to DecodeChoiceExtensionId
+func (d *Decoder) DecodeChoiceId(root *Constraint) (int64, error) {
+	lower, _ := root.Lower()
+	upper, _ := root.Upper()
+
+	return d.DecodeConstrainedWholeNumber(lower, upper)
+}
+
+// DecodeChoiceExtensionId reads the index of an extension CHOICE alternative,
+// per X.691 clause 23.8.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split from DecodeChoiceId
+func (d *Decoder) DecodeChoiceExtensionId() (int64, error) {
+	value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
+
+	return int64(value), err
+}
+
+// DecodeSequence reads a SEQUENCE into the struct target points at, per X.691
+// clause 19.
+//
+// Revisions:
+//   - 2026-03-05 18:01: initial creation
+func (d *Decoder) DecodeSequence(target any) error {
+	rv, err := _Target(target)
+	if err != nil {
+		return err
+	}
+
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("sequence is a %s: %w", rv.Kind(), ErrNotStruct)
+	}
+
+	meta, err := GetStructMeta(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return d._DecodeSequence(rv, meta)
+}
+
+// DecodeSequenceOf reads a SEQUENCE OF into the slice target points at, per
+// X.691 clause 20.
+//
+// Revisions:
+//   - 2026-03-05 18:01: initial creation
+func (d *Decoder) DecodeSequenceOf(target any, size *Constraint, elem *Tag) error {
+	rv, err := _Target(target)
+	if err != nil {
+		return err
+	}
+
+	if rv.Kind() != reflect.Slice {
+		return fmt.Errorf("sequence-of is a %s: %w", rv.Kind(), ErrNotList)
+	}
+
+	return d._DecodeSequenceOf(rv, size, elem)
+}
+
+// DecodeChoice reads a CHOICE into the struct target points at, per X.691
+// clause 23.
+//
+// Revisions:
+//   - 2026-03-05 18:01: initial creation
+func (d *Decoder) DecodeChoice(target any) error {
+	rv, err := _Target(target)
+	if err != nil {
+		return err
+	}
+
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("choice is a %s: %w", rv.Kind(), ErrNotStruct)
+	}
+
+	meta, err := GetStructMeta(rv.Type())
+	if err != nil {
+		return err
+	}
+
+	return d._DecodeChoice(rv, meta)
+}
+
+// _ReadOffset reads width bits and adds them to lb.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of
+//     DecodeConstrainedWholeNumber
+func (d *Decoder) _ReadOffset(lb int64, width uint8) (int64, error) {
+	value, err := d.codec.Read(width)
+	if err != nil {
+		return 0, err
+	}
+
+	return lb + int64(value), nil
+}
+
+// _ReadOctetAligned reads a length determinant and the octets it counts, which
+// is the shape clauses 11.7.4 and 11.8.3 share. It returns the raw octets as a
+// number, and how many there were.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, shared by the semi-constrained and
+//     unconstrained whole number decoders, each of which turned an octet count
+//     into a bit count without checking that it fitted
+func (d *Decoder) _ReadOctetAligned() (uint64, int, error) {
+	if d.aligned {
+		if err := d.codec.Advance(); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	octets, more, err := d.DecodeLengthDeterminant(Unconstrained())
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if more {
+		return 0, 0, fmt.Errorf("integer: %w", ErrLengthFragmented)
+	}
+
+	if octets == 0 || octets > MAX_VALUE_OCTETS {
+		return 0, 0, fmt.Errorf("%d octets: %w", octets, ErrLengthTooLarge)
+	}
+
+	if d.aligned {
+		if err := d.codec.Advance(); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	value, err := d.codec.Read(uint8(octets * BITS_PER_BYTE))
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return value, int(octets), nil
+}
+
+// _DecodeIndefinite reads the indefinite length case of X.691 clause 11.5.7.4.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of
+//     DecodeConstrainedWholeNumber
+func (d *Decoder) _DecodeIndefinite(lb int64, span uint64) (int64, error) {
+	bounds := Constrained(1, int64(OctetsNonNegativeBinaryIntegerLength(span)))
+
+	octets, _, err := d.DecodeLengthDeterminant(bounds)
+	if err != nil {
+		return 0, err
+	}
+
+	if octets == 0 || octets > MAX_VALUE_OCTETS {
+		return 0, fmt.Errorf("%d octets: %w", octets, ErrLengthTooLarge)
+	}
+
+	if err := d.codec.Advance(); err != nil {
+		return 0, err
+	}
+
+	return d._ReadOffset(lb, uint8(octets*BITS_PER_BYTE))
+}
+
+// _DecodeBitFragments reads a bit string behind a length determinant, following
+// the fragments of clause 11.9.3.8.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation as DecodeBitStringFragments
+func (d *Decoder) _DecodeBitFragments(size *Constraint) (*asn1.BitString, error) {
+	if err := d._AlignForLength(size); err != nil {
+		return nil, err
+	}
+
+	var (
+		data  []byte
+		count uint64
+	)
+
+	for {
+		length, more, err := d.DecodeLengthDeterminant(size)
+		if err != nil {
+			return nil, err
+		}
+
+		if d.aligned && length > 0 {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+
+		chunk, err := d.ReadBits(length)
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, chunk...)
+		count = count + length
+
+		if !more {
+			return &asn1.BitString{Bytes: data, BitLength: int(count)}, nil
+		}
+	}
+}
+
+// _DecodeOctetFragments reads an octet string behind a length determinant,
+// following the fragments of clause 11.9.3.8.
+//
+// Revisions:
+//   - 2026-02-19 23:40: initial creation as DecodeOctetStringFragments
+//   - 2026-09-22 06:43: returns the one fragment directly when there is only
+//     one, which is every value below 16K, instead of copying it through a
+//     bytes.Buffer
+func (d *Decoder) _DecodeOctetFragments(size *Constraint) ([]byte, error) {
+	if err := d._AlignForLength(size); err != nil {
+		return nil, err
+	}
+
+	var data []byte
+
+	for {
+		length, more, err := d.DecodeLengthDeterminant(size)
+		if err != nil {
+			return nil, err
+		}
+
+		if d.aligned && length > 0 {
+			if err := d.codec.Advance(); err != nil {
+				return nil, err
+			}
+		}
+
+		chunk, err := d.codec.ReadBytes(int(length))
+		if err != nil {
+			return nil, err
+		}
+
+		if data == nil && !more {
+			return chunk, nil
+		}
+
+		data = append(data, chunk...)
+
+		if !more {
+			return data, nil
+		}
+	}
+}
+
+// _AlignForLength advances before a length determinant that is not a constrained
+// whole number, the counterpart of Encoder._AlignForLength.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _AlignForLength(size *Constraint) error {
+	if !d.aligned {
+		return nil
+	}
+
+	if upper, bounded := size._SizeUpper(); bounded && upper < MAX_CONSTRAINED_LENGTH {
+		return nil
+	}
+
+	return d.codec.Advance()
+}
+
+// _Nested returns a Decoder for the same variant, reading an open type's
+// contents.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _Nested(data []byte) *Decoder {
+	if d.aligned {
+		return NewAlignedDecoder(data)
+	}
+
+	return NewUnalignedDecoder(data)
+}
+
+// _DecodeSequence reads the preamble, root components and extension additions
+// of clause 19.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeSequence
+func (d *Decoder) _DecodeSequence(rv reflect.Value, meta *StructMeta) error {
+	extended := false
+
 	if meta.Extensible {
-		hasExtensions, err = d.ReadExtensionBit()
+		outside, err := d.ReadExtensionBit()
 		if err != nil {
-			return fmt.Errorf("DecodeSequence: extension bit: %w", err)
+			return err
 		}
+
+		extended = outside
 	}
 
-	// --- Phase 3: Decode root preamble bitmap (section 19.2-19.3) ---
-	// One bit per OPTIONAL/DEFAULT field: 1 = present, 0 = absent.
-	optPresent := make(map[int]bool, len(meta.Optionals))
-	for _, idx := range meta.Optionals {
-		present, err := d.DecodeBoolean()
+	present := make([]bool, len(meta.Optionals))
+	for i := range present {
+		has, err := d.DecodeBoolean()
 		if err != nil {
-			return fmt.Errorf("DecodeSequence: root preamble: %w", err)
+			return err
 		}
-		optPresent[idx] = present
+
+		present[i] = has
 	}
 
-	// --- Phase 4: Decode root component values (section 19.4) ---
-	for _, id := range meta.Fields {
-		field := rt.Field(id)
-		tag, err := GetFieldTag(field, rt, id)
+	if err := d._DecodeRoot(rv, meta, present); err != nil {
+		return err
+	}
+
+	if !extended {
+		return nil
+	}
+
+	return d._DecodeExtensions(rv, meta)
+}
+
+// _DecodeRoot reads the root components of clause 19.4, giving an absent
+// DEFAULT field its default value.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeSequence
+func (d *Decoder) _DecodeRoot(rv reflect.Value, meta *StructMeta, present []bool) error {
+	var (
+		rt     = rv.Type()
+		cursor = 0
+	)
+
+	for _, idx := range meta.Fields {
+		field := rt.Field(idx)
+
+		tag, err := GetFieldTag(field, rt, idx)
 		if err != nil {
-			return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
+			return err
 		}
 
-		// Skip absent optional/default fields, applying the default value if one was given
-		if tag.Opt || tag.Def != nil {
-			if !optPresent[id] {
-				if tag.Def != nil {
-					if err := ApplyDefaultValue(rv.Field(id), *tag.Def); err != nil {
-						return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
-					}
+		if tag.Optional() {
+			has := present[cursor]
+			cursor++
+
+			if !has {
+				if err := _ApplyAbsent(rv.Field(idx), tag); err != nil {
+					return fmt.Errorf("field %q: %w", field.Name, err)
 				}
+
 				continue
 			}
 		}
 
-		if err := d.decodeField(rv.Field(id), tag); err != nil {
-			return fmt.Errorf("DecodeSequence: field %q: %w", field.Name, err)
+		if err := d._DecodeField(rv.Field(idx), tag); err != nil {
+			return fmt.Errorf("field %q: %w", field.Name, err)
 		}
 	}
 
-	// --- Phase 5: Decode extension additions (sections 19.6-19.9) ---
-	if !meta.Extensible || !hasExtensions {
-		return nil
-	}
+	return nil
+}
 
-	// Section 19.7-19.8: Decode extension bitmap preceded by normally-small-length
-	extCount, _, err := d.DecodeNormallySmallLength()
+// _DecodeExtensions reads the extension bitmap of clause 19.7 and the additions
+// of clause 19.9, skipping any the struct has no field for.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeSequence
+func (d *Decoder) _DecodeExtensions(rv reflect.Value, meta *StructMeta) error {
+	count, _, err := d.DecodeNormallySmallLength()
 	if err != nil {
-		return fmt.Errorf("DecodeSequence: extension bitmap length: %w", err)
+		return err
 	}
 
-	// Decode presence bitmap for extensions
-	extPresent := make([]bool, extCount)
-	for i := range extCount {
-		extPresent[i], err = d.DecodeBoolean()
+	present := make([]bool, count)
+	for i := range present {
+		has, err := d.DecodeBoolean()
 		if err != nil {
-			return fmt.Errorf("DecodeSequence: extension bitmap: %w", err)
-		}
-	}
-
-	// Section 19.9: Decode each present extension addition as open type
-	for i := range extCount {
-		if !extPresent[i] {
-			continue
+			return err
 		}
 
-		// Decode open type wrapper: unconstrained octet string
-		openBytes, err := d.DecodeOctetString(nil, nil, false)
-		if err != nil {
-			return fmt.Errorf("DecodeSequence: extension %d: %w", i, err)
-		}
-
-		// If we have a known extension field for this index, decode into it
-		if int(i) < len(meta.Extensions) {
-			idx := meta.Extensions[i]
-			field := rt.Field(idx)
-			tag, err := GetFieldTag(field, rt, idx)
-			if err != nil {
-				return fmt.Errorf("DecodeSequence: extension field %q: %w", field.Name, err)
-			}
-
-			tmpDecoder := NewDecoder(openBytes, d.aligned)
-			if err := tmpDecoder.decodeField(rv.Field(idx), tag); err != nil {
-				return fmt.Errorf("DecodeSequence: extension field %q: %w", field.Name, err)
-			}
-		}
-		// Unknown extensions (index >= len(meta.Extensions)) are silently skipped
-	}
-
-	return nil
-}
-
-// DecodeSequenceOf decodes a SEQUENCE OF value per ITU-T X.691 section 20.
-//
-// The target must be a pointer to a slice. Each element is decoded in order.
-// lb/ub constrain the number of components; extensible indicates an extension marker.
-//
-// Decoding steps:
-//  1. §20.4: If extensible, decode extension bit. If set, decode as semi-constrained
-//     length + all components.
-//  2. §20.5: If fixed length (lb==ub) and < 64K, no length determinant — just decode components.
-//  3. §20.6: Decode length determinant (constrained if ub set, semi-constrained otherwise)
-//     with fragmentation support, then decode components.
-func (d *Decoder) DecodeSequenceOf(target any, lb *uint64, ub *uint64, extensible bool, elemTag *Tag) error {
-	rv := reflect.ValueOf(target)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return fmt.Errorf("DecodeSequenceOf: expected non-nil pointer, got %T", target)
-	}
-	rv = rv.Elem()
-	if rv.Kind() != reflect.Slice {
-		return fmt.Errorf("DecodeSequenceOf: expected pointer to slice, got pointer to %s", rv.Kind())
-	}
-
-	elemType := rv.Type().Elem()
-
-	// §20.4: If extensible, decode extension bit
-	if extensible {
-		extended, err := d.ReadExtensionBit()
-		if err != nil {
-			return fmt.Errorf("DecodeSequenceOf: extension bit: %w", err)
-		}
-
-		if extended {
-			// Decode as semi-constrained: length with lb=0, then components
-			zero := uint64(0)
-			return d.decodeSequenceOfComponents(rv, elemType, &zero, nil, elemTag)
-		}
-	}
-
-	// §20.5: Fixed length (lb == ub) and < 64K — no length determinant
-	if lb != nil && ub != nil && *lb == *ub && *ub < MAX_CONSTRAINED_LENGTH {
-		n := int(*ub)
-		for i := range n {
-			elem := reflect.New(elemType).Elem()
-			if err := d.decodeField(elem, elemTag); err != nil {
-				return fmt.Errorf("DecodeSequenceOf: element %d: %w", i, err)
-			}
-			rv.Set(reflect.Append(rv, elem))
-		}
-		return nil
-	}
-
-	// §20.6: Length determinant + components (with fragmentation)
-	return d.decodeSequenceOfComponents(rv, elemType, lb, ub, elemTag)
-}
-
-// decodeSequenceOfComponents decodes length determinant(s) and components,
-// handling fragmentation per §11.9 for large lists.
-func (d *Decoder) decodeSequenceOfComponents(rv reflect.Value, elemType reflect.Type, lb *uint64, ub *uint64, elemTag *Tag) error {
-	for {
-		length, more, err := d.DecodeLengthDeterminant(lb, ub)
-		if err != nil {
-			return fmt.Errorf("DecodeSequenceOf: length: %w", err)
-		}
-
-		for i := range int(length) {
-			elem := reflect.New(elemType).Elem()
-			if err := d.decodeField(elem, elemTag); err != nil {
-				return fmt.Errorf("DecodeSequenceOf: element %d: %w", i, err)
-			}
-			rv.Set(reflect.Append(rv, elem))
-		}
-
-		if !more {
-			break
-		}
-	}
-
-	return nil
-}
-
-// DecodeChoiceId decodes a CHOICE alternative index per ITU-T X.691 section
-// 23, the counterpart to Encoder.EncodeChoiceId. lb/ub give the bounds of
-// the extension root (§23.6/23.7); extensible selects whether the index
-// being decoded is a root index (false, §23.6/23.7: constrained whole
-// number [lb,ub]) or an extension index (true, §23.8: normally small
-// non-negative whole number) — see EncodeChoiceId's doc comment for why
-// this can't be inferred from lb/ub alone. This does not decode the
-// extension bit itself (§23.5); that is decoded separately.
-func (d *Decoder) DecodeChoiceId(lb *int64, ub *int64, extensible bool) (int64, error) {
-	if extensible {
-		value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
-		if err != nil {
-			return 0, err
-		}
-		return int64(value), nil
-	}
-
-	l, u := int64(0), int64(0)
-	if lb != nil {
-		l = *lb
-	}
-	if ub != nil {
-		u = *ub
-	}
-	return d.DecodeConstrainedWholeNumber(l, u)
-}
-
-// DecodeChoice decodes a CHOICE value per ITU-T X.691 section 23.
-//
-// The target must be a pointer to a struct with fields tagged `per:"choice=N"`.
-// Exactly one field will be set after decoding.
-//
-// Decoding steps:
-//  1. If extensible (§23.5): decode extension bit
-//  2. Root (§23.6/23.7): decode choice index as constrained integer [0..n],
-//     then decode the chosen alternative
-//  3. Extension (§23.8): decode choice index as normally small non-negative whole number,
-//     then decode value as open type field (§11.2)
-func (d *Decoder) DecodeChoice(value any) error {
-	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return fmt.Errorf("DecodeChoice: expected non-nil pointer, got %T", value)
-	}
-	rv = rv.Elem()
-	if rv.Kind() != reflect.Struct {
-		return fmt.Errorf("DecodeChoice: expected pointer to struct, got pointer to %s", rv.Kind())
+		present[i] = has
 	}
 
 	rt := rv.Type()
 
-	meta, err := GetStructMeta(rt)
-	if err != nil {
-		return fmt.Errorf("DecodeChoice: %w", err)
-	}
+	for i, has := range present {
+		if !has {
+			continue
+		}
 
-	n := int64(len(meta.Fields) - 1) // largest root index
-
-	// --- Section 23.5: Extension bit ---
-	extended := false
-	if meta.Extensible {
-		extended, err = d.ReadExtensionBit()
+		inner, err := d.DecodeOctetString(Unconstrained())
 		if err != nil {
-			return fmt.Errorf("DecodeChoice: extension bit: %w", err)
-		}
-	}
-
-	// --- Section 23.4/23.6/23.7/23.8: Decode the choice index ---
-	zero := int64(0)
-	choiceIdx, err := d.DecodeChoiceId(&zero, &n, extended)
-	if err != nil {
-		return fmt.Errorf("DecodeChoice: index: %w", err)
-	}
-
-	if !extended {
-		// --- Section 23.4/23.6/23.7: Root alternative ---
-		if int(choiceIdx) >= len(meta.Fields) {
-			return fmt.Errorf("DecodeChoice: root index %d out of range (max %d)", choiceIdx, len(meta.Fields)-1)
+			return err
 		}
 
-		fieldIdx := meta.Fields[choiceIdx]
-		field := rt.Field(fieldIdx)
-		tag, err := GetFieldTag(field, rt, fieldIdx)
+		// An addition this version of the type does not know about is read past
+		// and dropped, which is what the open type wrapper is for.
+		if i >= len(meta.Extensions) {
+			continue
+		}
+
+		idx := meta.Extensions[i]
+		field := rt.Field(idx)
+
+		tag, err := GetFieldTag(field, rt, idx)
 		if err != nil {
-			return fmt.Errorf("DecodeChoice: field %q: %w", field.Name, err)
+			return err
 		}
 
-		// Allocate pointer field if needed
-		fv := rv.Field(fieldIdx)
-		if fv.Kind() == reflect.Pointer {
-			fv.Set(reflect.New(fv.Type().Elem()))
+		if err := d._Nested(inner)._DecodeField(rv.Field(idx), tag); err != nil {
+			return fmt.Errorf("extension %q: %w", field.Name, err)
 		}
-
-		return d.decodeField(fv, tag)
-	}
-
-	// --- Section 23.8: Extension alternative ---
-	extIdx := choiceIdx
-
-	// Decode open type wrapper
-	openBytes, err := d.DecodeOctetString(nil, nil, false)
-	if err != nil {
-		return fmt.Errorf("DecodeChoice: extension open type: %w", err)
-	}
-
-	if int(extIdx) >= len(meta.Extensions) {
-		// Unknown extension — silently skip (already consumed the bytes)
-		return nil
-	}
-
-	fieldIdx := meta.Extensions[extIdx]
-	field := rt.Field(fieldIdx)
-	tag, err := GetFieldTag(field, rt, fieldIdx)
-	if err != nil {
-		return fmt.Errorf("DecodeChoice: extension field %q: %w", field.Name, err)
-	}
-
-	// Allocate pointer field if needed
-	fv := rv.Field(fieldIdx)
-	if fv.Kind() == reflect.Pointer {
-		fv.Set(reflect.New(fv.Type().Elem()))
-	}
-
-	tmpDecoder := NewDecoder(openBytes, d.aligned)
-	if err := tmpDecoder.decodeField(fv, tag); err != nil {
-		return fmt.Errorf("DecodeChoice: extension field %q: %w", field.Name, err)
 	}
 
 	return nil
 }
 
-// decodeField decodes a single struct field value according to its type and PER tag.
-// It resolves pointer indirection and dispatches to the appropriate type-specific decoder.
-func (d *Decoder) decodeField(v reflect.Value, tag *Tag) error {
-	// Resolve pointer indirection: allocate if nil, then work with the element
+// _DecodeSequenceOf reads the extension bit, length and components of clause 20.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeSequenceOf
+func (d *Decoder) _DecodeSequenceOf(rv reflect.Value, size *Constraint, elem *Tag) error {
+	if size.HasExtension() {
+		outside, err := d.ReadExtensionBit()
+		if err != nil {
+			return err
+		}
+
+		if outside {
+			return d._DecodeElements(rv, _Unbounded(), elem)
+		}
+
+		size = size._Root()
+	}
+
+	// Clause 20.5: a fixed count below 64K needs no length determinant.
+	fixed, isFixed := size.Fixed()
+	if !isFixed || fixed >= MAX_CONSTRAINED_LENGTH {
+		return d._DecodeElements(rv, size, elem)
+	}
+
+	return d._DecodeRange(rv, fixed, elem)
+}
+
+// _DecodeElements reads a length determinant and the components it counts,
+// following the fragments of clause 11.9.3.8.
+//
+// Revisions:
+//   - 2026-03-05 18:01: initial creation as decodeSequenceOfComponents
+func (d *Decoder) _DecodeElements(rv reflect.Value, size *Constraint, elem *Tag) error {
+	for {
+		length, more, err := d.DecodeLengthDeterminant(size)
+		if err != nil {
+			return err
+		}
+
+		if err := d._DecodeRange(rv, length, elem); err != nil {
+			return err
+		}
+
+		if !more {
+			return nil
+		}
+	}
+}
+
+// _DecodeRange appends count components to a slice.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeRange(rv reflect.Value, count uint64, elem *Tag) error {
+	et := rv.Type().Elem()
+
+	for i := range count {
+		item := reflect.New(et).Elem()
+		if err := d._DecodeField(item, elem); err != nil {
+			return fmt.Errorf("element %d: %w", i, err)
+		}
+
+		rv.Set(reflect.Append(rv, item))
+	}
+
+	return nil
+}
+
+// _DecodeChoice reads the extension bit, index and value of clause 23.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeChoice
+func (d *Decoder) _DecodeChoice(rv reflect.Value, meta *StructMeta) error {
+	extended := false
+
+	if meta.Extensible {
+		outside, err := d.ReadExtensionBit()
+		if err != nil {
+			return err
+		}
+
+		extended = outside
+	}
+
+	if extended {
+		return d._DecodeChoiceExtension(rv, meta)
+	}
+
+	root := Constrained(0, int64(len(meta.Fields)-1))
+
+	index, err := d.DecodeChoiceId(root)
+	if err != nil {
+		return err
+	}
+
+	if index < 0 || int(index) >= len(meta.Fields) {
+		return fmt.Errorf("root index %d: %w", index, ErrChoiceIndex)
+	}
+
+	return d._DecodeAlternative(rv, meta.Fields[int(index)], nil)
+}
+
+// _DecodeChoiceExtension reads an extension alternative, per clause 23.8.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeChoice
+func (d *Decoder) _DecodeChoiceExtension(rv reflect.Value, meta *StructMeta) error {
+	index, err := d.DecodeChoiceExtensionId()
+	if err != nil {
+		return err
+	}
+
+	inner, err := d.DecodeOctetString(Unconstrained())
+	if err != nil {
+		return err
+	}
+
+	// An alternative this version of the type does not know about is read past
+	// and dropped, which is what the open type wrapper is for.
+	if index < 0 || int(index) >= len(meta.Extensions) {
+		return nil
+	}
+
+	return d._DecodeAlternative(rv, meta.Extensions[int(index)], inner)
+}
+
+// _DecodeAlternative reads one CHOICE alternative into its field, from the open
+// type contents when it is an extension addition and from the stream when it is
+// not.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeAlternative(rv reflect.Value, idx int, inner []byte) error {
+	var (
+		rt    = rv.Type()
+		field = rt.Field(idx)
+	)
+
+	tag, err := GetFieldTag(field, rt, idx)
+	if err != nil {
+		return err
+	}
+
+	source := d
+	if inner != nil {
+		source = d._Nested(inner)
+	}
+
+	if err := source._DecodeField(rv.Field(idx), tag); err != nil {
+		return fmt.Errorf("alternative %q: %w", field.Name, err)
+	}
+
+	return nil
+}
+
+// _DecodeField reads one struct field or one list element.
+//
+// Revisions:
+//   - 2026-03-05 18:01: initial creation as decodeField
+//   - 2026-09-22 06:43: dispatches on the field's reflect.Type rather than on
+//     the dynamic type of a boxed copy of it
+func (d *Decoder) _DecodeField(v reflect.Value, tag *Tag) error {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}
+
 		v = v.Elem()
 	}
 
-	// Open type: the field is an interface whose concrete value is decoded
-	// from an open type wrapper (length-determinant + inner encoding).
-	// The concrete type must already be set on the interface by the caller
-	// (typically generated code) before calling decode.
-	if tag.Open {
-		openBytes, err := d.DecodeOctetString(nil, nil, false)
-		if err != nil {
-			return fmt.Errorf("decodeField: open type: %w", err)
-		}
-		if v.Kind() == reflect.Interface {
-			if v.IsNil() {
-				return fmt.Errorf("decodeField: open type interface is nil (concrete type must be set before decoding)")
-			}
-			// Get the concrete value behind the interface
-			concrete := v.Elem()
-			if concrete.Kind() == reflect.Pointer {
-				if concrete.IsNil() {
-					concrete.Set(reflect.New(concrete.Type().Elem()))
-				}
-				concrete = concrete.Elem()
-			}
-			ttag := *tag
-			ttag.Open = false
-			tmpDecoder := NewDecoder(openBytes, d.aligned)
-			return tmpDecoder.decodeField(concrete, &ttag)
-		}
-		// Non-interface open type: decode directly
-		ttag := *tag
-		ttag.Open = false
-		tmpDecoder := NewDecoder(openBytes, d.aligned)
-		return tmpDecoder.decodeField(v, &ttag)
+	if tag.open {
+		return d._DecodeOpen(v, tag)
 	}
 
-	fieldType := v.Type()
-
-	// Handle well-known concrete types via type assertion first
-	switch v.Addr().Interface().(type) {
-	case *asn1.BitString:
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		bs, err := d.DecodeBitString(lb, ub, tag.Ext)
-		if err != nil {
-			return err
-		}
-		v.Set(reflect.ValueOf(*bs))
-		return nil
-
-	case *NULL:
-		return d.DecodeNull()
-
-	case *Empty:
-		return d.DecodeNull()
+	if done, err := d._DecodeWellKnown(v, tag); done {
+		return err
 	}
 
-	// Dispatch by reflect.Kind for primitive and generic types
-	switch fieldType.Kind() {
-	case reflect.Bool:
-		val, err := d.DecodeBoolean()
-		if err != nil {
-			return err
-		}
-		v.SetBool(val)
-		return nil
+	return d._DecodeByKind(v, tag)
+}
 
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		val, err := d.DecodeInteger(tag.LB, tag.UB, tag.Ext)
-		if err != nil {
-			return err
-		}
-		v.SetInt(val)
-		return nil
+// _DecodeOpen reads an open type field, per clause 11.2. The concrete value has
+// to be in place already, because the wrapper says how long the encoding is and
+// nothing about which type it belongs to.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of decodeField
+func (d *Decoder) _DecodeOpen(v reflect.Value, tag *Tag) error {
+	inner, err := d.DecodeOctetString(Unconstrained())
+	if err != nil {
+		return err
+	}
 
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if tag.Enum != nil {
-			val, err := d.DecodeEnumerated(*tag.Enum, tag.Ext)
-			if err != nil {
-				return err
-			}
-			v.SetUint(val)
-			return nil
-		}
-		val, err := d.DecodeInteger(tag.LB, tag.UB, tag.Ext)
-		if err != nil {
-			return err
-		}
-		v.SetUint(uint64(val))
-		return nil
-
-	case reflect.Float32, reflect.Float64:
-		val, err := d.DecodeReal()
-		if err != nil {
-			return err
-		}
-		v.SetFloat(val)
-		return nil
-
-	case reflect.String:
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		val, err := d.DecodeString(lb, ub, tag.Ext)
-		if err != nil {
-			return err
-		}
-		v.SetString(val)
-		return nil
-
-	case reflect.Slice:
-		// []byte (OCTET STRING)
-		if fieldType.Elem().Kind() == reflect.Uint8 {
-			var lb, ub *uint64
-			if tag.LB != nil {
-				l := uint64(*tag.LB)
-				lb = &l
-			}
-			if tag.UB != nil {
-				u := uint64(*tag.UB)
-				ub = &u
-			}
-			data, err := d.DecodeOctetString(lb, ub, tag.Ext)
-			if err != nil {
-				return err
-			}
-			v.SetBytes(data)
-			return nil
-		}
-		// SEQUENCE OF
-		var lb, ub *uint64
-		if tag.LB != nil {
-			l := uint64(*tag.LB)
-			lb = &l
-		}
-		if tag.UB != nil {
-			u := uint64(*tag.UB)
-			ub = &u
-		}
-		elemTag := tag.Elem
-		if elemTag == nil {
-			elemTag = &Tag{}
-		}
-		return d.DecodeSequenceOf(v.Addr().Interface(), lb, ub, tag.Ext, elemTag)
-
-	case reflect.Array:
-		// Fixed-size array: decode elements in place
-		elemTag := tag.Elem
-		if elemTag == nil {
-			elemTag = &Tag{}
-		}
-		n := v.Len()
-		for i := range n {
-			if err := d.decodeField(v.Index(i), elemTag); err != nil {
-				return fmt.Errorf("decodeField: array element %d: %w", i, err)
-			}
-		}
-		return nil
-
-	case reflect.Struct:
-		meta, err := GetStructMeta(fieldType)
-		if err != nil {
-			return fmt.Errorf("decodeField: %s: %w", fieldType, err)
-		}
-		if meta.Choice {
-			return d.DecodeChoice(v.Addr().Interface())
-		}
-		return d.DecodeSequence(v.Addr().Interface())
-
-	case reflect.Interface:
-		// Untagged interface field — resolve to concrete value and re-dispatch.
-		// For open type interfaces, the tag.Open path above handles wrapping;
-		// this branch handles the rare case of an interface field without the open tag.
+	if v.Kind() == reflect.Interface {
 		if v.IsNil() {
-			return fmt.Errorf("decodeField: nil interface value")
+			return ErrOpenTypeNil
 		}
+
 		concrete := v.Elem()
-		if concrete.Kind() == reflect.Pointer {
-			if concrete.IsNil() {
-				concrete.Set(reflect.New(concrete.Type().Elem()))
-			}
+		if concrete.Kind() == reflect.Pointer && !concrete.IsNil() {
 			concrete = concrete.Elem()
 		}
-		return d.decodeField(concrete, tag)
 
-	default:
-		return fmt.Errorf("decodeField: unsupported type %s", fieldType)
+		return d._Nested(inner)._DecodeField(concrete, tag._WithoutOpen())
 	}
+
+	return d._Nested(inner)._DecodeField(v, tag._WithoutOpen())
+}
+
+// _DecodeWellKnown reads a value of one of the standard library types this
+// package maps onto an ASN.1 type, and reports whether it did.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of decodeField
+func (d *Decoder) _DecodeWellKnown(v reflect.Value, tag *Tag) (bool, error) {
+	switch v.Type() {
+	case TYPE_BITSTRING:
+		value, err := d.DecodeBitString(tag.Constraint())
+		if err != nil {
+			return true, err
+		}
+
+		v.Set(reflect.ValueOf(*value))
+
+		return true, nil
+	case TYPE_OID:
+		value, err := d.DecodeObjectIdentifier()
+		if err != nil {
+			return true, err
+		}
+
+		v.Set(reflect.ValueOf(value))
+
+		return true, nil
+	case TYPE_NULL:
+		return true, d.DecodeNull()
+	case TYPE_EMPTY:
+		return true, d.DecodeNull()
+	default:
+		return false, nil
+	}
+}
+
+// _DecodeByKind reads a value according to its Go kind.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of decodeField
+func (d *Decoder) _DecodeByKind(v reflect.Value, tag *Tag) error {
+	kind := v.Kind()
+
+	switch {
+	case kind == reflect.Bool:
+		return d._DecodeBool(v)
+	case _IsSigned(kind):
+		return d._DecodeSigned(v, tag)
+	case _IsUnsigned(kind):
+		return d._DecodeUnsigned(v, tag)
+	case _IsFloat(kind):
+		return d._DecodeFloat(v)
+	case kind == reflect.String:
+		return d._DecodeString(v, tag)
+	case kind == reflect.Slice:
+		return d._DecodeSlice(v, tag)
+	case kind == reflect.Array:
+		return d._DecodeArray(v, tag)
+	case kind == reflect.Struct:
+		return d._DecodeStruct(v)
+	default:
+		return fmt.Errorf("%s: %w", v.Type(), ErrUnsupportedType)
+	}
+}
+
+// _DecodeBool reads a BOOLEAN into v.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeBool(v reflect.Value) error {
+	value, err := d.DecodeBoolean()
+	if err != nil {
+		return err
+	}
+
+	v.SetBool(value)
+
+	return nil
+}
+
+// _DecodeSigned reads an INTEGER into a signed field.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeSigned(v reflect.Value, tag *Tag) error {
+	value, err := d.DecodeInteger(tag.Constraint())
+	if err != nil {
+		return err
+	}
+
+	v.SetInt(value)
+
+	return nil
+}
+
+// _DecodeUnsigned reads an ENUMERATED or an INTEGER into an unsigned field.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeUnsigned(v reflect.Value, tag *Tag) error {
+	if tag.enum == nil {
+		value, err := d.DecodeInteger(tag.Constraint())
+		if err != nil {
+			return err
+		}
+
+		v.SetUint(uint64(value))
+
+		return nil
+	}
+
+	root := Constrained(0, int64(*tag.enum)-1)
+	if tag.ext {
+		root = root.Extensible()
+	}
+
+	value, err := d.DecodeEnumerated(root)
+	if err != nil {
+		return err
+	}
+
+	v.SetUint(value)
+
+	return nil
+}
+
+// _DecodeFloat reads a REAL into v.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeFloat(v reflect.Value) error {
+	value, err := d.DecodeReal()
+	if err != nil {
+		return err
+	}
+
+	v.SetFloat(value)
+
+	return nil
+}
+
+// _DecodeString reads a restricted character string into v.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeString(v reflect.Value, tag *Tag) error {
+	value, err := d.DecodeRestrictedString(tag.kind, tag.Constraint())
+	if err != nil {
+		return err
+	}
+
+	v.SetString(value)
+
+	return nil
+}
+
+// _DecodeSlice reads a slice, which is an OCTET STRING when its elements are
+// bytes and a SEQUENCE OF otherwise.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeSlice(v reflect.Value, tag *Tag) error {
+	if v.Type().Elem().Kind() == reflect.Uint8 {
+		value, err := d.DecodeOctetString(tag.Constraint())
+		if err != nil {
+			return err
+		}
+
+		v.SetBytes(value)
+
+		return nil
+	}
+
+	return d._DecodeSequenceOf(v, tag.Constraint(), tag.Elem())
+}
+
+// _DecodeArray reads an array, whose length its Go type already fixes.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeArray(v reflect.Value, tag *Tag) error {
+	elem := tag.Elem()
+
+	for i := range v.Len() {
+		if err := d._DecodeField(v.Index(i), elem); err != nil {
+			return fmt.Errorf("element %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// _DecodeStruct reads a struct, which is a CHOICE when its fields carry choice
+// indices and a SEQUENCE otherwise.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (d *Decoder) _DecodeStruct(v reflect.Value) error {
+	meta, err := GetStructMeta(v.Type())
+	if err != nil {
+		return err
+	}
+
+	if meta.Choice {
+		return d._DecodeChoice(v, meta)
+	}
+
+	return d._DecodeSequence(v, meta)
+}
+
+// _DERWrap puts a DER tag and length in front of contents octets.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _DERWrap(tag int, contents []byte) []byte {
+	if len(contents) <= UNCONSTRAINED_LENGTH_SHORT_MAX {
+		return append([]byte{byte(tag), byte(len(contents))}, contents...)
+	}
+
+	var (
+		width  = OctetsNonNegativeBinaryIntegerLength(uint64(len(contents)))
+		header = make([]byte, 0, DER_HEADER_OCTETS+width+len(contents))
+	)
+
+	// Appended in place rather than through _Octets, which would allocate the
+	// length octets separately only to copy them straight back out.
+	header = append(header, byte(tag), byte(LENGTH_MSB_FLAG|width))
+	for i := width - 1; i >= 0; i-- {
+		header = append(header, byte(len(contents)>>(i*BITS_PER_BYTE)))
+	}
+
+	return append(header, contents...)
+}
+
+// _DecodeAddedEnum reads an enumerator added after the extension marker, whose
+// index clause 14.3 restarts from zero and offsets by the size of the root.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of DecodeEnumerated
+func (d *Decoder) _DecodeAddedEnum(count uint64) (uint64, error) {
+	value, err := d.DecodeNormallySmallNonNegativeWholeNumber()
+	if err != nil {
+		return 0, err
+	}
+
+	return value + count, nil
+}
+
+// _Target resolves the pointer a decode writes through.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _Target(target any) (reflect.Value, error) {
+	rv := reflect.ValueOf(target)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return reflect.Value{}, fmt.Errorf("%T: %w", target, ErrNotPointer)
+	}
+
+	return rv.Elem(), nil
+}
+
+// _ApplyAbsent gives an absent field its DEFAULT value, per clause 19.5, and
+// leaves a plain OPTIONAL field alone.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func _ApplyAbsent(v reflect.Value, tag *Tag) error {
+	if tag.def == nil {
+		return nil
+	}
+
+	return ApplyDefaultValue(v, *tag.def)
 }

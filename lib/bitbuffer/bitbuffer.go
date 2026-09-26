@@ -1,36 +1,19 @@
 // Package bitbuffer provides bit-level I/O for ASN.1 PER (Packed Encoding Rules).
 //
-// # Overview
+// Codec is a bit stream with MSB-first ordering: the most significant bit of a
+// value is written first, which is what X.691 clause 11.3.2 means by the leading
+// bit of a field. Fields are 1 to 64 bits wide and need not be byte-aligned, so
+// a Codec tracks a bit offset within the byte it is in rather than a byte index.
 //
-// The Codec type manages streaming bit-level encoding and decoding with MSB-first
-// bit ordering. It supports writing and reading arbitrary bit lengths (1-64 bits),
-// byte-aligned bulk operations, and byte boundary alignment.
+// Two representations of a byte boundary exist, and the difference is
+// load-bearing. An offset of zero means no bit of the current byte has been used;
+// an offset of BITS_PER_BYTE means every bit has been used but the buffer has not
+// yet advanced past it. Deferring that advance keeps Align and Advance O(1) and
+// lets a read that ends on a boundary avoid touching the slice header at all.
 //
-// # Key Features
-//
-//   - Fast paths for byte-aligned operations using encoding/binary.BigEndian
-//   - Slow paths for general bit-packing/unpacking
-//   - Dynamic buffer growth with exponential allocation strategy
-//   - Counters for total bits written/read (uint64, ~18 exabyte capacity)
-//   - Lazy buffer advancement strategy to minimize allocations
-//   - MSB-first bit ordering (most significant bit first per PER spec)
-//
-// # Dependencies
-//
-// Uses only Go standard library:
-//   - encoding/binary: for endianness-agnostic multi-byte operations
-//   - slices: for efficient buffer growth (Go 1.21+)
-//
-// # Scope
-//
-// This package focuses on bit-level manipulation. Callers are responsible for
-// higher-level ASN.1 semantics, type encoding, and constraint validation.
-//
-// # Thread Safety
-//
-// Codec is NOT thread-safe. Multiple goroutines must not access the same Codec
-// instance concurrently without external synchronization (e.g., mutex). Each
-// goroutine should use its own Codec instance, or callers must provide synchronization.
+// A Codec is not safe for concurrent use. Callers own higher-level ASN.1
+// semantics: this package validates bit counts and buffer length, and nothing
+// about the values it carries.
 package bitbuffer
 
 import (
@@ -40,494 +23,696 @@ import (
 	"slices"
 )
 
-// ENABLE_TRACE controls whether trace output is printed.
+// ENABLE_TRACE turns on the per-call trace written by _Trace. It is a var rather
+// than a const so a caller can switch it on around a failing decode without
+// rebuilding, and every call site is guarded by it so the cost when it is off is
+// one predictable branch.
 var (
 	ENABLE_TRACE = false
 )
 
-// Sentinel errors, so callers can use errors.Is instead of matching error strings.
+// Sentinel errors, so a caller matches with errors.Is rather than on the text.
 var (
-	ErrInvalidBitCount = errors.New("bit count must be between 1 and 64") // Write/Read: num is 0 or > 64
-	ErrShortBuffer     = errors.New("insufficient data")                  // Read/ReadBytes: not enough data buffered
-	ErrNegativeCount   = errors.New("negative byte count")                // ReadBytes: n < 0
+	ErrInvalidBitCount = errors.New("bit count must be between 1 and 64")
+	ErrShortBuffer     = errors.New("insufficient data")
+	ErrNegativeCount   = errors.New("negative byte count")
 )
 
-// InitialBufferSize is the initial capacity for the buffer in CreateWriter.
-var InitialBufferSize = 64
-
-// Codec manages a bit stream for encoding and decoding.
-// Fields:
+// Codec is a bit stream being written or read.
 //
-//	Buff: byte slice holding the encoded bit stream
-//	offset: bit position in current byte (0-8)
-//	  - offset=0: start of byte (no bits consumed from this byte)
-//	  - offset=1-7: partial byte (1-7 bits consumed from this byte)
-//	  - offset=8: end of byte (all 8 bits consumed, ready for next byte)
-//	written: total number of bits written
-//	read: total number of bits read
+// buff holds the bytes; offset is how many bits of the byte the stream is
+// currently in have been used, from 0 to BITS_PER_BYTE inclusive, with
+// BITS_PER_BYTE meaning "full, advance before using another"; written and read
+// count bits rather than bytes, so a caller can tell a 3-bit message from a
+// 5-bit one. Both counters are uint64 and cannot overflow on any real message.
 type Codec struct {
-	Buff    []byte
+	buff    []byte
 	offset  uint8
 	written uint64
 	read    uint64
 }
 
-// Trace prints debug information about the codec state.
-// Only prints if ENABLE_TRACE is true (compile-time constant).
-// Parameters:
-//   - event: "ENTER" or "EXIT" to mark function entry/exit
-//   - function: name of the calling function (e.g., "Write", "Read")
-//   - arguments: optional additional debug info (e.g., "bits=8 value=42")
+// CreateWriter returns a Codec that appends to a buffer of its own.
 //
-// Output includes current buffer length, offset, and bit counters.
-func (c *Codec) Trace(event, function, arguments string) {
-	if !ENABLE_TRACE {
-		return
-	}
-	state := fmt.Sprintf("[%s %s] len=%d offset=%d written=%d read=%d",
-		event, function, len(c.Buff), c.offset, c.written, c.read)
-	if arguments != "" {
-		state = state + " --> " + arguments
-	}
-	println(state)
-}
-
-// CreateWriter creates a new Codec for writing.
-// Initializes with an empty buffer and pre-allocates capacity (InitialBufferSize)
-// to reduce early allocations. Use this to begin encoding a bit stream.
+// The capacity reserved up front covers the preamble and first fields of a
+// typical message, so the common case never reallocates.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: reserves INITIAL_CAPACITY, a constant, in place of the
+//     package-level InitialBufferSize variable a caller could change underneath
+//     a Codec that had already allocated
 func CreateWriter() *Codec {
 	return &Codec{
-		Buff: make([]byte, 0, InitialBufferSize),
+		buff: make([]byte, 0, INITIAL_CAPACITY),
 	}
 }
 
-// CreateReader creates a new Codec for reading from existing data.
-// Note: Assumes data is byte-aligned (starts at bit offset 0).
-// If data contains partial bytes at the start (from mid-byte), call Advance() first
-// or manually set offset as needed. For PER, input data is typically byte-aligned.
+// CreateReader returns a Codec that reads data from its first bit.
+//
+// data is not copied, so a caller must not modify it while the Codec reads.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func CreateReader(data []byte) *Codec {
 	return &Codec{
-		Buff:   data,
-		offset: 0,
+		buff: data,
 	}
 }
 
-// Len returns the number of complete bytes currently in the buffer.
-// This is the length of the buffer, not the number of bits available.
-// For bit-level precision, use NumRead() and NumWritten().
+// Len returns the number of bytes the stream currently holds.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func (c *Codec) Len() int {
-	return len(c.Buff)
+	return len(c.buff)
 }
 
 // Cap returns the capacity of the underlying buffer.
-// Useful for understanding allocated vs. used memory. Buffer may grow internally.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func (c *Codec) Cap() int {
-	return cap(c.Buff)
+	return cap(c.buff)
 }
 
-// NumWritten returns the total number of bits written.
-// Includes partial bytes. For example, writing 3 bits then 5 bits returns 8.
+// NumWritten returns the total number of bits written, partial bytes included.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func (c *Codec) NumWritten() uint64 {
 	return c.written
 }
 
-// NumRead returns the total number of bits read.
-// Includes partial bytes. For example, reading 3 bits then 5 bits returns 8.
+// NumRead returns the total number of bits read, partial bytes included.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func (c *Codec) NumRead() uint64 {
 	return c.read
 }
 
-// Bytes returns the encoded data trimmed to the exact number of bytes needed.
-// Includes the partial final byte if written is not a multiple of 8.
-// Warning: Callers must handle partial bytes. For PER encoding, the final partial
-// byte should be padded with zeros by the encoder (e.g., call Align() before Bytes()).
+// Bytes returns the bytes written so far, including a trailing partial byte
+// whose unused bits are zero.
+//
+// The slice aliases the Codec's buffer rather than copying it, so a later Write
+// may overwrite the trailing byte or move the whole buffer. A caller that keeps
+// the result past the next Write copies it.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: says that the result aliases the buffer, which callers
+//     were relying on without the contract saying so
 func (c *Codec) Bytes() []byte {
 	if c.written == 0 {
 		return nil
 	}
-	return c.Buff
+
+	return c.buff
 }
 
-// String implements the fmt.Stringer interface for Codec.
-// Prints the members of Codec for debugging: buffer length, offset, bits written/read.
-// Useful for logging and troubleshooting encoder/decoder state.
+// String renders the Codec's state for a log line or a test failure.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
 func (c *Codec) String() string {
-	return fmt.Sprintf("Codec{Buff: len=%d, offset: %d, written: %d, read: %d}",
-		len(c.Buff), c.offset, c.written, c.read)
+	return fmt.Sprintf(
+		"Codec{buff: len=%d, offset: %d, written: %d, read: %d}",
+		len(c.buff),
+		c.offset,
+		c.written,
+		c.read,
+	)
 }
 
-// grow ensures space for at least n more bytes.
-// Uses exponential growth strategy: capacity = max(current_capacity * 2, needed_size).
-// This ensures O(1) amortized time for buffer expansion.
-// Employs Go's slices.Grow for efficient memory management (Go 1.21+).
+// Write appends the least significant num bits of value, most significant first.
 //
-// Implementation notes:
-//   - Exponential allocation: Doubling capacity (or using requested size if larger)
-//     guarantees O(1) amortized growth, preventing quadratic time for many appends.
-//   - Mathematical property: Sum of 1 + 2 + 4 + 8 + ... + n = 2n - 1, ensuring
-//     total allocations across all grows is O(n) for n bytes written total.
-//   - slices.Grow: Leverages Go stdlib (1.21+) for platform-optimal memory copying,
-//     reducing code complexity and ensuring portability across architectures.
-//   - Boundary handling: Grows when current capacity < needed size, avoiding
-//     unnecessary allocations while ensuring no reallocation on next Write.
-func (c *Codec) grow(n int) {
-	if ENABLE_TRACE {
-		c.Trace("ENTER", "grow", fmt.Sprintf("n=%d", n))
-		defer c.Trace("EXIT", "grow", "")
-	}
-	if cap(c.Buff) < len(c.Buff)+n {
-		capacity := max(cap(c.Buff)*2, len(c.Buff)+n)
-		c.Buff = slices.Grow(c.Buff, capacity-len(c.Buff))
-	}
-	c.Buff = c.Buff[:len(c.Buff)+n]
-}
-
-// incrementRead increments the bits read counter.
-// Uses uint64 for maximum capacity (~1.84e19 bits, or ~18 exabytes).
-// Overflow is unrealistic in practice.
+// num of 0, or above UINT64_BITS, is an error rather than a no-op: a caller that
+// computed a width of zero has a bug the stream cannot encode its way out of.
 //
-// Implementation notes:
-//   - uint64 safety: Supports reading ~18 exabytes of data before overflow,
-//     far exceeding practical requirements. For context: entire internet traffic
-//     for a year is ~1 zettabyte = 1e21 bytes, so uint64 covers 18e18 bytes.
-//   - Idempotent tracking: Always increments by actual bits read, ensuring
-//     readCounter accurately reflects stream position. Supports debugging and
-//     partial read recovery.
-//   - Used by Read(), ReadBytes(), Advance() to maintain consistent state.
-func (c *Codec) incrementRead(bits uint64) {
-	c.read += bits
-}
-
-// incrementWrite increments the bits written counter.
-// Uses uint64 for maximum capacity (~1.84e19 bits, or ~18 exabytes).
-// Overflow is unrealistic in practice.
-//
-// Implementation notes:
-//   - uint64 safety: Supports writing ~18 exabytes of data before overflow,
-//     far exceeding practical requirements.
-//   - Idempotent tracking: Always increments by actual bits written, ensuring
-//     writeCounter accurately reflects stream position. Supports debugging.
-//   - Used by Write(), WriteBytes(), Align() to maintain consistent state.
-func (c *Codec) incrementWrite(bits uint64) {
-	c.written += bits
-}
-
-// Write writes the least significant 'num' bits of value (1 ≤ num ≤ 64).
-// num=0 returns error (per spec). Returns error if num > 64.
-// MSB-first bit ordering: most significant bits written first.
-//
-// Implementation notes:
-//   - Bit masking: (1 << num) - 1 extracts only the least significant 'num' bits
-//   - Bit shifting: value << (64 - num) aligns bits to high end of uint64 for BigEndian write
-//   - Lazy advancement: Sets offset==8 to signal next operation that byte is full,
-//     avoiding immediate buffer advancement (O(n) operation)
-//
-// Fast path: O(1) amortized when byte-aligned (offset==0 or offset==8).
-// Slow path: O(num) bit-by-bit packing when mid-byte (offset 1-7).
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: splits the aligned and packed halves into _WriteAligned
+//     and _WritePacked, and masks with a shift so a width of 64 no longer relies
+//     on 1<<64 wrapping to zero
 func (c *Codec) Write(num uint8, value uint64) error {
 	if ENABLE_TRACE {
-		c.Trace("ENTER", "Write", fmt.Sprintf("bits=%d value=%d", num, value))
-		defer c.Trace("EXIT", "Write", "")
+		c._Trace("ENTER", "Write", fmt.Sprintf("bits=%d value=%d", num, value))
+		defer c._Trace("EXIT", "Write", "")
 	}
-	if num == 0 || num > 64 {
+
+	if num == 0 || num > UINT64_BITS {
 		return ErrInvalidBitCount
 	}
 
-	// Mask the value to keep only the least significant 'num' bits,
-	// setting higher bits to 0
-	value = value & ((1 << num) - 1)
+	value = value & (^uint64(0) >> (UINT64_BITS - num))
 
-	// Fast path: writing at byte boundary (can write whole bytes).
-	// offset==0 means start of byte; offset==BITS_PER_BYTE means ready for new byte.
-	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
-		if c.offset == BITS_PER_BYTE {
-			c.offset = 0 // Reset to start of new byte
-		}
-
-		nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE // = ceil(num/8)
-		remainder := num % BITS_PER_BYTE
-
-		tmp := [TMP_ARRAY_SIZE]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-		binary.BigEndian.PutUint64(tmp[:], value<<(UINT64_BITS-uint(num)))
-
-		c.Buff = append(c.Buff, tmp[:nbytes]...)
-
-		// Set offset for next operation: remainder bits consumed (1-7) or BITS_PER_BYTE if full byte.
-		c.offset = uint8(remainder)
-		if c.offset == 0 {
-			c.offset = BITS_PER_BYTE // Full byte consumed; mark as ready for next byte
-		}
-		c.incrementWrite(uint64(num))
-		return nil
+	if c.offset == 0 || c.offset == BITS_PER_BYTE {
+		c._WriteAligned(num, value)
+	} else {
+		c._WritePacked(num, value)
 	}
 
-	pending := num
-	for pending > 0 {
-		// If current byte is full (offset==BITS_PER_BYTE) or buffer empty, allocate new byte.
-		if c.offset == BITS_PER_BYTE || len(c.Buff) == 0 {
-			c.grow(1)
-			c.offset = 0 // Start fresh byte
-		}
+	c._IncrementWrite(uint64(num))
 
-		var (
-			available = uint8(BITS_PER_BYTE - c.offset) // Bits available in current byte
-			nbits     = min(pending, available)
-			remaining = pending - nbits
-			chunk     = uint8(value>>remaining) & ((1 << nbits) - 1)
-			shift     = available - nbits
-			pos       = len(c.Buff) - 1
-		)
-
-		c.Buff[pos] = c.Buff[pos] | (chunk << shift)
-		c.offset = c.offset + nbits // Advance offset within byte (will reach 8)
-		pending = pending - nbits
-	}
-
-	c.incrementWrite(uint64(num))
 	return nil
 }
 
-// Read reads the next num bits from the bit stream, returning them as a uint64.
-// num=0 returns 0 without error. num > 64 returns error.
-// MSB-first bit ordering: most significant bits read first.
-// Returns error if insufficient data available.
+// Read returns the next num bits, most significant first.
 //
-// Implementation notes:
-//   - Lazy buffer advancement: offset==8 signals "advance to next byte on next Read()",
-//     deferring expensive buffer slice operation. This reduces unnecessary slicing and
-//     improves cache locality for sequential reads.
-//   - Fast path (byte-aligned): Uses binary.BigEndian.Uint64() with right-shift
-//     to extract multi-byte values efficiently in O(1) amortized time.
-//   - Slow path (mid-byte): Iterates through bits using shift/mask operations to
-//     handle reads that span byte boundaries or start mid-byte.
-//   - Offset state machine: Cycles through 0,1,2,...,7,8 with 8 marking "next byte ready".
-//   - Each read increments readCounter via incrementRead() for tracing/debugging.
+// num of 0 returns zero and no error, because a zero-width field is how X.691
+// clause 11.5.4 encodes a range of one and a caller should not have to special
+// case it.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: takes the aligned path from an offset of zero as well as
+//     BITS_PER_BYTE. The guard tested len(buff) == 0, which the short-buffer
+//     check above it had already ruled out, so a fresh reader packed its first
+//     read a bit at a time - and a fresh reader is every decoder's first field
 func (c *Codec) Read(num uint8) (uint64, error) {
 	if ENABLE_TRACE {
-		c.Trace("ENTER", "Read", fmt.Sprintf("num=%d", num))
-		defer c.Trace("EXIT", "Read", "")
+		c._Trace("ENTER", "Read", fmt.Sprintf("num=%d", num))
+		defer c._Trace("EXIT", "Read", "")
 	}
+
 	if num == 0 {
 		return 0, nil
 	}
-	if num > 64 {
+
+	if num > UINT64_BITS {
 		return 0, ErrInvalidBitCount
 	}
 
-	if c.Len() == 0 {
+	if len(c.buff) == 0 {
 		return 0, ErrShortBuffer
 	}
 
-	// Fast path: reading at byte boundary (offset==0 or offset==BITS_PER_BYTE ready for next byte).
-	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
-		// If at end of current byte (offset==BITS_PER_BYTE), advance to next byte.
-		if c.offset == BITS_PER_BYTE {
-			if len(c.Buff) == 0 {
-				return 0, ErrShortBuffer
-			}
-			c.Buff = c.Buff[1:] // Consume the byte marked by offset==8
-			c.offset = 0        // Start fresh at new byte
-			if len(c.Buff) == 0 {
-				return 0, ErrShortBuffer
-			}
-		}
-
-		nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE // = ceil(num/8)
-		if nbytes > 0 {
-			if len(c.Buff) < nbytes {
-				return 0, ErrShortBuffer
-			}
-			tmp := [TMP_ARRAY_SIZE]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-			copy(tmp[0:nbytes], c.Buff[:nbytes])
-			var (
-				result    = binary.BigEndian.Uint64(tmp[:]) >> (UINT64_BITS - num)
-				remainder = num % BITS_PER_BYTE
-			)
-			// Lazy advancement strategy: keep one extra byte in buffer and mark with offset=8
-			// to signal next read cycle. Slow path detects offset==8 and advances.
-			// If remainder>0: we consumed nbytes-1 full bytes + partial; keep partial byte.
-			// If remainder=0: we consumed nbytes full bytes; keep last byte, marked by offset=8.
-			c.Buff = c.Buff[nbytes-1:]
-			if remainder == 0 {
-				c.offset = 8
-			} else {
-				c.offset = remainder
-			}
-
-			c.incrementRead(uint64(num))
-			return result, nil
-		}
-	}
-
 	var (
-		result  uint64
-		pending = num
+		value uint64
+		err   error
 	)
-
-	for pending > 0 {
-		// If current byte is full (offset==BITS_PER_BYTE), advance to next byte.
-		if c.offset == BITS_PER_BYTE {
-			c.Buff = c.Buff[1:] // Consume byte marked by offset==8
-			c.offset = 0        // Start fresh at new byte
-			if len(c.Buff) == 0 {
-				return 0, ErrShortBuffer
-			}
-		}
-
-		var (
-			remaining = uint8(BITS_PER_BYTE - c.offset) // Bits left in current byte
-			reading   = min(pending, remaining)
-			mask      = uint8((1 << reading) - 1)
-			shift     = remaining - reading
-			bits      = uint64((c.Buff[0] >> shift) & mask)
-		)
-
-		result = (result << reading) | bits
-
-		c.offset = c.offset + reading // Advance offset within byte (0 to 8)
-		pending = pending - reading
+	if c.offset == 0 || c.offset == BITS_PER_BYTE {
+		value, err = c._ReadAligned(num)
+	} else {
+		value, err = c._ReadPacked(num)
 	}
 
-	c.incrementRead(uint64(num))
-	return result, nil
+	if err != nil {
+		return 0, err
+	}
+
+	c._IncrementRead(uint64(num))
+
+	return value, nil
 }
 
-// WriteBytes writes full octets continuing from the current bit offset.
-// Equivalent to repeated Write(8, uint64(b)) for each byte.
-// Does NOT force alignment — caller must Align() if required
-// (e.g., APER octet string contents).
-// Fast path: if byte-aligned (offset==0 or offset==8), appends directly (O(1) amortized).
-// Slow path: if mid-byte (offset 1-7), packs each byte bit-by-bit via Write().
+// WriteBytes appends whole octets, continuing from the current bit offset.
+//
+// It does not align first: X.691 clause 17.6 places a short octet string in a
+// bit-field that is deliberately not octet-aligned, so alignment is the caller's
+// decision and Align is how they make it.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: carries a mid-byte payload a word at a time through
+//     _WriteShifted instead of one Write call per byte
 func (c *Codec) WriteBytes(data []byte) error {
 	if ENABLE_TRACE {
-		c.Trace("ENTER", "WriteBytes", fmt.Sprintf("len(data)=%d", len(data)))
-		defer c.Trace("EXIT", "WriteBytes", "")
+		c._Trace("ENTER", "WriteBytes", fmt.Sprintf("len(data)=%d", len(data)))
+		defer c._Trace("EXIT", "WriteBytes", "")
 	}
+
 	if len(data) == 0 {
 		return nil
 	}
 
-	// Fast path: already byte-aligned (offset == 0) or at byte
-	// boundary (offset == BITS_PER_BYTE)
-	if len(c.Buff) == 0 || c.offset == BITS_PER_BYTE {
-		c.Buff = append(c.Buff, data...)
-		c.incrementWrite(uint64(len(data) * BITS_PER_BYTE))
+	if c.offset == 0 || c.offset == BITS_PER_BYTE {
+		c.buff = append(c.buff, data...)
 		c.offset = BITS_PER_BYTE
-		return nil
+	} else {
+		c._WriteShifted(data)
 	}
 
-	// Slow path: pack each byte using general Write
-	for _, b := range data {
-		if err := c.Write(8, uint64(b)); err != nil {
-			return err
-		}
-	}
+	c._IncrementWrite(uint64(len(data)) * BITS_PER_BYTE)
+
 	return nil
 }
 
-// ReadBytes reads exactly n full octets (bytes) from the bit stream.
-// Continues from current bit offset. Equivalent to calling Read(8) n times.
-// Returns error if insufficient data available (error message: "insufficient data").
-// Fast path: if byte-aligned (offset==0 or offset==8), copies directly (O(n) with minimal overhead).
-// Slow path: if mid-byte (offset 1-7), unpacks each byte bit-by-bit via Read().
+// ReadBytes returns the next n whole octets, continuing from the current bit
+// offset.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+//   - 2026-09-22 06:43: carries a mid-byte payload a word at a time through
+//     _ReadShifted instead of one Read call per byte
 func (c *Codec) ReadBytes(n int) ([]byte, error) {
 	if ENABLE_TRACE {
-		c.Trace("ENTER", "ReadBytes", fmt.Sprintf("n=%d", n))
-		defer c.Trace("EXIT", "ReadBytes", "")
+		c._Trace("ENTER", "ReadBytes", fmt.Sprintf("n=%d", n))
+		defer c._Trace("EXIT", "ReadBytes", "")
 	}
+
 	if n < 0 {
 		return nil, ErrNegativeCount
 	}
+
 	if n == 0 {
 		return []byte{}, nil
 	}
 
-	// Fast path: already byte-aligned (offset == 0) or at byte
-	// boundary (offset == BITS_PER_BYTE)
+	var (
+		data []byte
+		err  error
+	)
 	if c.offset == 0 || c.offset == BITS_PER_BYTE {
-		// If at end of byte, advance to next byte first
+		data, err = c._ReadWhole(n)
+	} else {
+		data, err = c._ReadShifted(n)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	c._IncrementRead(uint64(n) * BITS_PER_BYTE)
+
+	return data, nil
+}
+
+// ReadView returns the next n octets, without copying them when it can.
+//
+// When the read is octet-aligned the result is a window onto the codec's own
+// buffer - the same aliasing Bytes has, and the same buffer CreateReader was
+// handed, so nothing new is shared. When it is not aligned the octets have to
+// be shifted into being, and the result is the fresh slice ReadBytes returns.
+// Either way the caller must treat the result as read-only and not keep it
+// past the next call on the codec.
+//
+// It exists for a decoder that consumes a byte string and produces something
+// else from it: with ReadBytes that is a copy per call whose only purpose is
+// to be read once and dropped.
+//
+// Revisions:
+//   - 2026-09-23 07:40: initial creation
+func (c *Codec) ReadView(n int) ([]byte, error) {
+	if ENABLE_TRACE {
+		c._Trace("ENTER", "ReadView", fmt.Sprintf("n=%d", n))
+		defer c._Trace("EXIT", "ReadView", "")
+	}
+
+	if c.offset != 0 && c.offset != BITS_PER_BYTE {
+		return c.ReadBytes(n)
+	}
+
+	if n < 0 {
+		return nil, ErrNegativeCount
+	}
+
+	if n == 0 {
+		return []byte{}, nil
+	}
+
+	if c.offset == BITS_PER_BYTE {
+		if len(c.buff) == 0 {
+			return nil, ErrShortBuffer
+		}
+
+		c.buff = c.buff[1:]
+		c.offset = 0
+	}
+
+	if len(c.buff) < n {
+		return nil, ErrShortBuffer
+	}
+
+	data := c.buff[:n:n]
+	c.buff = c.buff[n:]
+	c._IncrementRead(uint64(n) * BITS_PER_BYTE)
+
+	return data, nil
+}
+
+// Grow reserves room for at least n more bytes, so a caller that knows how
+// much it is about to write can have the buffer grow once rather than double
+// its way up through it. It never changes what the buffer holds; n at or
+// below zero asks for nothing.
+//
+// Revisions:
+//   - 2026-09-23 07:40: initial creation
+func (c *Codec) Grow(n int) {
+	if n <= 0 || cap(c.buff)-len(c.buff) >= n {
+		return
+	}
+
+	c.buff = slices.Grow(c.buff, n)
+}
+
+// Align pads the current byte with zero bits so the next write starts a new one.
+//
+// The padding bits are already zero, so this only marks the byte full and counts
+// the bits it skipped; the byte itself is appended by whichever Write comes next.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) Align() error {
+	if ENABLE_TRACE {
+		c._Trace("ENTER", "Align", "")
+		defer c._Trace("EXIT", "Align", "")
+	}
+
+	if c.offset > 0 && c.offset < BITS_PER_BYTE {
+		c._IncrementWrite(uint64(BITS_PER_BYTE - c.offset))
+		c.offset = BITS_PER_BYTE
+	}
+
+	return nil
+}
+
+// Advance skips the rest of the current byte, the read counterpart of Align.
+//
+// The buffer is not advanced here; the next Read sees the full offset and does
+// it, which keeps this O(1) and avoids reslicing a buffer nobody reads again.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) Advance() error {
+	if ENABLE_TRACE {
+		c._Trace("ENTER", "Advance", "")
+		defer c._Trace("EXIT", "Advance", "")
+	}
+
+	if c.offset > 0 {
+		c._IncrementRead(uint64(BITS_PER_BYTE - c.offset))
+		c.offset = BITS_PER_BYTE
+	}
+
+	return nil
+}
+
+// _WriteAligned appends num bits that start on a byte boundary.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of Write
+func (c *Codec) _WriteAligned(num uint8, value uint64) {
+	var (
+		nbytes    = (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
+		remainder = num % BITS_PER_BYTE
+		tmp       [UINT64_BYTES]byte
+	)
+
+	binary.BigEndian.PutUint64(tmp[:], value<<(UINT64_BITS-num))
+	c.buff = append(c.buff, tmp[:nbytes]...)
+
+	c.offset = remainder
+	if c.offset == 0 {
+		c.offset = BITS_PER_BYTE
+	}
+}
+
+// _WritePacked appends num bits that start part-way through a byte.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of Write
+func (c *Codec) _WritePacked(num uint8, value uint64) {
+	pending := num
+	for pending > 0 {
 		if c.offset == BITS_PER_BYTE {
-			if len(c.Buff) == 0 {
-				return nil, ErrShortBuffer
-			}
-			c.Buff = c.Buff[1:]
+			c._Grow(1)
 			c.offset = 0
 		}
 
-		if len(c.Buff) < n {
+		var (
+			free  = BITS_PER_BYTE - c.offset
+			nbits = min(pending, free)
+			rest  = pending - nbits
+			chunk = uint8(value>>rest) & (uint8(1)<<nbits - 1)
+			pos   = len(c.buff) - 1
+		)
+
+		c.buff[pos] = c.buff[pos] | chunk<<(free-nbits)
+		c.offset = c.offset + nbits
+		pending = rest
+	}
+}
+
+// _WriteShifted appends data to a buffer that ends part-way through a byte,
+// carrying the bits across the boundary one 64-bit word at a time.
+//
+// The byte-at-a-time form this replaces cost a call, a bounds check and a
+// two-iteration bit loop per byte. PER leaves the stream mid-byte before almost
+// every octet string, because a preamble bit or a choice index precedes it, so
+// that path is the ordinary one rather than the exception. Measured on a 4 KiB
+// payload at a 3-bit offset: 32.1us for the byte loop, 3.9us once it worked a
+// word at a time, 2.2us once it grew the buffer once instead of per word, and
+// 0.19us once _ShiftBulk handed the middle of it to an AVX2 kernel.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+func (c *Codec) _WriteShifted(data []byte) {
+	var (
+		used  = c.offset & SHIFT_MASK
+		free  = BITS_PER_BYTE - used
+		high  = (UINT64_BITS - uint(used)) & UINT64_SHIFT_MASK
+		last  = len(c.buff) - 1
+		carry = uint64(c.buff[last] >> free)
+	)
+
+	// The trailing byte is rebuilt as the first byte of the shifted output, so
+	// it is dropped and the whole result grown for in one go. Growing once and
+	// storing beats appending per word: an append re-checks the capacity on
+	// every iteration, which was most of the loop body.
+	c.buff = c.buff[:last]
+	c._Grow(len(data) + 1)
+
+	var (
+		out = c.buff[last:]
+		idx = _ShiftBulk(out, data, used, carry)
+	)
+
+	// Whatever the kernel wrote, the word loop picks up from the byte after it,
+	// with the carry taken from the last byte the kernel consumed.
+	if idx > 0 {
+		carry = uint64(data[idx-1]) & (uint64(1)<<used - 1)
+	}
+
+	for idx+UINT64_BYTES <= len(data) {
+		word := binary.BigEndian.Uint64(data[idx:])
+		binary.BigEndian.PutUint64(out[idx:], carry<<high|word>>used)
+		carry = word & (uint64(1)<<used - 1)
+		idx = idx + UINT64_BYTES
+	}
+
+	for ; idx < len(data); idx++ {
+		word := uint64(data[idx])
+		out[idx] = byte(carry<<free | word>>used)
+		carry = word & (uint64(1)<<used - 1)
+	}
+
+	out[len(data)] = byte(carry << free)
+}
+
+// _ReadAligned returns num bits that start on a byte boundary.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of Read
+func (c *Codec) _ReadAligned(num uint8) (uint64, error) {
+	if c.offset == BITS_PER_BYTE {
+		c.buff = c.buff[1:]
+
+		c.offset = 0
+		if len(c.buff) == 0 {
+			return 0, ErrShortBuffer
+		}
+	}
+
+	nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
+	if len(c.buff) < nbytes {
+		return 0, ErrShortBuffer
+	}
+
+	var tmp [UINT64_BYTES]byte
+	copy(tmp[:nbytes], c.buff[:nbytes])
+
+	var (
+		value     = binary.BigEndian.Uint64(tmp[:]) >> (UINT64_BITS - num)
+		remainder = num % BITS_PER_BYTE
+	)
+
+	// One byte is deliberately left in the buffer: the offset says how much of
+	// it has been used, and the next read advances past it.
+	c.buff = c.buff[nbytes-1:]
+
+	c.offset = remainder
+	if c.offset == 0 {
+		c.offset = BITS_PER_BYTE
+	}
+
+	return value, nil
+}
+
+// _ReadPacked returns num bits that start part-way through a byte.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of Read
+func (c *Codec) _ReadPacked(num uint8) (uint64, error) {
+	var (
+		value   uint64
+		pending = num
+	)
+
+	for pending > 0 {
+		if c.offset == BITS_PER_BYTE {
+			c.buff = c.buff[1:]
+
+			c.offset = 0
+			if len(c.buff) == 0 {
+				return 0, ErrShortBuffer
+			}
+		}
+
+		var (
+			left  = BITS_PER_BYTE - c.offset
+			nbits = min(pending, left)
+			mask  = uint8(1)<<nbits - 1
+			bits  = uint64(c.buff[0]>>(left-nbits)) & uint64(mask)
+		)
+
+		value = value<<nbits | bits
+		c.offset = c.offset + nbits
+		pending = pending - nbits
+	}
+
+	return value, nil
+}
+
+// _ReadWhole returns n octets that start on a byte boundary.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation, split out of ReadBytes
+func (c *Codec) _ReadWhole(n int) ([]byte, error) {
+	if c.offset == BITS_PER_BYTE {
+		if len(c.buff) == 0 {
 			return nil, ErrShortBuffer
 		}
-		result := make([]byte, n)
-		copy(result, c.Buff[:n])
-		c.Buff = c.Buff[n:]
-		c.incrementRead(uint64(n * BITS_PER_BYTE))
-		return result, nil
+
+		c.buff = c.buff[1:]
+		c.offset = 0
 	}
 
-	// Slow path: read each byte using general Read
-	result := make([]byte, n)
-	for i := range result {
-		val, err := c.Read(8)
-		if err != nil {
-			return nil, err
-		}
-		result[i] = uint8(val)
+	if len(c.buff) < n {
+		return nil, ErrShortBuffer
 	}
-	return result, nil
+
+	data := make([]byte, n)
+	copy(data, c.buff[:n])
+	c.buff = c.buff[n:]
+
+	return data, nil
 }
 
-// Align advances to the next byte boundary by appending a new byte if necessary.
-// Unused bits in the previous byte remain zero.
-// Used explicitly by the PER encoder when alignment is required (e.g., APER).
-// If already aligned (offset==0 or offset==8), does nothing.
-// Does NOT append a new byte if offset==8; next Write will handle that.
+// _ReadShifted returns n octets that start part-way through a byte, gathering
+// them one 64-bit word at a time.
 //
-// Implementation notes:
-//   - Lazy byte creation: Doesn't immediately append a new byte when offset==0-7.
-//     Instead, sets offset==8 to signal next Write() to create the new byte.
-//     This reduces allocations and keeps Align() a simple O(1) operation.
-//   - Zero-padding: Unused bits are already zero in the last byte, so no need to
-//     explicitly zero them; just mark the byte as full via offset==8.
-//   - Idempotent: Can call multiple times without side effects when offset==0 or 8.
-func (c *Codec) Align() error {
-	if ENABLE_TRACE {
-		c.Trace("ENTER", "Align", "")
-		defer c.Trace("EXIT", "Align", "")
+// The read counterpart of _WriteShifted, and the same measurement applies: the
+// byte-at-a-time form cost a call and a bit loop per octet.
+//
+// Revisions:
+//   - 2026-09-22 06:43: initial creation
+//   - 2026-09-23 04:10: hands the middle of the buffer to the vector kernel,
+//     the way _WriteShifted already did, and keeps the word loop for the tail
+//   - 2026-09-23 07:40: the word loop writes each word straight into data; it
+//     had been staging every one through an array and copying it across
+func (c *Codec) _ReadShifted(n int) ([]byte, error) {
+	// n octets starting part-way through a byte end inside the (n+1)th.
+	if len(c.buff) < n+1 {
+		return nil, ErrShortBuffer
 	}
-	if c.offset > 0 && c.offset < BITS_PER_BYTE {
-		// Partial byte - pad with zeros (which already exists) and move to next byte
-		// Set offset to BITS_PER_BYTE to indicate byte is full; next Write will handle creating new byte
-		c.incrementWrite(uint64(BITS_PER_BYTE - c.offset))
-		c.offset = BITS_PER_BYTE
+
+	var (
+		used = c.offset
+		free = BITS_PER_BYTE - used
+		data = make([]byte, n)
+		idx  = _ReadBulk(data, c.buff, used)
+	)
+
+	// Whatever the kernel filled, the word loop picks up from the byte after
+	// it; the two agree on every byte, so there is no seam to reconcile.
+	for idx+UINT64_BYTES <= n {
+		var (
+			word = binary.BigEndian.Uint64(c.buff[idx:])
+			next = uint64(c.buff[idx+UINT64_BYTES])
+		)
+		binary.BigEndian.PutUint64(data[idx:], word<<used|next>>free)
+		idx = idx + UINT64_BYTES
 	}
-	// If offset == BITS_PER_BYTE or offset == 0, already aligned, do nothing
-	return nil
+
+	for ; idx < n; idx++ {
+		data[idx] = c.buff[idx]<<used | c.buff[idx+1]>>free
+	}
+
+	c.buff = c.buff[n:]
+
+	return data, nil
 }
 
-// Advance skips remaining bits to reach the next byte boundary (for reading).
-// Sets offset to 8 to indicate we're at a byte boundary.
-// Buffer advancement is handled by Read() when it encounters offset == 8.
-// This is the read counterpart to Align() for writing.
-// Increments the read counter by the number of skipped bits (8 - offset).
+// _Grow makes room for n more bytes and extends the buffer over them.
 //
-// Implementation notes:
-//   - Lazy buffer advancement: Doesn't immediately slice the buffer. Instead,
-//     sets offset==8 to signal next Read() to perform the actual byte slice.
-//     This defers expensive buffer operations and keeps Advance() O(1).
-//   - Idempotent: Calling when already aligned (offset==0 or 8) is safe and
-//     efficient (immediate return, no state change).
-//   - Read counter tracking: Increments readCounter to account for skipped bits,
-//     essential for tracing and ensuring readCounter stays synchronized with
-//     actual bits consumed from the stream.
-func (c *Codec) Advance() error {
+// Capacity doubles rather than growing by n, so the total copied across a whole
+// message stays linear in its length instead of quadratic.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) _Grow(n int) {
 	if ENABLE_TRACE {
-		c.Trace("ENTER", "Advance", "")
-		defer c.Trace("EXIT", "Advance", "")
+		c._Trace("ENTER", "_Grow", fmt.Sprintf("n=%d", n))
+		defer c._Trace("EXIT", "_Grow", "")
 	}
-	if c.offset > 0 {
-		c.incrementRead(uint64(BITS_PER_BYTE - c.offset))
-		c.offset = BITS_PER_BYTE
+
+	if cap(c.buff) < len(c.buff)+n {
+		size := max(cap(c.buff)*GROWTH_FACTOR, len(c.buff)+n)
+		c.buff = slices.Grow(c.buff, size-len(c.buff))
 	}
-	// Buffer advancement will be triggered by subsequent Read() calls
-	return nil
+
+	c.buff = c.buff[:len(c.buff)+n]
+}
+
+// _IncrementRead adds bits to the count of bits read.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) _IncrementRead(bits uint64) {
+	c.read += bits
+}
+
+// _IncrementWrite adds bits to the count of bits written.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) _IncrementWrite(bits uint64) {
+	c.written += bits
+}
+
+// _Trace prints one line of Codec state when ENABLE_TRACE is on.
+//
+// Revisions:
+//   - 2026-01-20 23:00: initial creation
+func (c *Codec) _Trace(event, function, arguments string) {
+	if !ENABLE_TRACE {
+		return
+	}
+
+	state := fmt.Sprintf(
+		"[%s %s] len=%d offset=%d written=%d read=%d",
+		event,
+		function,
+		len(c.buff),
+		c.offset,
+		c.written,
+		c.read,
+	)
+	if arguments != "" {
+		state = state + " --> " + arguments
+	}
+
+	println(state)
 }

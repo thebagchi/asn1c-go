@@ -1,0 +1,18 @@
+-- OK: every shape a value can be written in that this grammar reads.
+Sample DEFINITIONS ::= BEGIN
+    flag      BOOLEAN            ::= TRUE
+    nothing   NULL               ::= NULL
+    count     INTEGER            ::= 42
+    negative  INTEGER            ::= -5
+    huge      INTEGER            ::= 123456789012345678901234567890
+    pi        REAL               ::= 3.14159
+    unbounded REAL               ::= PLUS-INFINITY
+    bits      BIT STRING         ::= '1010'B
+    bytes     OCTET STRING       ::= '1A2B'H
+    greeting  IA5String          ::= "hello"
+    oid       OBJECT IDENTIFIER  ::= { iso member-body(2) 42 }
+    braced    Person             ::= { name "John", age 42 }
+    nested    Foo                ::= { { 1, 2 }, { 3 } }
+    chosen    Shape              ::= circle : 5
+    xml                          ::= <Count>42</Count>
+END

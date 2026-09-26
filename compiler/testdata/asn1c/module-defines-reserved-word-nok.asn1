@@ -1,0 +1,7 @@
+-- NP: a module defining a reserved word.
+-- lib/review.md 11.9. X.680 12.38 reserves DATE, so this is not a module a
+-- designer may write, however reasonable it looks. samples/builtin.asn1 does
+-- exactly this and is the one sample file meant not to parse.
+Sample DEFINITIONS ::= BEGIN
+    DATE ::= [UNIVERSAL 31] IMPLICIT TIME
+END

@@ -1,0 +1,157 @@
+-- Reference ASN.1 module for TimeDifference (lib/builtin/time_difference.go),
+-- matching X.691 (02/2021) clause 32.3. Shared by the corresponding *.py
+-- (via pycrate) generator and Erlang cross-validation encoder to generate
+-- cross-validated PER test vectors.
+--
+-- Filename must be "TIME-DIFFERENCE.asn1" (matching this module's
+-- identifier exactly, case included): Erlang's asn1ct compiler generates
+-- code that references "<ModuleName>.hrl" regardless of the source
+-- filename, so if the file and module names don't match case-for-case, the
+-- generated include fails to resolve on a case-sensitive filesystem.
+
+TIME-DIFFERENCE DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+TIME-DIFFERENCE ::= SEQUENCE {
+    sign    ENUMERATED { positive, negative },
+    hours   INTEGER (0..15),
+    minutes INTEGER (1..59) OPTIONAL -- omitted if zero
+}
+
+HOURS-ENCODING ::= INTEGER (0..24)
+
+HOURS-UTC-ENCODING ::= INTEGER (0..24)
+
+HOURS-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24),
+    time-difference TIME-DIFFERENCE
+}
+
+MINUTES-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24),
+    minutes INTEGER (0..59)
+}
+
+MINUTES-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24),
+    minutes INTEGER (0..59)
+}
+
+MINUTES-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+TIME-OF-DAY-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24),
+    minutes INTEGER (0..59),
+    seconds INTEGER (0..60)
+}
+
+TIME-OF-DAY-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24),
+    minutes INTEGER (0..59),
+    seconds INTEGER (0..60)
+}
+
+TIME-OF-DAY-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59),
+        seconds INTEGER (0..60)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+HOURS-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+HOURS-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+HOURS-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24),
+    fraction        INTEGER (0..999, ..., 1000..MAX),
+    time-difference TIME-DIFFERENCE
+}
+
+MINUTES-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    minutes  INTEGER (0..59),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+MINUTES-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    minutes  INTEGER (0..59),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+MINUTES-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+TIME-OF-DAY-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    minutes  INTEGER (0..59),
+    seconds  INTEGER (0..60),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+TIME-OF-DAY-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24),
+    minutes  INTEGER (0..59),
+    seconds  INTEGER (0..60),
+    fraction INTEGER (0..999, ..., 1000..MAX)
+}
+
+TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        seconds  INTEGER (0..60),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference TIME-DIFFERENCE
+}
+
+DURATION-INTERVAL-ENCODING ::= SEQUENCE {
+    years   INTEGER (0..31, ..., 32..MAX) OPTIONAL,
+    months  INTEGER (0..15, ..., 16..MAX) OPTIONAL,
+    weeks   INTEGER (0..63, ..., 64..MAX) OPTIONAL,
+    days    INTEGER (0..31, ..., 32..MAX) OPTIONAL,
+    hours   INTEGER (0..31, ..., 32..MAX) OPTIONAL,
+    minutes INTEGER (0..63, ..., 64..MAX) OPTIONAL,
+    seconds INTEGER (0..63, ..., 64..MAX) OPTIONAL,
+    fractional-part SEQUENCE {
+        number-of-digits INTEGER (1..3, ..., 4..MAX),
+        fractional-value INTEGER (0..999, ..., 1000..MAX)
+    } OPTIONAL
+}
+
+DURATION-EQUIVALENT ::= SEQUENCE {
+    years           INTEGER (0..MAX) OPTIONAL,
+    months          INTEGER (0..MAX) OPTIONAL,
+    weeks           INTEGER (0..MAX) OPTIONAL,
+    days            INTEGER (0..MAX) OPTIONAL,
+    hours           INTEGER (0..MAX) OPTIONAL,
+    minutes         INTEGER (0..MAX) OPTIONAL,
+    seconds         INTEGER (0..MAX) OPTIONAL,
+    fractional-part SEQUENCE {
+        number-of-digits  INTEGER (1..MAX),
+        fractional-value  INTEGER (0..MAX)
+    } OPTIONAL
+}
+
+END

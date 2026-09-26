@@ -1,0 +1,7 @@
+-- NP: OPTIONAL on a CHOICE alternative.
+-- lib/review.md 11.6. X.680 gives a CHOICE's alternatives neither OPTIONAL
+-- nor DEFAULT, and the grammar keeps a separate list for them so that it
+-- cannot be written. Sharing one list with SEQUENCE would have accepted it.
+Sample DEFINITIONS ::= BEGIN
+    Cho ::= CHOICE { a INTEGER OPTIONAL }
+END

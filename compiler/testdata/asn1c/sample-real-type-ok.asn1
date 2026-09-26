@@ -1,0 +1,20 @@
+-- Reference ASN.1 module for RealType (lib/builtin/real_type.go), matching
+-- X.680 clause 21.5's associated type of the REAL built-in type. Shared by
+-- both real_type.py (via pycrate) and the Erlang cross-validation encoder
+-- (encode_real_type.erl) to generate cross-validated PER test vectors.
+--
+-- Filename must be "REAL-TYPE.asn1" (matching this module's identifier
+-- exactly, case included): Erlang's asn1ct compiler generates code that
+-- references "<ModuleName>.hrl" regardless of the source filename, so if
+-- the file and module names don't match case-for-case, the generated
+-- include fails to resolve on a case-sensitive filesystem.
+
+REAL-TYPE DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+RealType ::= SEQUENCE {
+    mantissa INTEGER,
+    base     INTEGER (2 | 10),
+    exponent INTEGER
+}
+
+END

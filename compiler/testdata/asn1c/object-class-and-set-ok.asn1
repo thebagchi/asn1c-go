@@ -1,0 +1,26 @@
+-- OK: a class, the syntax it declares, a type parameterized by it, a table
+-- constraint and an object set written in that syntax. This is the shape the
+-- specifications this compiler is for are built out of.
+-- lib/review.md 11.13 and 11.16.
+Sample DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    FOO-CLASS ::= CLASS {
+        &id        INTEGER UNIQUE,
+        &Value,
+        &presence  Presence
+    } WITH SYNTAX { ID &id TYPE &Value PRESENCE &presence }
+
+    Field {FOO-CLASS : IEsSetParam} ::= SEQUENCE {
+        id     FOO-CLASS.&id ({IEsSetParam}),
+        value  FOO-CLASS.&Value ({IEsSetParam}{@id})
+    }
+
+    Ies FOO-CLASS ::= {
+        { ID 1 TYPE INTEGER PRESENCE mandatory } |
+        { ID 2 TYPE BOOLEAN PRESENCE optional },
+        ...
+    }
+
+    Empty FOO-CLASS ::= { ... }
+
+    object FOO-CLASS ::= { &id 3, &Value INTEGER }
+END

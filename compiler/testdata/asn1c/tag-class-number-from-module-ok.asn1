@@ -1,0 +1,11 @@
+-- A tag whose class number is qualified by the module it came from, and the
+-- encoding reference form beside it. Both open with a typereference after
+-- the bracket, so the four ways a tag may be written are written out in
+-- TagContent rather than as optional parts that may be empty; see
+-- lib/review.md 11.10.
+Sample DEFINITIONS ::= BEGIN
+    Foo ::= [Module.myTag] INTEGER
+    Bar ::= [ENC: 0] INTEGER
+    Baz ::= [ENC: APPLICATION myTag] INTEGER
+    Qux ::= [PRIVATE 3] INTEGER
+END

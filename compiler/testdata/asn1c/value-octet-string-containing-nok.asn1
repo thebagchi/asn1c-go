@@ -1,0 +1,8 @@
+-- NP: X.680 23.3's CONTAINING form of an OctetStringValue.
+-- lib/review.md 11.11. The keyword is given to the contents constraint
+-- instead, because "OCTET STRING (CONTAINING Foo)" is what specifications
+-- write and "( CONTAINING x )" cannot be both.
+Sample DEFINITIONS ::= BEGIN
+    inner OCTET STRING ::= '00'H
+    outer OCTET STRING ::= CONTAINING inner
+END

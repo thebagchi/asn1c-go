@@ -1,0 +1,14 @@
+-- X.680 31's encoding prefixes. The content of one is an encoding
+-- instruction, which X.680 gives no production for: each encoding-rules
+-- standard defines its own. The lexer keeps the brackets and everything
+-- between them, and tells a prefix from a tag by the word it opens with.
+Sample DEFINITIONS ::= BEGIN
+    Attributed  ::= [XER:ATTRIBUTE] INTEGER
+    Listed      ::= [XER:LIST] SEQUENCE OF INTEGER
+    Renamed     ::= [NAME AS CAPITALIZED] IA5String
+    Stacked     ::= [PER:ALIGNED] [XER:UNTAGGED] INTEGER
+    Unqualified ::= [USE-NIL] SEQUENCE {
+        content INTEGER OPTIONAL
+    }
+    Both        ::= [XER:BASE64] [APPLICATION 4] OCTET STRING
+END

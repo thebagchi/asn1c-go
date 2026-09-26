@@ -1,0 +1,26 @@
+-- X.681's open type value, "Type : Value", and a field taken from an
+-- object wherever a value may stand. Both are settings the class rather
+-- than the tokens decide, so the parser keeps the shape and the resolver
+-- reads it. lib/review.md 11.12 and 11.26.
+Sample DEFINITIONS ::= BEGIN
+    Algorithm ::= SEQUENCE {
+        algorithm  OBJECT IDENTIFIER,
+        parameters T DEFAULT NULL : NULL
+    }
+
+    hmac Algorithm ::= { algorithm id-hmac, parameters NULL : NULL }
+    id-hmac OBJECT IDENTIFIER ::= { iso 3 }
+
+    -- A field of an object as a value: in a range, in an element set, and
+    -- as the whole of a value assignment.
+    Digits  ::= INTEGER (bound.&minLength .. bound.&maxLength)
+    Sized   ::= IA5String (SIZE (bound.&minLength .. bound.&maxLength))
+    Chosen  T ::= { holder.&obj | other.&obj }
+    single  T ::= obj.&value
+    Named   ::= obj.&Type
+
+    -- An exception spec after every kind of constraint spec, which X.680
+    -- gives each one.
+    Guarded ::= INTEGER (CONSTRAINED BY { Rule } ! RejectProblem : general-x)
+    Held    ::= T (CONTAINING INTEGER ! 5)
+END

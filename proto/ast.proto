@@ -1,0 +1,540 @@
+syntax = "proto3";
+
+// The AST a parsed ASN.1 module becomes. It is declared here rather than in
+// Go because more than one thing reads it: the compiler builds it, and each
+// code generator consumes it, in whatever language that generator is written
+// in.
+//
+// Where X.680 gives a node a closed set of shapes, this uses a oneof rather
+// than a discriminator beside a bag of optional fields. That is not only
+// tidier - protojson refuses a message with two arms of a oneof set, so a
+// node that could not have been written becomes an error where it is built
+// rather than something a later pass has to notice.
+//
+// Field numbers are never reused. A field that goes away is reserved.
+package asn1;
+
+option go_package = "github.com/thebagchi/asn1c-go/ast;ast";
+
+// ObjIdComponent is one arc of an object identifier value. X.680 gives an arc
+// three forms - a name, a number, or a name with the number in parentheses -
+// and the two fields cover all three: a form that omits one half leaves that
+// field at its zero value.
+message ObjIdComponent {
+  string name   = 1;
+  int64  number = 2;
+}
+
+// Symbol is one name in an exports or imports clause. A symbol written with
+// an empty parameter list - "Foo{}" - refers to a parameterized definition
+// (X.683 clause 9), which the name alone does not say.
+message Symbol {
+  string name          = 1;
+  bool   parameterized = 2;
+}
+
+// Exports is a module's EXPORTS clause. The clause has three states and so
+// does this node: an absent Exports is a module that wrote no clause at all,
+// all is "EXPORTS ALL;", and symbols is the named list, which "EXPORTS;"
+// leaves empty. X.680 13.13 gives the three different meanings, so collapsing
+// any two of them would lose the module's intent.
+message Exports {
+  bool            all     = 1;
+  repeated Symbol symbols = 2;
+}
+
+// SymbolsFromModule is one "<symbols> FROM <module>" entry of an imports
+// clause. X.680 13.11 lets the module be named by an object identifier
+// written out or by a valuereference standing for one, and 13.16 f) adds the
+// SUCCESSORS or DESCENDANTS word that picks between modules sharing a prefix.
+message SymbolsFromModule {
+  repeated Symbol symbols          = 1;
+  string          module_name      = 2;
+  string          selection_option = 5;
+
+  oneof assigned {
+    ObjIdComponents oid   = 3;
+    string          value = 4;
+  }
+}
+
+// ObjIdComponents wraps a list of arcs, because proto3 has no repeated field
+// inside a oneof.
+message ObjIdComponents {
+  repeated ObjIdComponent arcs = 1;
+}
+
+// Imports is a module's IMPORTS clause. As with Exports the clause's absence
+// and its emptiness differ: an absent Imports is a module that wrote no
+// clause, while "IMPORTS;" is an empty modules and means the module cannot
+// name anything defined elsewhere (X.680 13.16 d, and 13.17 for what the
+// absent form means instead).
+message Imports {
+  repeated SymbolsFromModule modules = 1;
+}
+
+// NamedNumber is one entry of an INTEGER's NamedNumberList or a BIT STRING's
+// NamedBitList. X.680 lets the value be written as a number or as the name of
+// one defined elsewhere, and exactly one of the two carries it - which is why
+// they are a oneof and not two fields. A number of zero is a value modules
+// really do use, so "the number is zero" and "no number was written" must not
+// be the same state.
+message NamedNumber {
+  string name = 1;
+
+  oneof value {
+    int64  number    = 2;
+    string reference = 3;
+  }
+}
+
+// Component is one entry of a SEQUENCE, SET or CHOICE component list or of an
+// ENUMERATED. X.680 writes such a list as a root part, an extension marker,
+// extension additions and sometimes a second root part, which is a shape a
+// parser cannot follow with one token of lookahead: after an entry, a comma
+// is followed either by another entry or by the marker. The list is therefore
+// kept flat, with the markers in it as entries of their own, and splitting it
+// into root and extensions is left to the pass that reads it.
+message Component {
+  oneof kind {
+    NamedComponent named  = 1;
+    Marker         marker = 2;
+    Group          group  = 3;
+    ComponentsOf   of     = 4;
+  }
+}
+
+// NamedComponent is a component of a SEQUENCE, SET or CHOICE, or an item of
+// an ENUMERATED that gave a number. X.680 allows OPTIONAL and DEFAULT on
+// neither a CHOICE alternative nor an ENUMERATED item, and the grammar does
+// not either.
+message NamedComponent {
+  string name     = 1;
+  Type   type     = 2;
+  Value  number   = 3;
+  Value  default  = 4;
+  bool   optional = 5;
+}
+
+// Marker is the "..." that separates a root from its extensions, and carries
+// only the exception a module may write after it.
+message Marker {
+  Exception exception = 1;
+}
+
+// Group is an extension addition group, "[[ ... ]]", whose version is the
+// number before the colon, or zero when it was left out.
+message Group {
+  int64              version    = 1;
+  repeated Component components = 2;
+}
+
+// ComponentsOf is COMPONENTS OF, whose type is the type whose components are
+// being taken.
+message ComponentsOf {
+  Type type = 1;
+}
+
+// Exception is what X.680 writes after a "!": the value a decoder should
+// report when it meets something the extension marker admitted but it does
+// not understand. The value alone is the usual form; type is filled as well
+// when the module wrote the "Type : Value" one, which says which type the
+// value belongs to.
+message Exception {
+  Type  type  = 1;
+  Value value = 2;
+}
+
+// NamedConstraint is one entry of a WITH COMPONENTS constraint: the name of a
+// component, the constraint put on its value, and what X.680 calls its
+// presence - PRESENT, ABSENT or OPTIONAL, or empty where the module said
+// nothing. Either part may be left out, so a constraint of none with a
+// presence names a component that is only being required or forbidden.
+message NamedConstraint {
+  string     name       = 1;
+  Constraint constraint = 2;
+  string     presence   = 3;
+}
+
+// ElementSet is one node of a constraint's set expression. X.680 builds a
+// constraint out of a union of intersections of elements; the first seven
+// arms are the elements themselves and the rest are what combines them.
+message ElementSet {
+  oneof kind {
+    Value          value        = 1;
+    Range          range        = 2;
+    Constraint     size         = 3;
+    Constraint     alphabet     = 4;
+    Type           type         = 5;
+    Value          pattern      = 6;
+    string         settings     = 7;
+    Operands       union        = 8;
+    Operands       intersection = 9;
+    Operands       except       = 10;
+    ElementSet     all          = 11;
+    Constraint     component    = 12;
+    WithComponents components   = 13;
+    Contents       contents     = 14;
+    UserConstraint user         = 15;
+  }
+}
+
+// Range is X.680's ValueRange. An unbounded end is written MIN or MAX and
+// arrives as a value of the special kind rather than as an absent one, so a
+// range always has both ends. The open flags are the "<" that excludes an
+// endpoint.
+message Range {
+  Value lower      = 1;
+  Value upper      = 2;
+  bool  lower_open = 3;
+  bool  upper_open = 4;
+}
+
+// Operands are the two sides of a union, an intersection or an EXCEPT. There
+// are exactly two, since a chain of them nests to the left: "a | b | c" is a
+// union of a union and c.
+message Operands {
+  repeated ElementSet operands = 1;
+}
+
+// WithComponents is X.680's WITH COMPONENTS. Partial is the leading "..."
+// that says the module is speaking about some components and not all.
+message WithComponents {
+  repeated NamedConstraint named   = 1;
+  bool                     partial = 2;
+}
+
+// Contents is X.680 clause 36's contents constraint, which says what a string
+// carries: type for the CONTAINING form and value for the ENCODED BY one,
+// either or both.
+message Contents {
+  Type  type  = 1;
+  Value value = 2;
+}
+
+// UserConstraint is X.682's CONSTRAINED BY, whose settings are the parameters
+// the module handed to whatever reads it. What they mean is outside ASN.1 by
+// design, so they are kept as written.
+message UserConstraint {
+  repeated Setting settings = 1;
+}
+
+// Constraint is a parenthesised constraint on a type: the element set X.680
+// calls the root, whether the module wrote ",..." after it, and the element
+// set after that when it did. Unlike the braced type lists, this keeps
+// X.680's own shape, because the comma before the "..." cannot be confused
+// with anything else - a constraint separates its own parts with "|" and "^",
+// never with a comma.
+message Constraint {
+  ElementSet          root       = 1;
+  bool                extensible = 2;
+  ElementSet          additional = 3;
+  Exception           exception  = 4;
+  repeated AtNotation relation   = 5;
+}
+
+// Tag is a tag written before a type, X.680 clause 31. Class is UNIVERSAL,
+// APPLICATION or PRIVATE, and empty for the context-specific class a module
+// gets by naming none. Mode is the IMPLICIT or EXPLICIT the module wrote, and
+// empty when it wrote neither and the module's own TagDefault decides.
+// The encoding reference is the "ENC:" form, which names the encoding
+// instructions the tag belongs to.
+message Tag {
+  string class              = 1;
+  Value  number             = 2;
+  string mode               = 3;
+  string encoding_reference = 4;
+}
+
+// Type is the type on the right of an assignment. Tags, prefixes and
+// constraints are outside the oneof because X.680 lets any type carry them:
+// a tag may be written on a type that is already tagged, and a type may carry
+// more than one constraint, each narrowing what is left of the one before.
+message Type {
+  repeated Tag        tags        = 1;
+  repeated string     prefixes    = 2;
+  repeated Constraint constraints = 3;
+
+  oneof kind {
+    BuiltinType   builtin   = 4;
+    ReferenceType reference = 5;
+    SelectionType selection = 6;
+    FieldType     field     = 7;
+  }
+}
+
+// BuiltinType is a type X.680 defines itself. Name is the words it is spelt
+// with; the rest is what those words may carry - named for the list an
+// INTEGER or a BIT STRING gives its values, components for a SEQUENCE, SET,
+// CHOICE or ENUMERATED, and element for the type a SEQUENCE OF or SET OF
+// repeats, with element_name when X.680's NamedType form named it.
+message BuiltinType {
+  string               name         = 1;
+  repeated NamedNumber named        = 2;
+  repeated Component   components   = 3;
+  Type                 element      = 4;
+  string               element_name = 5;
+}
+
+// ReferenceType names a type defined elsewhere, with the module it comes from
+// where the reference named one, and the actual parameter list X.683 lets a
+// parameterized type be used with.
+message ReferenceType {
+  string           module    = 1;
+  string           name      = 2;
+  repeated Setting arguments = 3;
+}
+
+// SelectionType is X.680's "alt < Shape": the alternative it names, and the
+// CHOICE it is selected from.
+message SelectionType {
+  string name = 1;
+  Type   from = 2;
+}
+
+// FieldType is a field reached through a class or an object - "FOO.&Type",
+// "obj.&value". Which of X.681's five forms it is depends on what the field
+// holds, which the class says and no parser can, so they are one node here.
+message FieldType {
+  string           module    = 1;
+  string           reference = 2;
+  repeated string  field     = 3;
+  repeated Setting arguments = 4;
+}
+
+// Element is one entry of a braced value: everything a module wrote between
+// one comma and the next. The braced arm is a list rather than a single value
+// because X.680 writes some entries as two values side by side - a SEQUENCE's
+// "name 42" is an identifier and a value, and an object identifier's arcs are
+// written side by side with no commas at all, which makes the whole of
+// "{ iso member-body 42 }" one entry of three.
+//
+// An object written in X.681's default syntax uses the same node for its
+// field settings, which is the setting arm.
+message Element {
+  oneof kind {
+    Values       values  = 1;
+    FieldSetting setting = 2;
+  }
+}
+
+// Values is a run of values written side by side.
+message Values {
+  repeated Value values = 1;
+}
+
+// FieldSetting is one field of an object written in the default syntax: the
+// field being set, and what it is set to.
+message FieldSetting {
+  string  field = 1;
+  Setting value = 2;
+}
+
+// Value is a value as an assignment's right-hand side.
+//
+// ASN.1 value notation is read against the type the value was written for,
+// and a context-free grammar has no type to read it against - so named covers
+// an INTEGER's named number, an ENUMERATED's item and a reference to a value
+// defined elsewhere alike, and the pass that knows the type tells them apart.
+//
+// The lexemes are kept as text rather than parsed into numbers, because an
+// ASN.1 INTEGER has no bound and parsing one here would quietly round it.
+message Value {
+  oneof kind {
+    bool         boolean      = 1;
+    string       number       = 2;
+    string       real         = 3;
+    string       special      = 4;   // NULL, MIN, MAX, PLUS-INFINITY, ...
+    string       text         = 5;   // a cstring, bstring or hstring
+    string       named        = 6;
+    NamedValue   named_number = 7;
+    ChoiceValue  choice       = 8;
+    Braced       braced       = 9;
+    Value        containing   = 10;
+    string       opaque       = 11;  // braces the lexer kept whole
+    Braced       object       = 12;  // an object in the default syntax
+    string       xml          = 13;  // an XML typed value, as written
+    OpenValue    open         = 14;  // X.681's "Type : Value"
+    FieldType    from_object  = 15;
+    Parameterized parameterized = 16;
+  }
+}
+
+// NamedValue is X.680's "name(number)" written as a value, which is how an
+// object identifier arc names its own number. The number is a value rather
+// than an integer for the reason every other value's is: an ASN.1 number has
+// no bound, so the lexeme is kept and parsing one here would quietly round
+// it. NamedNumber, which an INTEGER's list is made of, is the other shape -
+// there X.680 does bound the number.
+message NamedValue {
+  string name   = 1;
+  Value  number = 2;
+}
+
+// Braced is a value written between braces, as its entries.
+message Braced {
+  repeated Element elements = 1;
+}
+
+// ChoiceValue is X.680's "alt : Value": the alternative named, and the value
+// chosen for it.
+message ChoiceValue {
+  string name  = 1;
+  Value  value = 2;
+}
+
+// OpenValue is X.681's ObjectClassFieldValue, "NULL:NULL". The type is
+// written before the colon because an open field's type is not known from the
+// field alone.
+message OpenValue {
+  Type  type  = 1;
+  Value value = 2;
+}
+
+// Parameterized is X.683's ParameterizedValue or ParameterizedObject, a name
+// with actual parameters after it. It is a value only where no run of values
+// can stand, because "v {Args}" is X.680's NamedValue as readily there.
+message Parameterized {
+  string           module    = 1;
+  string           name      = 2;
+  repeated Setting arguments = 3;
+}
+
+// Parameter is one formal parameter of a parameterized assignment, X.683
+// clause 8. Name is the dummy reference the body refers to it by. Governor is
+// what the parameter may be given - a type, when the module wrote
+// "INTEGER : n" - and absent for the bare form, where the parameter is itself
+// a type and the dummy reference stands in for it.
+message Parameter {
+  Type   governor = 1;
+  string name     = 2;
+}
+
+// AtNotation is one entry of X.682's component relation constraint: the path
+// from the type being constrained to the component whose value picks the
+// object. Level is the number of full stops written after the at sign, which
+// says how far outwards to start from, and is zero for the plain form.
+message AtNotation {
+  int64           level = 1;
+  repeated string path  = 2;
+}
+
+// Setting is one thing written where X.681 and X.683 allow a setting: an
+// actual parameter, a field's default, and each item of a braced list. Which
+// arm is filled says how it was written, not what it means. The
+// specifications let a setting be a type, a value, a value set, an object or
+// an object set, and what decides between them is the governor or the class,
+// which no parser reads. A braced setting arrives as a braced value, the same
+// way every braced value does.
+message Setting {
+  oneof kind {
+    Type  type  = 1;
+    Value value = 2;
+  }
+}
+
+// SyntaxToken is one entry of a class's WITH SYNTAX list: a literal word, a
+// field reference, or a bracketed group of both that a module may leave out.
+message SyntaxToken {
+  oneof kind {
+    string      literal = 1;
+    string      field   = 2;
+    SyntaxGroup group   = 3;
+  }
+}
+
+// SyntaxGroup is an optional group of a syntax list, "[ ... ]". X.681 nests
+// them, so a group holds tokens that may themselves be groups.
+message SyntaxGroup {
+  repeated SyntaxToken tokens = 1;
+}
+
+// FieldSpec is one field of an information object class, X.681 clause 9. The
+// specification gives seven kinds of field and this is one node for all of
+// them, because the lexer has two field-reference tokens and not seven:
+// "&Upper" is a type, a value set or an object set field alike, and "&lower"
+// is a value or an object field alike. Which kind a field is follows from its
+// governor, and that is the resolver's to say.
+//
+// Name is the reference as written, ampersand included. Governor is the type
+// or class the field is fixed to, and path is the dotted field name a
+// variable-type field is governed by instead - "&value &Type" gives the
+// second field the first one's type.
+message FieldSpec {
+  string          name     = 1;
+  Type            governor = 2;
+  repeated string path     = 3;
+  bool            unique   = 4;
+  bool            optional = 5;
+  Setting         default  = 6;
+}
+
+// Class is an information object class: either a definition, which fills
+// fields and syntax, or a reference to one defined elsewhere.
+// TYPE-IDENTIFIER and ABSTRACT-SYNTAX, the two X.681 gives every module
+// without importing them, arrive as a reference.
+message Class {
+  string                module    = 1;
+  string                reference = 2;
+  repeated FieldSpec    fields    = 3;
+  repeated SyntaxToken  syntax    = 4;
+}
+
+// Assignment is one entry of a module's AssignmentList.
+message Assignment {
+  string             name       = 1;
+  repeated Parameter parameters = 2;
+
+  oneof body {
+    Type         type      = 3;
+    ValueBody    value     = 4;
+    ValueSetBody value_set = 5;
+    Class        class     = 6;
+  }
+}
+
+// ValueBody is a value assignment, which X.680 writes with the value's type
+// between its name and the value itself.
+message ValueBody {
+  Type  type  = 1;
+  Value value = 2;
+}
+
+// ValueSetBody is a value set type assignment. The set is the same expression
+// a constraint holds, written between braces rather than parentheses.
+message ValueSetBody {
+  Type       type = 1;
+  Constraint set  = 2;
+}
+
+// Section is one of X.680 clause 54's encoding control sections: the encoding
+// it speaks for, and its body as written. The body is text because X.680 does
+// not define it - each encoding's own specification does, X.693 for XER and
+// X.697 for JER - so reading it belongs to whichever of those the encoding
+// reference names.
+message Section {
+  string encoding_reference = 1;
+  string text               = 2;
+}
+
+// Module is a parsed ASN.1 module: the X.680 ModuleDefinition header, the
+// exports and imports its body opens with, and the assignments that follow.
+// Every field past module_name comes from a clause the module may omit, so a
+// zero value there means the clause was absent, not that it was empty.
+message Module {
+  string                  module_name        = 1;
+  repeated ObjIdComponent definitive_oid     = 2;
+  string                  iri                = 3;
+  string                  encoding_reference = 4;
+  string                  tag_default        = 5;
+  bool                    extensibility      = 6;
+  Exports                 exports            = 7;
+  Imports                 imports            = 8;
+  repeated Assignment     assignments        = 9;
+  repeated Section        sections           = 10;
+}
+
+// Modules is what a parse returns: a file holds one or more.
+message Modules {
+  repeated Module modules = 1;
+}

@@ -2,41 +2,38 @@ package compiler
 
 import "regexp"
 
+// The three lexical rules that are checked rather than matched. The lexer
+// finds tokens with the streaming expressions in lexer.go; these say what
+// a token that was found must look like, which is a different question and
+// one the specifications ask in only three places.
+//
+// X.680 clause 12 and X.681 clause 7 define two dozen more lexical items,
+// and every one of them is either a shape the streaming set already
+// matches or a name for a shape another item shares - a "valuereference"
+// is an "identifier", a "modulereference" is a "typereference", and X.680
+// 12.4 and 12.5 say so themselves. Transcribing those here as a second set
+// of expressions left twenty-nine that nothing read and that said, wrongly,
+// that the lexer had a rule of its own for each.
 var (
-	TYPE_REFERENCE_RE             = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$`)
-	IDENTIFIER_RE                 = regexp.MustCompile(`^[a-z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$`)
-	VALUE_REFERENCE_RE            = IDENTIFIER_RE
-	MODULE_REFERENCE_RE           = TYPE_REFERENCE_RE
-	COMMENT_RE                    = regexp.MustCompile(`(--[^\n]*|/\*[\s\S]*?\*/)`)
-	NUMBER_RE                     = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
-	REAL_NUMBER_RE                = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
-	BSTRING_RE                    = regexp.MustCompile(`^'[01\s]*'B$`)
-	XML_BSTRING_RE                = regexp.MustCompile(`^[01\s]*$`)
-	HSTRING_RE                    = regexp.MustCompile(`^'[0-9A-F\s]*'H$`)
-	XML_HSTRING_RE                = regexp.MustCompile(`^[0-9A-Fa-f\s]*$`)
-	CSTRING_RE                    = regexp.MustCompile(`^"([^"]|"")*"$`)
-	XML_CSTRING_RE                = regexp.MustCompile(`^[\x{09}\x{0A}\x{0D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]*$`)
-	SIMPLE_STRING_RE              = regexp.MustCompile(`^"[\x20-\x21\x23-\x7e]*"$`)
-	TSTRING_RE                    = regexp.MustCompile(`^"[0-9+\-:.,/CDHMRPSTWYZ]+"$`)
-	XML_TSTRING_RE                = regexp.MustCompile(`^[0-9+\-:.,/CDHMRPSTWYZ]+$`)
-	PS_NAME_RE                    = TYPE_REFERENCE_RE
-	ENCODING_REFERENCE_RE         = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
-	INTEGER_UNICODE_LABEL_RE      = NUMBER_RE
-	NON_INTEGER_UNICODE_LABEL_RE  = regexp.MustCompile(`^\p{L}[\p{L}\p{N}-]*$`)
-	EXTENDED_TRUE_RE              = regexp.MustCompile(`^(true|1)$`)
-	EXTENDED_FALSE_RE             = regexp.MustCompile(`^(false|0)$`)
-	XML_ASN1_TYPE_NAME_RE         = TYPE_REFERENCE_RE
-	OBJECT_CLASS_REFERENCE_RE     = ENCODING_REFERENCE_RE
-	OBJECT_REFERENCE_RE           = IDENTIFIER_RE
-	OBJECT_SET_REFERENCE_RE       = TYPE_REFERENCE_RE
-	TYPE_FIELD_REFERENCE_RE       = regexp.MustCompile(`^&[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$`)
-	VALUE_FIELD_REFERENCE_RE      = regexp.MustCompile(`^&[a-z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$`)
-	VALUE_SET_FIELD_REFERENCE_RE  = TYPE_FIELD_REFERENCE_RE
-	OBJECT_FIELD_REFERENCE_RE     = VALUE_FIELD_REFERENCE_RE
-	OBJECT_SET_FIELD_REFERENCE_RE = TYPE_FIELD_REFERENCE_RE
-	WORD_RE                       = regexp.MustCompile(`^[A-Z]+(-[A-Z]+)*$`)
+	// RE_TYPE_REFERENCE tells a typereference from an identifier, which
+	// is the one distinction the lexer makes by shape (see _LexName).
+	RE_TYPE_REFERENCE = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$`)
+
+	// RE_ENCODING_REFERENCE is X.680 12.25: an encodingreference is a
+	// typereference with no lower-case letter in it. The lexer cannot tell
+	// the two apart and does not try; whoever resolves names checks this.
+	// X.681 7.1's objectclassreference is the same rule.
+	RE_ENCODING_REFERENCE = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
+
+	// RE_WORD is X.681 7.9: a word, which a class may use in the syntax it
+	// declares, is a typereference with neither lower-case letters nor
+	// digits. The grammar's Literal rule takes any typereference, so this
+	// is the check that says which of them a class may actually use.
+	RE_WORD = regexp.MustCompile(`^[A-Z]+(-[A-Z]+)*$`)
 )
 
+// The ASN.1 reserved words of X.680 clause 12.38, as the text each is spelled
+// with. tokens.go maps every one of them to the token goyacc assigns it.
 const (
 	ABSENT                 = "ABSENT"
 	ABSTRACT_SYNTAX        = "ABSTRACT-SYNTAX"
@@ -155,10 +152,37 @@ const (
 	ELLIPSIS               = "..."
 	LEFT_VERSION_BRACKETS  = "[["
 	RIGHT_VERSION_BRACKETS = "]]"
+	BLOCK_COMMENT_OPEN     = "/*"
+	BLOCK_COMMENT_CLOSE    = "*/"
 	XML_END_TAG_START      = "</"
 	XML_SINGLE_TAG_END     = "/>"
 	XML_BOOLEAN_TRUE       = "true"
 	XML_BOOLEAN_FALSE      = "false"
 	XML_REAL_NOT_A_NUMBER  = "NaN"
 	XML_REAL_INFINITY      = "INF"
+)
+
+// The two words a SelectionOption may use after WITH (X.680 13.1). They sit
+// apart from the block above because X.680 quotes them in the syntax rather
+// than listing them in clause 12.38: they are not reserved words, a module
+// may still use either as a typereference, and the lexer therefore returns
+// them as one. Only the grammar's SelectionOption rule tells them apart.
+const (
+	SUCCESSORS  = "SUCCESSORS"
+	DESCENDANTS = "DESCENDANTS"
+)
+
+// The built-in types X.680 spells with two reserved words, as the one name
+// each carries in the AST. They are written out rather than joined from the
+// two constants above at each use, so the space between the words is spelled
+// once and a reader sees the name a module would write.
+const (
+	BIT_STRING        = "BIT STRING"
+	OCTET_STRING      = "OCTET STRING"
+	OBJECT_IDENTIFIER = "OBJECT IDENTIFIER"
+	CHARACTER_STRING  = "CHARACTER STRING"
+	EMBEDDED_PDV      = "EMBEDDED PDV"
+	SEQUENCE_OF       = "SEQUENCE OF"
+	SET_OF            = "SET OF"
+	INSTANCE_OF       = "INSTANCE OF"
 )

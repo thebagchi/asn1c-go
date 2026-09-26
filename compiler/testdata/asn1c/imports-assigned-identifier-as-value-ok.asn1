@@ -1,0 +1,13 @@
+-- An AssignedIdentifier written as a DefinedValue, and the symbol list that
+-- looks exactly like one. After "FROM Other", a name is that module's
+-- assigned identifier or the next entry's first symbol, and what separates
+-- them is the token after it: a symbol is followed by a comma or by FROM.
+-- lib/review.md 11.2.
+Sample DEFINITIONS ::= BEGIN
+    IMPORTS
+        Person FROM Other someOid
+        Address FROM Elsewhere {iso 1}
+        Name, Title FROM Third thirdOid
+        Plain FROM Fourth
+        Last FROM Fifth fifthOid WITH SUCCESSORS;
+END

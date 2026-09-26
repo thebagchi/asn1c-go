@@ -1,0 +1,56 @@
+The modules compiler/corpus_test.go reads. Nothing here is compiled into the
+module, and nothing here is imported: these are files the tests open.
+
+The 3GPP specifications are not here. They are whole protocols rather than
+fixtures for one package, so they sit in testdata/3gpp at the root of the
+repository with a PROVENANCE of their own.
+
+otp/
+    360 modules from the test suite Erlang/OTP uses on its own ASN.1 compiler,
+    taken from https://github.com/erlang/otp (lib/asn1/test) at master on
+    2026-09-24. Directory structure is flattened into the file names, since
+    nothing here reads a path.
+
+    Licence: Apache 2.0. otp/LICENSE is that licence, kept with the files it
+    covers.
+
+    The most varied of the three corpora: X.500's directory services, the
+    intelligent network protocols, and a long tail of modules written to
+    exercise one corner each. Some are meant to be rejected - OTP tests its
+    compiler's error messages with them - and unlike asn1c's, their names do
+    not say which. That is why the test asserts a count rather than a verdict
+    per file.
+
+asn1c/
+    This project's own modules, under this project's own licence. The name
+    says what the parser must do with each:
+
+        <subject>-ok.asn1     must parse
+        <subject>-nok.asn1    must not
+
+    A file with neither suffix fails the test, because the convention is the
+    test: a module whose verdict is not written down is one nobody can tell
+    has stopped doing what it was written for.
+
+    The idea is asn1c's - that a corpus should carry its own verdict rather
+    than leave it in a list somewhere - and it is the reason that corpus was
+    worth reading. The spelling is shorter here: asn1c writes -OK, -SE and
+    -NP, and the middle one separates a semantic error from a correct module,
+    which is a line a parser cannot see at all. Both of those must parse, so
+    two marks do the work of one.
+
+    Names are the area then the subject, in words - module-header-ok.asn1,
+    constraint-binds-inward-ok.asn1 - so that a listing groups itself. No
+    numbers: a number says nothing, and two people adding a module on the same
+    day collide on it.
+
+    The seven -nok modules are refused by decision, and each says in its first
+    lines which decision and why, with the section of lib/review.md that
+    records it. If one starts parsing, a decision was reversed without anybody
+    meaning to - which is the test the borrowed corpora cannot give, since
+    they say what some other compiler accepts and not what this one decided.
+
+    The sample modules this project kept in samples/ are here too, with a
+    sample- prefix, except builtin.asn1, which defines the reserved words DATE
+    and DURATION and is therefore -nok for the reason it says itself. Keeping
+    them in two places was keeping two answers to one question.

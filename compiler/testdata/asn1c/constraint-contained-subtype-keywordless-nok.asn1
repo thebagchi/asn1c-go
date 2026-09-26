@@ -1,0 +1,8 @@
+-- NP: a built-in type as a contained subtype without INCLUDES.
+-- lib/review.md 11.7. X.680 allows the keyword to be dropped from any type,
+-- which makes NULL two reductions of one token and makes this spelling of
+-- nothing. A referenced type without the keyword is kept; INCLUDES covers
+-- the rest.
+Sample DEFINITIONS ::= BEGIN
+    Foo ::= INTEGER (INTEGER)
+END

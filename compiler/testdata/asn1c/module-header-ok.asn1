@@ -1,0 +1,6 @@
+-- OK: every clause X.680 lets a module header carry, at once.
+-- lib/review.md 11.x, the header rules.
+Sample { iso(1) member-body(2) example 42 } "/ISO/Example"
+    DEFINITIONS XER INSTRUCTIONS AUTOMATIC TAGS EXTENSIBILITY IMPLIED ::=
+BEGIN
+END
