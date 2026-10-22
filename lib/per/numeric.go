@@ -32,7 +32,10 @@ var (
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func _PackNumericGo(dst, src []byte) int {
+func _PackNumericGo(
+	dst,
+	src []byte,
+) int {
 	for idx := 0; idx+NUMERIC_PAIR <= len(src); idx += NUMERIC_PAIR {
 		high, ok := _NumericValue(src[idx])
 		if !ok {
@@ -56,7 +59,10 @@ func _PackNumericGo(dst, src []byte) int {
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func _UnpackNumericGo(dst, src []byte) int {
+func _UnpackNumericGo(
+	dst,
+	src []byte,
+) int {
 	for idx, pair := range src {
 		var (
 			high = pair >> NUMERIC_BITS

@@ -112,3 +112,215 @@ done:
 DATA binary_reverse<>+0(SB)/8, $0x0001020304050607
 DATA binary_reverse<>+8(SB)/8, $0x08090a0b0c0d0e0f
 GLOBL binary_reverse<>(SB), RODATA|NOPTR, $16
+
+// func _BinaryEncodeSSE2(dst []byte, src []byte) int
+// Requires: SSE2
+TEXT ·_BinaryEncodeSSE2(SB), NOSPLIT, $0-56
+	MOVQ   dst_base+0(FP), AX
+	MOVQ   src_base+24(FP), CX
+	MOVQ   src_len+32(FP), DX
+	ANDQ   $-4, DX
+	MOVL   $0x30303030, BX
+	MOVD   BX, X1
+	PSHUFD $0x00, X1, X1
+	MOVOU  binary_bit_masks_sse2<>+0(SB), X0
+	XORQ   BX, BX
+	XORQ   SI, SI
+	TESTQ  DX, DX
+	JEQ    done
+
+loop:
+	MOVL      (CX)(BX*1), DI
+	MOVD      DI, X2
+	PUNPCKLBW X2, X2
+	PUNPCKLWL X2, X2
+	MOVO      X2, X3
+	PUNPCKLLQ X3, X3
+	MOVO      X2, X2
+	PUNPCKHLQ X2, X2
+	PAND      X0, X3
+	PCMPEQB   X0, X3
+	MOVO      X1, X4
+	PSUBB     X3, X4
+	MOVOU     X4, (AX)(SI*1)
+	PAND      X0, X2
+	PCMPEQB   X0, X2
+	MOVO      X1, X3
+	PSUBB     X2, X3
+	MOVOU     X3, 16(AX)(SI*1)
+	ADDQ      $0x00000020, SI
+	ADDQ      $0x00000004, BX
+	CMPQ      BX, DX
+	JL        loop
+
+done:
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA binary_bit_masks_sse2<>+0(SB)/8, $0x0102040810204080
+DATA binary_bit_masks_sse2<>+8(SB)/8, $0x0102040810204080
+GLOBL binary_bit_masks_sse2<>(SB), RODATA|NOPTR, $16
+
+// func _BinaryDecodeSSE2(dst []byte, src []byte) int
+// Requires: SSE2
+TEXT ·_BinaryDecodeSSE2(SB), NOSPLIT, $0-56
+	MOVQ   dst_base+0(FP), AX
+	MOVQ   src_base+24(FP), CX
+	MOVQ   src_len+32(FP), DX
+	ANDQ   $-32, DX
+	MOVL   $0x01010101, BX
+	MOVD   BX, X0
+	PSHUFD $0x00, X0, X0
+	MOVL   $0x31313131, BX
+	MOVD   BX, X1
+	PSHUFD $0x00, X1, X1
+	XORQ   BX, BX
+	XORQ   SI, SI
+	TESTQ  DX, DX
+	JEQ    done
+
+loop:
+	MOVOU    (CX)(BX*1), X2
+	MOVO     X2, X3
+	POR      X0, X3
+	PCMPEQB  X1, X3
+	PCMPEQB  X1, X2
+	MOVO     X2, X4
+	PSLLW    $0x08, X4
+	PSRLW    $0x08, X2
+	POR      X4, X2
+	PSHUFLW  $0x1b, X2, X2
+	PSHUFHW  $0x1b, X2, X2
+	PMOVMSKB X3, DI
+	PMOVMSKB X2, R8
+	MOVOU    16(CX)(BX*1), X2
+	MOVO     X2, X3
+	POR      X0, X3
+	PCMPEQB  X1, X3
+	PCMPEQB  X1, X2
+	MOVO     X2, X4
+	PSLLW    $0x08, X4
+	PSRLW    $0x08, X2
+	POR      X4, X2
+	PSHUFLW  $0x1b, X2, X2
+	PSHUFHW  $0x1b, X2, X2
+	PMOVMSKB X3, R9
+	PMOVMSKB X2, R10
+	ANDL     R9, DI
+	NOTL     DI
+	ANDL     $0x0000ffff, DI
+	JNE      done
+	SHLL     $0x10, R10
+	ORL      R10, R8
+	MOVL     R8, (AX)(SI*1)
+	ADDQ     $0x00000004, SI
+	ADDQ     $0x00000020, BX
+	CMPQ     BX, DX
+	JL       loop
+
+done:
+	MOVQ BX, ret+48(FP)
+	RET
+
+// func _BinaryEncodeAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_BinaryEncodeAVX512(SB), NOSPLIT, $0-56
+	MOVQ         dst_base+0(FP), AX
+	MOVQ         src_base+24(FP), CX
+	MOVQ         src_len+32(FP), DX
+	ANDQ         $-16, DX
+	MOVL         $0x00000030, BX
+	VPBROADCASTB BX, Z2
+	VPBROADCASTQ binary_bit_masks_avx512<>+0(SB), Z0
+	VMOVDQU8     binary_replicate_avx512<>+0(SB), Z1
+	XORQ         BX, BX
+	XORQ         SI, SI
+	TESTQ        DX, DX
+	JEQ          done
+
+loop:
+	VPBROADCASTQ (CX)(BX*1), Z3
+	VPSHUFB      Z1, Z3, Z3
+	VPANDQ       Z0, Z3, Z3
+	VPCMPEQB     Z0, Z3, K1
+	VPMOVM2B     K1, Z3
+	VPSUBB       Z3, Z2, Z3
+	VMOVDQU8     Z3, (AX)(SI*1)
+	VPBROADCASTQ 8(CX)(BX*1), Z3
+	VPSHUFB      Z1, Z3, Z3
+	VPANDQ       Z0, Z3, Z3
+	VPCMPEQB     Z0, Z3, K1
+	VPMOVM2B     K1, Z3
+	VPSUBB       Z3, Z2, Z3
+	VMOVDQU8     Z3, 64(AX)(SI*1)
+	ADDQ         $0x00000080, SI
+	ADDQ         $0x00000010, BX
+	CMPQ         BX, DX
+	JL           loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA binary_bit_masks_avx512<>+0(SB)/8, $0x0102040810204080
+GLOBL binary_bit_masks_avx512<>(SB), RODATA|NOPTR, $8
+
+DATA binary_replicate_avx512<>+0(SB)/8, $0x0000000000000000
+DATA binary_replicate_avx512<>+8(SB)/8, $0x0101010101010101
+DATA binary_replicate_avx512<>+16(SB)/8, $0x0202020202020202
+DATA binary_replicate_avx512<>+24(SB)/8, $0x0303030303030303
+DATA binary_replicate_avx512<>+32(SB)/8, $0x0404040404040404
+DATA binary_replicate_avx512<>+40(SB)/8, $0x0505050505050505
+DATA binary_replicate_avx512<>+48(SB)/8, $0x0606060606060606
+DATA binary_replicate_avx512<>+56(SB)/8, $0x0707070707070707
+GLOBL binary_replicate_avx512<>(SB), RODATA|NOPTR, $64
+
+// func _BinaryDecodeAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_BinaryDecodeAVX512(SB), NOSPLIT, $0-56
+	MOVQ            dst_base+0(FP), AX
+	MOVQ            src_base+24(FP), CX
+	MOVQ            src_len+32(FP), DX
+	ANDQ            $-128, DX
+	MOVL            $0x00000001, BX
+	VPBROADCASTB    BX, Z0
+	MOVL            $0x00000031, BX
+	VPBROADCASTB    BX, Z1
+	VBROADCASTI32X4 binary_reverse_avx512<>+0(SB), Z2
+	XORQ            BX, BX
+	XORQ            SI, SI
+	TESTQ           DX, DX
+	JEQ             done
+
+loop:
+	VMOVDQU8 (CX)(BX*1), Z3
+	VPORQ    Z0, Z3, Z4
+	VPCMPEQB Z1, Z4, K1
+	VPSHUFB  Z2, Z3, Z3
+	VPCMPEQB Z1, Z3, K2
+	KMOVQ    K2, DI
+	VMOVDQU8 64(CX)(BX*1), Z3
+	VPORQ    Z0, Z3, Z4
+	VPCMPEQB Z1, Z4, K2
+	VPSHUFB  Z2, Z3, Z3
+	VPCMPEQB Z1, Z3, K3
+	KMOVQ    K3, R8
+	KANDQ    K2, K1, K1
+	KORTESTQ K1, K1
+	JCC      done
+	MOVQ     DI, (AX)(SI*1)
+	MOVQ     R8, 8(AX)(SI*1)
+	ADDQ     $0x00000010, SI
+	ADDQ     $0x00000080, BX
+	CMPQ     BX, DX
+	JL       loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA binary_reverse_avx512<>+0(SB)/8, $0x0001020304050607
+DATA binary_reverse_avx512<>+8(SB)/8, $0x08090a0b0c0d0e0f
+GLOBL binary_reverse_avx512<>(SB), RODATA|NOPTR, $16

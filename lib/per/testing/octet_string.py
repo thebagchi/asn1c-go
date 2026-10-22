@@ -1,502 +1,299 @@
-# Note: unlike BIT STRING, pycrate does NOT have a fragmentation bug for
-# OCTET STRING encoding. All pycrate cases are correct.
+"""Oracle vectors for EncodeOctetString and DecodeOctetString (X.691 17, 11.9).
 
-#
-# Erlang/OTP ASN.1 encoder bug (tested on OTP 25 / asn1 5.0.21.1):
-# For extensible OCTET STRING types (SIZE (lb..ub, ...)), when the value
-# exceeds the constraint upper bound AND the encoded length triggers
-# multi-fragment PER encoding (length >= 16384 octets), the Erlang encoder
-# drops the leading extension bit, producing output identical to the
-# unconstrained encoding path instead of prepending the '1' extension bit.
-# This is the same bug as observed for BIT STRING extensible types.
-# For example, encoding 131072 octets with SIZE(0..65536, ...):
-#   Expected: 80 C4 00 01 ...  (extension bit '1' + fragmented payload)
-#   Erlang:      C4 00 01 ...  (missing extension bit, same as unconstrained)
-#
-# The following 4 extensible cases are excluded due to this bug:
-#   make_octet_string(131072, 0, 65536, True)
-#   make_octet_string(262144, 0, 131072, True)
-#   make_octet_string(524288, 0, 262144, True)
-#   make_octet_string(1048576, 0, 524288, True)
+One type of testing.asn1 for each shape: OCTETSTRING-<lb>-<ub>-<TRUE or FALSE> (NULL for no
+bound; (lb, NULL) is SIZE (lb..MAX); TRUE when the SIZE has the extension marker). The value
+of a row is the pattern 0x00, 0x01, ... 0xFF, 0x00, ... of its length. pycrate 0.8.1 and
+Erlang/OTP 29.1.1 both encode every value in APER and UPER, and the run stops when they differ.
+Output: the key "octet_string" of testing.json; a row is {type, input {length, lb, ub, extensible},
+aper, uper, ...} in the form of harness.py, with {sha256, octets} for a long answer.
 
-import json
-import os
-import subprocess
-import sys
-from binascii import hexlify
-from pycrate_asn1rt.asnobj_str import OCT_STR
-from pycrate_asn1rt.asnobj_construct import ASN1Set, ASN1RangeInt
+OTP fault (asn1 5.0.21.1, still there in OTP 29.1.1): for an extensible SIZE, when the value is
+longer than the upper bound and the length needs fragments (16384 octets or more), OTP leaves
+out the extension bit and writes the encoding of the unconstrained case. For 131072 octets
+with SIZE (0..65536, ...) the clause gives 80 C4 00 01 ... and OTP gives C4 00 01 ... The
+rows of this fault, from 16384 octets with the bound 8192 up to 1048576 octets with the bound
+524288, keep both answers and take pycrate, which writes the extension bit. pycrate 0.8.1 has
+no fault for OCTET STRING.
+
+Run: testing.py runs this module; see harness.py
+
+Revisions:
+  - 2026-09-22 06:43: initial creation
+  - 2026-10-20 00:14: read the types from testing.asn1 and ask both oracles for every value (the lists of
+    the pycrate run and the OTP run are one list); one row for each value instead of a row for each variant; return the
+    vectors, write no file
+  - 2026-10-20 00:43: every row keeps the answers of both oracles, py and er for each variant, with
+    expected and derived (see harness.py)
+"""
+
+import harness
+
+KIND = "octet_string"
+PREFIX = ""
+
+FRAGMENT = 16384
+
+# (lb, ub, extensible) -> the lengths in octets. None is no bound.
+SHAPES = {
+    (None, None, False): [
+        5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536,
+        131072, 262144, 524288, 1048576, 0
+    ],
+    (0, 10, False): [
+        5
+    ],
+    (10, None, False): [
+        10
+    ],
+    (0, None, False): [
+        1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072,
+        262144, 524288, 1048576, 0
+    ],
+    (0, 2, False): [
+        1
+    ],
+    (0, 4, False): [
+        2
+    ],
+    (0, 8, False): [
+        4, 0
+    ],
+    (0, 16, False): [
+        8
+    ],
+    (0, 32, False): [
+        16
+    ],
+    (0, 64, False): [
+        32
+    ],
+    (0, 128, False): [
+        64, 0
+    ],
+    (0, 256, False): [
+        128
+    ],
+    (0, 512, False): [
+        256
+    ],
+    (0, 1024, False): [
+        512
+    ],
+    (0, 2048, False): [
+        1024
+    ],
+    (0, 4096, False): [
+        2048
+    ],
+    (0, 8192, False): [
+        4096
+    ],
+    (0, 16384, False): [
+        8192
+    ],
+    (0, 32768, False): [
+        16384
+    ],
+    (0, 65536, False): [
+        32768, 0
+    ],
+    (0, 131072, False): [
+        65536
+    ],
+    (0, 262144, False): [
+        131072
+    ],
+    (0, 524288, False): [
+        262144
+    ],
+    (0, 1048576, False): [
+        524288
+    ],
+    (0, 2097152, False): [
+        1048576
+    ],
+    (0, 0, True): [
+        1
+    ],
+    (0, 1, True): [
+        2
+    ],
+    (0, 2, True): [
+        4
+    ],
+    (0, 4, True): [
+        8
+    ],
+    (0, 8, True): [
+        16, 0, 4, 8, 1
+    ],
+    (0, 16, True): [
+        32, 0, 8, 16, 1
+    ],
+    (0, 32, True): [
+        64, 16, 32
+    ],
+    (0, 64, True): [
+        128, 32, 64
+    ],
+    (0, 128, True): [
+        256, 64, 128
+    ],
+    (0, 256, True): [
+        512, 128, 256
+    ],
+    (0, 512, True): [
+        1024, 256, 512
+    ],
+    (0, 1024, True): [
+        2048, 512, 1024
+    ],
+    (0, 2048, True): [
+        4096
+    ],
+    (0, 4096, True): [
+        8192
+    ],
+    (0, 8192, True): [
+        16384
+    ],
+    (0, 16384, True): [
+        32768
+    ],
+    (0, 32768, True): [
+        65536
+    ],
+    (0, 65536, True): [
+        131072
+    ],
+    (0, 131072, True): [
+        262144
+    ],
+    (0, 262144, True): [
+        524288
+    ],
+    (0, 524288, True): [
+        1048576
+    ],
+    (1, 1, False): [
+        1
+    ],
+    (4, 4, False): [
+        4
+    ],
+    (8, 8, False): [
+        8
+    ],
+    (16, 16, False): [
+        16
+    ],
+    (64, 64, False): [
+        64
+    ],
+    (1, None, False): [
+        1, 8, 64, 256
+    ],
+    (1, 127, False): [
+        1, 127, 64
+    ],
+    (1, 128, False): [
+        1, 128, 64
+    ],
+    (1, 255, False): [
+        1, 255, 128
+    ],
+    (1, 256, False): [
+        1, 256, 128
+    ],
+    (1, 1, True): [
+        1, 2
+    ],
+    (4, 4, True): [
+        4, 8
+    ],
+    (8, 8, True): [
+        8, 16
+    ],
+    (16, 16, True): [
+        16, 32
+    ],
+    (64, 64, True): [
+        64, 128
+    ],
+    (1, 127, True): [
+        1, 127, 128
+    ],
+    (1, 128, True): [
+        1, 128, 129
+    ],
+    (1, 255, True): [
+        1, 255, 256
+    ],
+    (1, 256, True): [
+        1, 256, 257
+    ],
+    (4, 16, False): [
+        4, 8, 16, 10
+    ],
+    (8, 32, False): [
+        8, 16, 32, 20
+    ],
+    (16, 64, False): [
+        16, 32, 64, 40
+    ],
+    (4, 16, True): [
+        4, 16, 32, 3, 17
+    ],
+    (8, 32, True): [
+        8, 32, 64, 7, 33
+    ],
+    (16, 64, True): [
+        16, 64, 15, 65
+    ],
+}
 
 
-def encode_per(obj, aligned=True):
-    if aligned:
-        return obj.to_aper()
-    else:
-        return obj.to_uper()
+def type_name(lb, ub, ext):
+    lb_text = "NULL" if lb is None else str(lb)
+    ub_text = "NULL" if ub is None else str(ub)
+    return f"OCTETSTRING-{lb_text}-{ub_text}-{'TRUE' if ext else 'FALSE'}"
 
 
-def make_octet_string(length, lb=None, ub=None, extensible=False):
-    return {"length": length, "lb": lb, "ub": ub, "extensible": extensible}
+def octets(length):
+    """The value of a row: the pattern 0x00 to 0xFF, repeated, of the given length."""
+    pattern = bytes(range(256))
+    full, rest = divmod(length, len(pattern))
+    return pattern * full + pattern[:rest]
 
 
-def gen_octet_string(length):
-    pattern = bytes(range(0x00, 0x100))
-    full, rem = divmod(length, len(pattern))
-    return (pattern * full) + pattern[:rem]
+def erlang_octets(length):
+    """The Erlang expression of the same value (a list of a million bytes would be a line of megabytes)."""
+    full, rest = divmod(length, 256)
+    return f"P=list_to_binary(lists:seq(0,255)),<<(binary:copy(P,{full}))/binary,(binary:part(P,0,{rest}))/binary>>"
 
 
-def encode_octet_string(value, aligned=True, lb=None, ub=None, extensible=None):
-    obj = OCT_STR(name="OCTET_STRING")
-    if lb is not None or ub is not None:
-        ev = [] if extensible else None
-        if lb is not None and ub is not None:
-            constraint = ASN1Set(
-                rv=[lb] if lb == ub else [],
-                rr=[] if lb == ub else [ASN1RangeInt(lb=lb, ub=ub)],
-                ev=ev,
-                er=[],
-            )
-        elif lb is not None:
-            constraint = ASN1Set(rv=[], rr=[ASN1RangeInt(lb=lb, ub=None)], ev=ev, er=[])
-        elif ub is not None:
-            constraint = ASN1Set(rv=[], rr=[ASN1RangeInt(lb=0, ub=ub)], ev=ev, er=[])
-        constraint._set_root_bnd()
-        obj._const_sz = constraint
-    obj.set_val(value)
-    return encode_per(obj, aligned)
+def clause(row):
+    """Decide a row where OTP is wrong: an extensible SIZE, a value above the bound, in fragments."""
+    size = row["input"]
+    if size["extensible"] and size["ub"] is not None and size["length"] > size["ub"] and size["length"] >= FRAGMENT:
+        return (
+            "pycrate",
+            "OTP leaves out the extension bit of a fragmented value outside the root; X.691 clause 17, pycrate taken",
+        )
+    return None
 
 
-def main():
-    results = []
-    cases = [
-        make_octet_string(5, None, None, False),
-        make_octet_string(5, 0, 10, False),
-        make_octet_string(10, 10, None, False),
-        make_octet_string(1, None, None, False),
-        make_octet_string(1, 0, None, False),
-        make_octet_string(1, 0, 2, False),
-        make_octet_string(2, None, None, False),
-        make_octet_string(2, 0, None, False),
-        make_octet_string(2, 0, 4, False),
-        make_octet_string(4, None, None, False),
-        make_octet_string(4, 0, None, False),
-        make_octet_string(4, 0, 8, False),
-        make_octet_string(8, None, None, False),
-        make_octet_string(8, 0, None, False),
-        make_octet_string(8, 0, 16, False),
-        make_octet_string(16, None, None, False),
-        make_octet_string(16, 0, None, False),
-        make_octet_string(16, 0, 32, False),
-        make_octet_string(32, None, None, False),
-        make_octet_string(32, 0, None, False),
-        make_octet_string(32, 0, 64, False),
-        make_octet_string(64, None, None, False),
-        make_octet_string(64, 0, None, False),
-        make_octet_string(64, 0, 128, False),
-        make_octet_string(128, None, None, False),
-        make_octet_string(128, 0, None, False),
-        make_octet_string(128, 0, 256, False),
-        make_octet_string(256, None, None, False),
-        make_octet_string(256, 0, None, False),
-        make_octet_string(256, 0, 512, False),
-        make_octet_string(512, None, None, False),
-        make_octet_string(512, 0, None, False),
-        make_octet_string(512, 0, 1024, False),
-        make_octet_string(1024, None, None, False),
-        make_octet_string(1024, 0, None, False),
-        make_octet_string(1024, 0, 2048, False),
-        make_octet_string(2048, None, None, False),
-        make_octet_string(2048, 0, None, False),
-        make_octet_string(2048, 0, 4096, False),
-        make_octet_string(4096, None, None, False),
-        make_octet_string(4096, 0, None, False),
-        make_octet_string(4096, 0, 8192, False),
-        make_octet_string(8192, None, None, False),
-        make_octet_string(8192, 0, None, False),
-        make_octet_string(8192, 0, 16384, False),
-        make_octet_string(16384, None, None, False),
-        make_octet_string(16384, 0, None, False),
-        make_octet_string(16384, 0, 32768, False),
-        make_octet_string(32768, None, None, False),
-        make_octet_string(32768, 0, None, False),
-        make_octet_string(32768, 0, 65536, False),
-        make_octet_string(65536, None, None, False),
-        make_octet_string(65536, 0, None, False),
-        make_octet_string(65536, 0, 131072, False),
-        make_octet_string(131072, None, None, False),
-        make_octet_string(131072, 0, None, False),
-        make_octet_string(131072, 0, 262144, False),
-        make_octet_string(262144, None, None, False),
-        make_octet_string(262144, 0, None, False),
-        make_octet_string(262144, 0, 524288, False),
-        make_octet_string(524288, None, None, False),
-        make_octet_string(524288, 0, None, False),
-        make_octet_string(524288, 0, 1048576, False),
-        make_octet_string(1048576, None, None, False),
-        make_octet_string(1048576, 0, None, False),
-        make_octet_string(1048576, 0, 2097152, False),
-        make_octet_string(1, 0, 0, True),
-        make_octet_string(2, 0, 1, True),
-        make_octet_string(4, 0, 2, True),
-        make_octet_string(8, 0, 4, True),
-        make_octet_string(16, 0, 8, True),
-        make_octet_string(32, 0, 16, True),
-        make_octet_string(64, 0, 32, True),
-        make_octet_string(128, 0, 64, True),
-        make_octet_string(256, 0, 128, True),
-        make_octet_string(512, 0, 256, True),
-        make_octet_string(1024, 0, 512, True),
-        make_octet_string(2048, 0, 1024, True),
-        make_octet_string(4096, 0, 2048, True),
-        make_octet_string(8192, 0, 4096, True),
-        make_octet_string(16384, 0, 8192, True),
-        make_octet_string(32768, 0, 16384, True),
-        make_octet_string(65536, 0, 32768, True),
-        make_octet_string(131072, 0, 65536, True),
-        make_octet_string(262144, 0, 131072, True),
-        make_octet_string(524288, 0, 262144, True),
-        make_octet_string(1048576, 0, 524288, True),
-        # Fixed size (lb==ub)
-        make_octet_string(1, 1, 1, False),
-        make_octet_string(4, 4, 4, False),
-        make_octet_string(8, 8, 8, False),
-        make_octet_string(16, 16, 16, False),
-        make_octet_string(64, 64, 64, False),
-        # Semi-constrained lb=1
-        make_octet_string(1, 1, None, False),
-        make_octet_string(8, 1, None, False),
-        make_octet_string(64, 1, None, False),
-        make_octet_string(256, 1, None, False),
-        # Boundary ranges (length determinant thresholds)
-        make_octet_string(1, 1, 127, False),
-        make_octet_string(127, 1, 127, False),
-        make_octet_string(64, 1, 127, False),
-        make_octet_string(1, 1, 128, False),
-        make_octet_string(128, 1, 128, False),
-        make_octet_string(64, 1, 128, False),
-        make_octet_string(1, 1, 255, False),
-        make_octet_string(255, 1, 255, False),
-        make_octet_string(128, 1, 255, False),
-        make_octet_string(1, 1, 256, False),
-        make_octet_string(256, 1, 256, False),
-        make_octet_string(128, 1, 256, False),
-        # Fixed size extensible
-        make_octet_string(1, 1, 1, True),
-        make_octet_string(2, 1, 1, True),
-        make_octet_string(4, 4, 4, True),
-        make_octet_string(8, 4, 4, True),
-        make_octet_string(8, 8, 8, True),
-        make_octet_string(16, 8, 8, True),
-        make_octet_string(16, 16, 16, True),
-        make_octet_string(32, 16, 16, True),
-        make_octet_string(64, 64, 64, True),
-        make_octet_string(128, 64, 64, True),
-        # Boundary ranges extensible
-        make_octet_string(1, 1, 127, True),
-        make_octet_string(127, 1, 127, True),
-        make_octet_string(128, 1, 127, True),
-        make_octet_string(1, 1, 128, True),
-        make_octet_string(128, 1, 128, True),
-        make_octet_string(129, 1, 128, True),
-        make_octet_string(1, 1, 255, True),
-        make_octet_string(255, 1, 255, True),
-        make_octet_string(256, 1, 255, True),
-        make_octet_string(1, 1, 256, True),
-        make_octet_string(256, 1, 256, True),
-        make_octet_string(257, 1, 256, True),
-        # ---- Within-root extensible (value fits, extension bit = 0) ----
-        make_octet_string(0, 0, 8, True),
-        make_octet_string(4, 0, 8, True),
-        make_octet_string(8, 0, 8, True),
-        make_octet_string(0, 0, 16, True),
-        make_octet_string(8, 0, 16, True),
-        make_octet_string(16, 0, 16, True),
-        make_octet_string(16, 0, 32, True),
-        make_octet_string(32, 0, 32, True),
-        make_octet_string(32, 0, 64, True),
-        make_octet_string(64, 0, 64, True),
-        make_octet_string(64, 0, 128, True),
-        make_octet_string(128, 0, 128, True),
-        make_octet_string(128, 0, 256, True),
-        make_octet_string(256, 0, 256, True),
-        make_octet_string(256, 0, 512, True),
-        make_octet_string(512, 0, 512, True),
-        make_octet_string(512, 0, 1024, True),
-        make_octet_string(1024, 0, 1024, True),
-        # ---- Empty octet string (length=0) ----
-        make_octet_string(0, None, None, False),
-        make_octet_string(0, 0, None, False),
-        make_octet_string(0, 0, 8, False),
-        make_octet_string(0, 0, 128, False),
-        make_octet_string(0, 0, 65536, False),
-        # ---- lb > 0 constrained ranges ----
-        make_octet_string(4, 4, 16, False),
-        make_octet_string(8, 4, 16, False),
-        make_octet_string(16, 4, 16, False),
-        make_octet_string(8, 8, 32, False),
-        make_octet_string(16, 8, 32, False),
-        make_octet_string(32, 8, 32, False),
-        make_octet_string(16, 16, 64, False),
-        make_octet_string(32, 16, 64, False),
-        make_octet_string(64, 16, 64, False),
-        # ---- lb > 0 constrained, extensible ----
-        make_octet_string(4, 4, 16, True),
-        make_octet_string(16, 4, 16, True),
-        make_octet_string(32, 4, 16, True),
-        make_octet_string(8, 8, 32, True),
-        make_octet_string(32, 8, 32, True),
-        make_octet_string(64, 8, 32, True),
-    ]
-    for case in cases:
-        length = case["length"]
-        lb = case["lb"]
-        ub = case["ub"]
-        extensible = case["extensible"]
-        value = gen_octet_string(length)
-        for aligned in [True, False]:
-            data = encode_octet_string(value, aligned, lb, ub, extensible)
-            output = hexlify(data).decode("ascii")
-            result = {
-                "input": case,
-                "output": output,
-                "aligned": aligned,
-            }
-            results.append(result)
-    # All cases encoded via Erlang/OTP (encode_octetstring.erl) for
-    # fragmentation-correct results. May duplicate pycrate entries for small
-    # sizes, but provides a complete Erlang-verified reference set.
-    erlang_cases = [
-        make_octet_string(5, None, None, False),
-        make_octet_string(5, 0, 10, False),
-        make_octet_string(10, 10, None, False),
-        make_octet_string(1, None, None, False),
-        make_octet_string(1, 0, None, False),
-        make_octet_string(1, 0, 2, False),
-        make_octet_string(2, None, None, False),
-        make_octet_string(2, 0, None, False),
-        make_octet_string(2, 0, 4, False),
-        make_octet_string(4, None, None, False),
-        make_octet_string(4, 0, None, False),
-        make_octet_string(4, 0, 8, False),
-        make_octet_string(8, None, None, False),
-        make_octet_string(8, 0, None, False),
-        make_octet_string(8, 0, 16, False),
-        make_octet_string(16, None, None, False),
-        make_octet_string(16, 0, None, False),
-        make_octet_string(16, 0, 32, False),
-        make_octet_string(32, None, None, False),
-        make_octet_string(32, 0, None, False),
-        make_octet_string(32, 0, 64, False),
-        make_octet_string(64, None, None, False),
-        make_octet_string(64, 0, None, False),
-        make_octet_string(64, 0, 128, False),
-        make_octet_string(128, None, None, False),
-        make_octet_string(128, 0, None, False),
-        make_octet_string(128, 0, 256, False),
-        make_octet_string(256, None, None, False),
-        make_octet_string(256, 0, None, False),
-        make_octet_string(256, 0, 512, False),
-        make_octet_string(512, None, None, False),
-        make_octet_string(512, 0, None, False),
-        make_octet_string(512, 0, 1024, False),
-        make_octet_string(1024, None, None, False),
-        make_octet_string(1024, 0, None, False),
-        make_octet_string(1024, 0, 2048, False),
-        make_octet_string(2048, None, None, False),
-        make_octet_string(2048, 0, None, False),
-        make_octet_string(2048, 0, 4096, False),
-        make_octet_string(4096, None, None, False),
-        make_octet_string(4096, 0, None, False),
-        make_octet_string(4096, 0, 8192, False),
-        make_octet_string(8192, None, None, False),
-        make_octet_string(8192, 0, None, False),
-        make_octet_string(8192, 0, 16384, False),
-        make_octet_string(16384, None, None, False),
-        make_octet_string(16384, 0, None, False),
-        make_octet_string(16384, 0, 32768, False),
-        make_octet_string(32768, None, None, False),
-        make_octet_string(32768, 0, None, False),
-        make_octet_string(32768, 0, 65536, False),
-        make_octet_string(65536, None, None, False),
-        make_octet_string(65536, 0, None, False),
-        make_octet_string(65536, 0, 131072, False),
-        make_octet_string(131072, None, None, False),
-        make_octet_string(131072, 0, None, False),
-        make_octet_string(131072, 0, 262144, False),
-        make_octet_string(262144, None, None, False),
-        make_octet_string(262144, 0, None, False),
-        make_octet_string(262144, 0, 524288, False),
-        make_octet_string(524288, None, None, False),
-        make_octet_string(524288, 0, None, False),
-        make_octet_string(524288, 0, 1048576, False),
-        make_octet_string(1048576, None, None, False),
-        make_octet_string(1048576, 0, None, False),
-        make_octet_string(1048576, 0, 2097152, False),
-        make_octet_string(1, 0, 0, True),
-        make_octet_string(2, 0, 1, True),
-        make_octet_string(4, 0, 2, True),
-        make_octet_string(8, 0, 4, True),
-        make_octet_string(16, 0, 8, True),
-        make_octet_string(32, 0, 16, True),
-        make_octet_string(64, 0, 32, True),
-        make_octet_string(128, 0, 64, True),
-        make_octet_string(256, 0, 128, True),
-        make_octet_string(512, 0, 256, True),
-        make_octet_string(1024, 0, 512, True),
-        make_octet_string(2048, 0, 1024, True),
-        make_octet_string(4096, 0, 2048, True),
-        make_octet_string(8192, 0, 4096, True),
-        make_octet_string(16384, 0, 8192, True),
-        make_octet_string(32768, 0, 16384, True),
-        make_octet_string(65536, 0, 32768, True),
-        # Extensible cases with length >= 16384 octets beyond ub excluded
-        # due to Erlang/OTP extension bit bug (see comment above).
-        # Fixed size (lb==ub), not extensible
-        make_octet_string(1, 1, 1, False),
-        make_octet_string(4, 4, 4, False),
-        make_octet_string(8, 8, 8, False),
-        make_octet_string(16, 16, 16, False),
-        make_octet_string(64, 64, 64, False),
-        # Fixed size (lb==ub), extensible
-        make_octet_string(1, 1, 1, True),
-        make_octet_string(2, 1, 1, True),
-        make_octet_string(4, 4, 4, True),
-        make_octet_string(8, 4, 4, True),
-        make_octet_string(8, 8, 8, True),
-        make_octet_string(16, 8, 8, True),
-        make_octet_string(16, 16, 16, True),
-        make_octet_string(32, 16, 16, True),
-        make_octet_string(64, 64, 64, True),
-        make_octet_string(128, 64, 64, True),
-        # Semi-constrained lb=1
-        make_octet_string(1, 1, None, False),
-        make_octet_string(8, 1, None, False),
-        make_octet_string(64, 1, None, False),
-        make_octet_string(256, 1, None, False),
-        # Boundary ranges (length determinant thresholds), not extensible
-        make_octet_string(1, 1, 127, False),
-        make_octet_string(127, 1, 127, False),
-        make_octet_string(64, 1, 127, False),
-        make_octet_string(1, 1, 128, False),
-        make_octet_string(128, 1, 128, False),
-        make_octet_string(64, 1, 128, False),
-        make_octet_string(1, 1, 255, False),
-        make_octet_string(255, 1, 255, False),
-        make_octet_string(128, 1, 255, False),
-        make_octet_string(1, 1, 256, False),
-        make_octet_string(256, 1, 256, False),
-        make_octet_string(128, 1, 256, False),
-        # Boundary ranges, extensible
-        make_octet_string(1, 1, 127, True),
-        make_octet_string(127, 1, 127, True),
-        make_octet_string(128, 1, 127, True),
-        make_octet_string(1, 1, 128, True),
-        make_octet_string(128, 1, 128, True),
-        make_octet_string(129, 1, 128, True),
-        make_octet_string(1, 1, 255, True),
-        make_octet_string(255, 1, 255, True),
-        make_octet_string(256, 1, 255, True),
-        make_octet_string(1, 1, 256, True),
-        make_octet_string(256, 1, 256, True),
-        make_octet_string(257, 1, 256, True),
-        # Within-root extensible (value fits, extension bit = 0)
-        make_octet_string(1, 0, 8, True),
-        make_octet_string(4, 0, 8, True),
-        make_octet_string(8, 0, 8, True),
-        make_octet_string(1, 0, 16, True),
-        make_octet_string(8, 0, 16, True),
-        make_octet_string(16, 0, 16, True),
-        make_octet_string(16, 0, 32, True),
-        make_octet_string(32, 0, 32, True),
-        make_octet_string(32, 0, 64, True),
-        make_octet_string(64, 0, 64, True),
-        make_octet_string(64, 0, 128, True),
-        make_octet_string(128, 0, 128, True),
-        make_octet_string(128, 0, 256, True),
-        make_octet_string(256, 0, 256, True),
-        make_octet_string(256, 0, 512, True),
-        make_octet_string(512, 0, 512, True),
-        make_octet_string(512, 0, 1024, True),
-        make_octet_string(1024, 0, 1024, True),
-        # Empty octet string (length=0)
-        make_octet_string(0, 0, 8, False),
-        make_octet_string(0, 0, 128, False),
-        make_octet_string(0, 0, 65536, False),
-        # lb > 0 constrained, not extensible
-        make_octet_string(4, 4, 16, False),
-        make_octet_string(10, 4, 16, False),
-        make_octet_string(16, 4, 16, False),
-        make_octet_string(8, 8, 32, False),
-        make_octet_string(20, 8, 32, False),
-        make_octet_string(32, 8, 32, False),
-        make_octet_string(16, 16, 64, False),
-        make_octet_string(40, 16, 64, False),
-        make_octet_string(64, 16, 64, False),
-        # lb > 0 constrained, extensible (within root)
-        make_octet_string(4, 4, 16, True),
-        make_octet_string(16, 4, 16, True),
-        make_octet_string(8, 8, 32, True),
-        make_octet_string(32, 8, 32, True),
-        make_octet_string(16, 16, 64, True),
-        make_octet_string(64, 16, 64, True),
-        # lb > 0 constrained, extensible (outside root)
-        make_octet_string(3, 4, 16, True),
-        make_octet_string(17, 4, 16, True),
-        make_octet_string(7, 8, 32, True),
-        make_octet_string(33, 8, 32, True),
-        make_octet_string(15, 16, 64, True),
-        make_octet_string(65, 16, 64, True),
-    ]
-    for case in erlang_cases:
-        length = case["length"]
-        lb = case["lb"]
-        ub = case["ub"]
-        extensible = case["extensible"]
-        type_name = asn1_type_name(lb, ub, extensible)
-        for aligned in [True, False]:
-            output = encode_octetstring_erl(type_name, length, aligned)
-            results.append(
+def vectors():
+    module = harness.pycrate_module(PREFIX)
+    rows = []
+    for (lb, ub, ext), lengths in SHAPES.items():
+        for length in lengths:
+            rows.append(
                 {
-                    "input": case,
-                    "output": output,
-                    "aligned": aligned,
+                    "type": type_name(lb, ub, ext),
+                    "input": {"length": length, "lb": lb, "ub": ub, "extensible": ext},
                 }
             )
-
-    with open("octet_string.json", "w") as f:
-        json.dump(results, f, indent=2)
-
-
-# ---------------------------------------------------------------------------
-# Erlang-based encoder (calls encode_octetstring.erl for fragmentation-correct
-# results on large octet strings).
-# ---------------------------------------------------------------------------
-
-_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
-
-
-def asn1_type_name(lb, ub, extensible):
-    lb_s = "NULL" if lb is None else str(lb)
-    ub_s = "NULL" if ub is None else str(ub)
-    ext_s = "TRUE" if extensible else "FALSE"
-    return f"OCTETSTRING-{lb_s}-{ub_s}-{ext_s}"
-
-
-def encode_octetstring_erl(type_name, length, aligned):
-    script = os.path.join(_ERLANG_DIR_, "encode_octetstring.erl")
-    cmd = ["escript", script, "-name", type_name, "-length", str(length)]
-    if aligned:
-        cmd.append("-aligned")
-    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(
-            f"Erlang encode error for {type_name} length={length} aligned={aligned}:",
-            file=sys.stderr,
-        )
-        print(result.stderr, file=sys.stderr)
-        sys.exit(1)
-    return result.stdout.strip().lower()
-
-
-if __name__ == "__main__":
-    main()
+    py = harness.pycrate_encode(module, [(row["type"], octets(row["input"]["length"])) for row in rows])
+    otp = harness.otp_encode(PREFIX, [(row["type"], erlang_octets(row["input"]["length"])) for row in rows])
+    return harness.merge(rows, py, otp, clause)

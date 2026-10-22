@@ -25,17 +25,29 @@ type LIST = []any
 //
 // Revisions:
 //   - 2026-09-26 01:02: initial creation
-func _Module(t *testing.T, from MAP) *ast.Module {
+func _Module(
+	t *testing.T,
+	from MAP,
+) *ast.Module {
 	t.Helper()
 
 	data, err := json.Marshal(from)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(
+			"unexpected error: %v",
+			err,
+		)
 	}
 
 	module := &ast.Module{}
-	if err := protojson.Unmarshal(data, module); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err := protojson.Unmarshal(
+		data,
+		module,
+	); err != nil {
+		t.Fatalf(
+			"unexpected error: %v",
+			err,
+		)
 	}
 
 	return module
@@ -49,26 +61,38 @@ func _Module(t *testing.T, from MAP) *ast.Module {
 // Revisions:
 //   - 2026-09-26 01:02: initial creation
 func TestSchemaHeader(t *testing.T) {
-	module := _Module(t, MAP{
-		"moduleName": "Sample",
-		"definitiveOid": LIST{
-			MAP{"name": "iso", "number": 1},
-			MAP{"number": 2},
+	module := _Module(
+		t,
+		MAP{
+			"moduleName": "Sample",
+			"definitiveOid": LIST{
+				MAP{"name": "iso", "number": 1},
+				MAP{"number": 2},
+			},
+			"tagDefault": "AUTOMATIC",
 		},
-		"tagDefault": "AUTOMATIC",
-	})
+	)
 
 	if module.GetModuleName() != "Sample" {
-		t.Errorf("got module %q, want Sample", module.GetModuleName())
+		t.Errorf(
+			"got module %q, want Sample",
+			module.GetModuleName(),
+		)
 	}
 
 	arcs := module.GetDefinitiveOid()
 	if len(arcs) != 2 {
-		t.Fatalf("got %d arcs, want 2", len(arcs))
+		t.Fatalf(
+			"got %d arcs, want 2",
+			len(arcs),
+		)
 	}
 
 	if arcs[0].GetNumber() != 1 {
-		t.Errorf("got arc %d, want 1", arcs[0].GetNumber())
+		t.Errorf(
+			"got arc %d, want 1",
+			arcs[0].GetNumber(),
+		)
 	}
 }
 
@@ -91,29 +115,44 @@ func TestSchemaAssignmentArms(t *testing.T) {
 		},
 	}
 
-	module := _Module(t, MAP{
-		"moduleName":  "Sample",
-		"assignments": LIST{typed, valued},
-	})
+	module := _Module(
+		t,
+		MAP{
+			"moduleName":  "Sample",
+			"assignments": LIST{typed, valued},
+		},
+	)
 
 	first := module.GetAssignments()[0]
 	if _, ok := first.GetBody().(*ast.Assignment_Type); !ok {
-		t.Fatalf("got body %T, want *ast.Assignment_Type", first.GetBody())
+		t.Fatalf(
+			"got body %T, want *ast.Assignment_Type",
+			first.GetBody(),
+		)
 	}
 
 	if _, ok := first.GetType().GetKind().(*ast.Type_Builtin); !ok {
-		t.Errorf("got kind %T, want *ast.Type_Builtin", first.GetType().GetKind())
+		t.Errorf(
+			"got kind %T, want *ast.Type_Builtin",
+			first.GetType().GetKind(),
+		)
 	}
 
 	second := module.GetAssignments()[1]
 	if _, ok := second.GetBody().(*ast.Assignment_Value); !ok {
-		t.Fatalf("got body %T, want *ast.Assignment_Value", second.GetBody())
+		t.Fatalf(
+			"got body %T, want *ast.Assignment_Value",
+			second.GetBody(),
+		)
 	}
 
 	// An ASN.1 INTEGER has no bound, so a number is kept as the text a
 	// module wrote rather than parsed into one here.
 	if got := second.GetValue().GetValue().GetNumber(); got != "42" {
-		t.Errorf("got number %q, want 42", got)
+		t.Errorf(
+			"got number %q, want 42",
+			got,
+		)
 	}
 }
 
@@ -138,22 +177,34 @@ func TestSchemaNamedNumber(t *testing.T) {
 		},
 	}
 
-	module := _Module(t, MAP{
-		"moduleName":  "Sample",
-		"assignments": LIST{flags},
-	})
+	module := _Module(
+		t,
+		MAP{
+			"moduleName":  "Sample",
+			"assignments": LIST{flags},
+		},
+	)
 
 	named := module.GetAssignments()[0].GetType().GetBuiltin().GetNamed()
 	if len(named) != 2 {
-		t.Fatalf("got %d named numbers, want 2", len(named))
+		t.Fatalf(
+			"got %d named numbers, want 2",
+			len(named),
+		)
 	}
 
 	if _, ok := named[0].GetValue().(*ast.NamedNumber_Number); !ok {
-		t.Errorf("a written zero lost its arm: %T", named[0].GetValue())
+		t.Errorf(
+			"a written zero lost its arm: %T",
+			named[0].GetValue(),
+		)
 	}
 
 	if _, ok := named[1].GetValue().(*ast.NamedNumber_Reference); !ok {
-		t.Errorf("got %T, want *ast.NamedNumber_Reference", named[1].GetValue())
+		t.Errorf(
+			"got %T, want *ast.NamedNumber_Reference",
+			named[1].GetValue(),
+		)
 	}
 }
 
@@ -185,15 +236,24 @@ func TestSchemaRejectsTwoArms(t *testing.T) {
 	}
 
 	for _, item := range cases {
-		t.Run(item.name, func(t *testing.T) {
-			data, err := json.Marshal(item.from)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+		t.Run(
+			item.name,
+			func(t *testing.T) {
+				data, err := json.Marshal(item.from)
+				if err != nil {
+					t.Fatalf(
+						"unexpected error: %v",
+						err,
+					)
+				}
 
-			if err := protojson.Unmarshal(data, &ast.Type{}); err == nil {
-				t.Error("two arms of the kind oneof were accepted")
-			}
-		})
+				if err := protojson.Unmarshal(
+					data,
+					&ast.Type{},
+				); err == nil {
+					t.Error("two arms of the kind oneof were accepted")
+				}
+			},
+		)
 	}
 }

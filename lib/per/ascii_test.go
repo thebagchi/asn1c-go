@@ -15,17 +15,35 @@ var (
 		name string
 		kind per.StringKind
 	}{
-		{name: "ia5", kind: per.STRING_IA5},
-		{name: "visible", kind: per.STRING_VISIBLE},
-		{name: "printable", kind: per.STRING_PRINTABLE},
-		{name: "numeric", kind: per.STRING_NUMERIC},
+		{
+			name: "ia5",
+			kind: per.STRING_IA5,
+		},
+		{
+			name: "visible",
+			kind: per.STRING_VISIBLE,
+		},
+		{
+			name: "printable",
+			kind: per.STRING_PRINTABLE,
+		},
+		{
+			name: "numeric",
+			kind: per.STRING_NUMERIC,
+		},
 	}
 	WIDE_KINDS = []struct {
 		name string
 		kind per.StringKind
 	}{
-		{name: "utf8", kind: per.STRING_UTF8},
-		{name: "bmp", kind: per.STRING_BMP},
+		{
+			name: "utf8",
+			kind: per.STRING_UTF8,
+		},
+		{
+			name: "bmp",
+			kind: per.STRING_BMP,
+		},
 	}
 )
 
@@ -51,20 +69,31 @@ func TestRegressionNonASCIIIsRejectedByASCIIAlphabets(t *testing.T) {
 
 	for _, item := range VARIANTS {
 		for _, kind := range ASCII_KINDS {
-			t.Run(item.name+"/"+kind.name, func(t *testing.T) {
-				t.Parallel()
+			t.Run(
+				item.name+"/"+kind.name,
+				func(t *testing.T) {
+					t.Parallel()
 
-				enc := item.encoder()
+					var (
+						enc = item.encoder()
 
-				err := enc.EncodeRestrictedString(
-					ACCENTED,
-					kind.kind,
-					per.Unconstrained(),
-				)
-				if !errors.Is(err, per.ErrCharacterNotInAlphabet) {
-					t.Fatalf("got %v, want ErrCharacterNotInAlphabet", err)
-				}
-			})
+						err = enc.EncodeRestrictedString(
+							ACCENTED,
+							kind.kind,
+							per.Unconstrained(),
+						)
+					)
+					if !errors.Is(
+						err,
+						per.ErrCharacterNotInAlphabet,
+					) {
+						t.Fatalf(
+							"got %v, want ErrCharacterNotInAlphabet",
+							err,
+						)
+					}
+				},
+			)
 		}
 	}
 }
@@ -80,34 +109,49 @@ func TestRegressionWideAlphabetsStillCountRunes(t *testing.T) {
 
 	for _, item := range VARIANTS {
 		for _, kind := range WIDE_KINDS {
-			t.Run(item.name+"/"+kind.name, func(t *testing.T) {
-				t.Parallel()
+			t.Run(
+				item.name+"/"+kind.name,
+				func(t *testing.T) {
+					t.Parallel()
 
-				enc := item.encoder()
+					var (
+						enc = item.encoder()
 
-				err := enc.EncodeRestrictedString(
-					ACCENTED,
-					kind.kind,
-					per.Unconstrained(),
-				)
-				if err != nil {
-					t.Fatalf("encode: %v", err)
-				}
+						err = enc.EncodeRestrictedString(
+							ACCENTED,
+							kind.kind,
+							per.Unconstrained(),
+						)
+					)
+					if err != nil {
+						t.Fatalf(
+							"encode: %v",
+							err,
+						)
+					}
 
-				dec := item.decoder(enc.Bytes())
+					got, err := item.decoder(
+						enc.Bytes(),
+					).DecodeRestrictedString(
+						kind.kind,
+						per.Unconstrained(),
+					)
+					if err != nil {
+						t.Fatalf(
+							"decode: %v",
+							err,
+						)
+					}
 
-				got, err := dec.DecodeRestrictedString(
-					kind.kind,
-					per.Unconstrained(),
-				)
-				if err != nil {
-					t.Fatalf("decode: %v", err)
-				}
-
-				if got != ACCENTED {
-					t.Fatalf("decoded %q, want %q", got, ACCENTED)
-				}
-			})
+					if got != ACCENTED {
+						t.Fatalf(
+							"decoded %q, want %q",
+							got,
+							ACCENTED,
+						)
+					}
+				},
+			)
 		}
 	}
 }

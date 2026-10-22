@@ -30,25 +30,33 @@ const (
 //   - 2026-09-23 03:36: initial creation
 func BenchmarkWriteBytesMisaligned(b *testing.B) {
 	for _, size := range BENCH_SIZES {
-		data := payload(size)
+		data := _Payload(size)
 
-		b.Run(strconv.Itoa(size), func(b *testing.B) {
-			b.SetBytes(int64(size))
-			b.ReportAllocs()
+		b.Run(
+			strconv.Itoa(size),
+			func(b *testing.B) {
+				b.SetBytes(int64(size))
+				b.ReportAllocs()
 
-			for b.Loop() {
-				writer := bitbuffer.CreateWriter()
+				for b.Loop() {
+					var (
+						writer = bitbuffer.CreateWriter()
 
-				err := writer.Write(BENCH_OFFSET, mask(BENCH_OFFSET))
-				if err != nil {
-					b.Fatal(err)
+						err = writer.Write(
+							BENCH_OFFSET,
+							_Mask(BENCH_OFFSET),
+						)
+					)
+					if err != nil {
+						b.Fatal(err)
+					}
+
+					if err := writer.WriteBytes(data); err != nil {
+						b.Fatal(err)
+					}
 				}
-
-				if err := writer.WriteBytes(data); err != nil {
-					b.Fatal(err)
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -60,24 +68,30 @@ func BenchmarkWriteBytesMisaligned(b *testing.B) {
 //   - 2026-09-23 03:36: initial creation
 func BenchmarkReadBytesMisaligned(b *testing.B) {
 	for _, size := range BENCH_SIZES {
-		encoded := shifted(b, payload(size))
+		encoded := _Shifted(
+			b,
+			_Payload(size),
+		)
 
-		b.Run(strconv.Itoa(size), func(b *testing.B) {
-			b.SetBytes(int64(size))
-			b.ReportAllocs()
+		b.Run(
+			strconv.Itoa(size),
+			func(b *testing.B) {
+				b.SetBytes(int64(size))
+				b.ReportAllocs()
 
-			for b.Loop() {
-				reader := bitbuffer.CreateReader(encoded)
+				for b.Loop() {
+					reader := bitbuffer.CreateReader(encoded)
 
-				if _, err := reader.Read(BENCH_OFFSET); err != nil {
-					b.Fatal(err)
+					if _, err := reader.Read(BENCH_OFFSET); err != nil {
+						b.Fatal(err)
+					}
+
+					if _, err := reader.ReadBytes(size); err != nil {
+						b.Fatal(err)
+					}
 				}
-
-				if _, err := reader.ReadBytes(size); err != nil {
-					b.Fatal(err)
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -86,12 +100,18 @@ func BenchmarkReadBytesMisaligned(b *testing.B) {
 //
 // Revisions:
 //   - 2026-09-23 03:36: initial creation
-func shifted(b *testing.B, data []byte) []byte {
+func _Shifted(
+	b *testing.B,
+	data []byte,
+) []byte {
 	b.Helper()
 
 	writer := bitbuffer.CreateWriter()
 
-	if err := writer.Write(BENCH_OFFSET, mask(BENCH_OFFSET)); err != nil {
+	if err := writer.Write(
+		BENCH_OFFSET,
+		_Mask(BENCH_OFFSET),
+	); err != nil {
 		b.Fatal(err)
 	}
 

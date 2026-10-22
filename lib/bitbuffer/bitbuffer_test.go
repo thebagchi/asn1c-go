@@ -14,8 +14,11 @@ import (
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func widths() []uint8 {
-	all := make([]uint8, bitbuffer.UINT64_BITS)
+func _Widths() []uint8 {
+	all := make(
+		[]uint8,
+		bitbuffer.UINT64_BITS,
+	)
 	for i := range all {
 		all[i] = uint8(i + 1)
 	}
@@ -27,7 +30,7 @@ func widths() []uint8 {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func mask(num uint8) uint64 {
+func _Mask(num uint8) uint64 {
 	return ^uint64(0) >> (bitbuffer.UINT64_BITS - num)
 }
 
@@ -36,7 +39,10 @@ func mask(num uint8) uint64 {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func name(label string, value uint8) string {
+func _Name(
+	label string,
+	value uint8,
+) string {
 	return label + "_" + strconv.Itoa(int(value))
 }
 
@@ -45,8 +51,11 @@ func name(label string, value uint8) string {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func payload(size int) []byte {
-	data := make([]byte, size)
+func _Payload(size int) []byte {
+	data := make(
+		[]byte,
+		size,
+	)
 	for i := range data {
 		data[i] = byte(i*7 + 1)
 	}
@@ -63,41 +72,85 @@ func TestWriteReadRoundTrip(t *testing.T) {
 		name  string
 		value func(uint8) uint64
 	}{
-		{name: "zero", value: func(uint8) uint64 { return 0 }},
-		{name: "width", value: func(num uint8) uint64 { return uint64(num) }},
-		{name: "max", value: mask},
+		{
+			name: "zero",
+			value: func(uint8) uint64 {
+				return 0
+			},
+		},
+		{
+			name: "width",
+			value: func(num uint8) uint64 {
+				return uint64(num)
+			},
+		},
+		{
+			name:  "max",
+			value: _Mask,
+		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			writer := bitbuffer.CreateWriter()
-			for _, num := range widths() {
-				if err := writer.Write(num, tc.value(num)); err != nil {
-					t.Fatalf("Write(%d): %v", num, err)
-				}
-			}
-
-			total := uint64(bitbuffer.UINT64_BITS) * (bitbuffer.UINT64_BITS + 1) / 2
-			if writer.NumWritten() != total {
-				t.Errorf("NumWritten() = %d, want %d", writer.NumWritten(), total)
-			}
-
-			reader := bitbuffer.CreateReader(writer.Bytes())
-			for _, num := range widths() {
-				got, err := reader.Read(num)
-				if err != nil {
-					t.Fatalf("Read(%d): %v", num, err)
+		t.Run(
+			tc.name,
+			func(t *testing.T) {
+				writer := bitbuffer.CreateWriter()
+				for _, num := range _Widths() {
+					if err := writer.Write(
+						num,
+						tc.value(num),
+					); err != nil {
+						t.Fatalf(
+							"Write(%d): %v",
+							num,
+							err,
+						)
+					}
 				}
 
-				if want := tc.value(num); got != want {
-					t.Errorf("Read(%d) = %d, want %d", num, got, want)
-				}
-			}
+				var (
+					bits = uint64(bitbuffer.UINT64_BITS)
 
-			if reader.NumRead() != total {
-				t.Errorf("NumRead() = %d, want %d", reader.NumRead(), total)
-			}
-		})
+					total = bits * (bits + 1) / 2
+				)
+				if writer.NumWritten() != total {
+					t.Errorf(
+						"NumWritten() = %d, want %d",
+						writer.NumWritten(),
+						total,
+					)
+				}
+
+				reader := bitbuffer.CreateReader(writer.Bytes())
+				for _, num := range _Widths() {
+					got, err := reader.Read(num)
+					if err != nil {
+						t.Fatalf(
+							"Read(%d): %v",
+							num,
+							err,
+						)
+					}
+
+					if want := tc.value(num); got != want {
+						t.Errorf(
+							"Read(%d) = %d, want %d",
+							num,
+							got,
+							want,
+						)
+					}
+				}
+
+				if reader.NumRead() != total {
+					t.Errorf(
+						"NumRead() = %d, want %d",
+						reader.NumRead(),
+						total,
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -106,33 +159,65 @@ func TestWriteReadRoundTrip(t *testing.T) {
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
 func TestWriteBytesReadBytes(t *testing.T) {
-	for _, prefix := range widths() {
-		t.Run(name("prefix", prefix), func(t *testing.T) {
-			data := payload(37)
+	for _, prefix := range _Widths() {
+		t.Run(
+			_Name(
+				"prefix",
+				prefix,
+			),
+			func(t *testing.T) {
+				var (
+					data = _Payload(37)
 
-			writer := bitbuffer.CreateWriter()
-			if err := writer.Write(prefix, mask(prefix)); err != nil {
-				t.Fatalf("Write(%d): %v", prefix, err)
-			}
+					writer = bitbuffer.CreateWriter()
+				)
+				if err := writer.Write(
+					prefix,
+					_Mask(prefix),
+				); err != nil {
+					t.Fatalf(
+						"Write(%d): %v",
+						prefix,
+						err,
+					)
+				}
 
-			if err := writer.WriteBytes(data); err != nil {
-				t.Fatalf("WriteBytes: %v", err)
-			}
+				if err := writer.WriteBytes(data); err != nil {
+					t.Fatalf(
+						"WriteBytes: %v",
+						err,
+					)
+				}
 
-			reader := bitbuffer.CreateReader(writer.Bytes())
-			if _, err := reader.Read(prefix); err != nil {
-				t.Fatalf("Read(%d): %v", prefix, err)
-			}
+				reader := bitbuffer.CreateReader(writer.Bytes())
+				if _, err := reader.Read(prefix); err != nil {
+					t.Fatalf(
+						"Read(%d): %v",
+						prefix,
+						err,
+					)
+				}
 
-			got, err := reader.ReadBytes(len(data))
-			if err != nil {
-				t.Fatalf("ReadBytes: %v", err)
-			}
+				got, err := reader.ReadBytes(len(data))
+				if err != nil {
+					t.Fatalf(
+						"ReadBytes: %v",
+						err,
+					)
+				}
 
-			if !bytes.Equal(got, data) {
-				t.Errorf("ReadBytes() = % x, want % x", got, data)
-			}
-		})
+				if !bytes.Equal(
+					got,
+					data,
+				) {
+					t.Errorf(
+						"ReadBytes() = % x, want % x",
+						got,
+						data,
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -142,25 +227,50 @@ func TestWriteBytesReadBytes(t *testing.T) {
 //   - 2026-09-22 06:43: initial creation
 func TestAlignPadsWithZeroBits(t *testing.T) {
 	writer := bitbuffer.CreateWriter()
-	if err := writer.Write(3, 5); err != nil {
-		t.Fatalf("Write: %v", err)
+	if err := writer.Write(
+		3,
+		5,
+	); err != nil {
+		t.Fatalf(
+			"Write: %v",
+			err,
+		)
 	}
 
 	if err := writer.Align(); err != nil {
-		t.Fatalf("Align: %v", err)
+		t.Fatalf(
+			"Align: %v",
+			err,
+		)
 	}
 
-	if err := writer.Write(8, 0xAB); err != nil {
-		t.Fatalf("Write: %v", err)
+	if err := writer.Write(
+		8,
+		0xAB,
+	); err != nil {
+		t.Fatalf(
+			"Write: %v",
+			err,
+		)
 	}
 
 	want := []byte{0xA0, 0xAB}
-	if got := writer.Bytes(); !bytes.Equal(got, want) {
-		t.Errorf("Bytes() = % x, want % x", got, want)
+	if got := writer.Bytes(); !bytes.Equal(
+		got,
+		want,
+	) {
+		t.Errorf(
+			"Bytes() = % x, want % x",
+			got,
+			want,
+		)
 	}
 
 	if writer.NumWritten() != 16 {
-		t.Errorf("NumWritten() = %d, want 16", writer.NumWritten())
+		t.Errorf(
+			"NumWritten() = %d, want 16",
+			writer.NumWritten(),
+		)
 	}
 }
 
@@ -171,24 +281,39 @@ func TestAlignPadsWithZeroBits(t *testing.T) {
 func TestAdvanceSkipsToByteBoundary(t *testing.T) {
 	reader := bitbuffer.CreateReader([]byte{0xA0, 0xAB})
 	if _, err := reader.Read(3); err != nil {
-		t.Fatalf("Read: %v", err)
+		t.Fatalf(
+			"Read: %v",
+			err,
+		)
 	}
 
 	if err := reader.Advance(); err != nil {
-		t.Fatalf("Advance: %v", err)
+		t.Fatalf(
+			"Advance: %v",
+			err,
+		)
 	}
 
 	got, err := reader.Read(8)
 	if err != nil {
-		t.Fatalf("Read: %v", err)
+		t.Fatalf(
+			"Read: %v",
+			err,
+		)
 	}
 
 	if got != 0xAB {
-		t.Errorf("Read(8) = %#x, want 0xab", got)
+		t.Errorf(
+			"Read(8) = %#x, want 0xab",
+			got,
+		)
 	}
 
 	if reader.NumRead() != 16 {
-		t.Errorf("NumRead() = %d, want 16", reader.NumRead())
+		t.Errorf(
+			"NumRead() = %d, want 16",
+			reader.NumRead(),
+		)
 	}
 }
 
@@ -204,12 +329,22 @@ func TestInvalidArguments(t *testing.T) {
 	}{
 		{
 			name: "write_zero_bits",
-			call: func() error { return bitbuffer.CreateWriter().Write(0, 0) },
+			call: func() error {
+				return bitbuffer.CreateWriter().Write(
+					0,
+					0,
+				)
+			},
 			want: bitbuffer.ErrInvalidBitCount,
 		},
 		{
 			name: "write_too_many_bits",
-			call: func() error { return bitbuffer.CreateWriter().Write(65, 0) },
+			call: func() error {
+				return bitbuffer.CreateWriter().Write(
+					65,
+					0,
+				)
+			},
 			want: bitbuffer.ErrInvalidBitCount,
 		},
 		{
@@ -265,11 +400,21 @@ func TestInvalidArguments(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.call(); !errors.Is(err, tc.want) {
-				t.Errorf("error = %v, want %v", err, tc.want)
-			}
-		})
+		t.Run(
+			tc.name,
+			func(t *testing.T) {
+				if err := tc.call(); !errors.Is(
+					err,
+					tc.want,
+				) {
+					t.Errorf(
+						"error = %v, want %v",
+						err,
+						tc.want,
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -281,11 +426,17 @@ func TestInvalidArguments(t *testing.T) {
 func TestReadZeroBitsIsNotAnError(t *testing.T) {
 	got, err := bitbuffer.CreateReader([]byte{0xFF}).Read(0)
 	if err != nil {
-		t.Fatalf("Read(0): %v", err)
+		t.Fatalf(
+			"Read(0): %v",
+			err,
+		)
 	}
 
 	if got != 0 {
-		t.Errorf("Read(0) = %d, want 0", got)
+		t.Errorf(
+			"Read(0) = %d, want 0",
+			got,
+		)
 	}
 }
 
@@ -301,11 +452,24 @@ func TestReadZeroBitsIsNotAnError(t *testing.T) {
 func TestRegressionShiftedBulkMatchesBitLoop(t *testing.T) {
 	for _, size := range []int{1, 7, 31, 32, 33, 37, 64, 65, 129, 1024} {
 		for offset := uint8(1); offset < bitbuffer.BITS_PER_BYTE; offset++ {
-			label := name("offset", offset) + "_" + name("len", byte(size%256))
+			label := _Name(
+				"offset",
+				offset,
+			) + "_" + _Name(
+				"len",
+				byte(size%256),
+			)
 
-			t.Run(label, func(t *testing.T) {
-				checkShifted(t, payload(size), offset)
-			})
+			t.Run(
+				label,
+				func(t *testing.T) {
+					_CheckShifted(
+						t,
+						_Payload(size),
+						offset,
+					)
+				},
+			)
 		}
 	}
 }
@@ -316,27 +480,52 @@ func TestRegressionShiftedBulkMatchesBitLoop(t *testing.T) {
 // Revisions:
 //   - 2026-09-22 09:12: initial creation, split out of the case above so the
 //     vector kernel could be driven at lengths either side of its block size
-func checkShifted(t *testing.T, data []byte, offset uint8) {
+func _CheckShifted(
+	t *testing.T,
+	data []byte,
+	offset uint8,
+) {
 	t.Helper()
 
 	bulk := bitbuffer.CreateWriter()
-	if err := bulk.Write(offset, mask(offset)); err != nil {
-		t.Fatalf("Write: %v", err)
+	if err := bulk.Write(
+		offset,
+		_Mask(offset),
+	); err != nil {
+		t.Fatalf(
+			"Write: %v",
+			err,
+		)
 	}
 
 	if err := bulk.WriteBytes(data); err != nil {
-		t.Fatalf("WriteBytes: %v", err)
+		t.Fatalf(
+			"WriteBytes: %v",
+			err,
+		)
 	}
 
 	loop := bitbuffer.CreateWriter()
-	if err := loop.Write(offset, mask(offset)); err != nil {
-		t.Fatalf("Write: %v", err)
+	if err := loop.Write(
+		offset,
+		_Mask(offset),
+	); err != nil {
+		t.Fatalf(
+			"Write: %v",
+			err,
+		)
 	}
 
 	for _, b := range data {
-		err := loop.Write(bitbuffer.BITS_PER_BYTE, uint64(b))
+		err := loop.Write(
+			bitbuffer.BITS_PER_BYTE,
+			uint64(b),
+		)
 		if err != nil {
-			t.Fatalf("Write: %v", err)
+			t.Fatalf(
+				"Write: %v",
+				err,
+			)
 		}
 	}
 
@@ -344,27 +533,50 @@ func checkShifted(t *testing.T, data []byte, offset uint8) {
 		fast = bulk.Bytes()
 		slow = loop.Bytes()
 	)
-	if !bytes.Equal(fast, slow) {
-		t.Fatalf("WriteBytes = % x, bit loop = % x", fast, slow)
+	if !bytes.Equal(
+		fast,
+		slow,
+	) {
+		t.Fatalf(
+			"WriteBytes = % x, bit loop = % x",
+			fast,
+			slow,
+		)
 	}
 
 	if bulk.NumWritten() != loop.NumWritten() {
-		t.Errorf("NumWritten = %d, want %d",
-			bulk.NumWritten(), loop.NumWritten())
+		t.Errorf(
+			"NumWritten = %d, want %d",
+			bulk.NumWritten(),
+			loop.NumWritten(),
+		)
 	}
 
 	reader := bitbuffer.CreateReader(bulk.Bytes())
 	if _, err := reader.Read(offset); err != nil {
-		t.Fatalf("Read: %v", err)
+		t.Fatalf(
+			"Read: %v",
+			err,
+		)
 	}
 
 	got, err := reader.ReadBytes(len(data))
 	if err != nil {
-		t.Fatalf("ReadBytes: %v", err)
+		t.Fatalf(
+			"ReadBytes: %v",
+			err,
+		)
 	}
 
-	if !bytes.Equal(got, data) {
-		t.Errorf("ReadBytes = % x, want % x", got, data)
+	if !bytes.Equal(
+		got,
+		data,
+	) {
+		t.Errorf(
+			"ReadBytes = % x, want % x",
+			got,
+			data,
+		)
 	}
 }
 
@@ -376,33 +588,53 @@ func checkShifted(t *testing.T, data []byte, offset uint8) {
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
 func TestRegressionFirstReadIsAligned(t *testing.T) {
-	data := payload(16)
+	data := _Payload(16)
 
-	for _, num := range widths() {
-		t.Run(name("bits", num), func(t *testing.T) {
-			fresh := bitbuffer.CreateReader(data)
+	for _, num := range _Widths() {
+		t.Run(
+			_Name(
+				"bits",
+				num,
+			),
+			func(t *testing.T) {
+				var (
+					fresh = bitbuffer.CreateReader(data)
 
-			direct, err := fresh.Read(num)
-			if err != nil {
-				t.Fatalf("Read(%d): %v", num, err)
-			}
-
-			packed := bitbuffer.CreateReader(data)
-
-			var want uint64
-
-			for i := uint8(0); i < num; i++ {
-				bit, err := packed.Read(1)
+					direct, err = fresh.Read(num)
+				)
 				if err != nil {
-					t.Fatalf("Read(1): %v", err)
+					t.Fatalf(
+						"Read(%d): %v",
+						num,
+						err,
+					)
 				}
 
-				want = want<<1 | bit
-			}
+				packed := bitbuffer.CreateReader(data)
 
-			if direct != want {
-				t.Errorf("Read(%d) = %#x, want %#x", num, direct, want)
-			}
-		})
+				var want uint64
+
+				for i := uint8(0); i < num; i++ {
+					bit, err := packed.Read(1)
+					if err != nil {
+						t.Fatalf(
+							"Read(1): %v",
+							err,
+						)
+					}
+
+					want = want<<1 | bit
+				}
+
+				if direct != want {
+					t.Errorf(
+						"Read(%d) = %#x, want %#x",
+						num,
+						direct,
+						want,
+					)
+				}
+			},
+		)
 	}
 }

@@ -92,7 +92,8 @@ const (
 	REAL_BASE_TEN         = 10
 	REAL_BASE_EIGHT_LOG   = 3 // base 8 is 2^3, so an exponent scales by three bits
 	REAL_BASE_SIXTEEN_LOG = 4
-	REAL_NR3_FORM         = 0x03 // 8.5.8, ISO 6093 NR3 in bits 6 to 1
+	REAL_EXPONENT_CLAMP   = 1 << 20 // far past what Ldexp reaches, far below int overflow
+	REAL_NR3_FORM         = 0x03    // 8.5.8, ISO 6093 NR3 in bits 6 to 1
 )
 
 // IEEE 754 binary64, which is where MakeReal takes a mantissa and exponent from.
@@ -129,6 +130,12 @@ const (
 	NUMERIC_MIN   = 0x20   // NumericString, space
 	NUMERIC_MAX   = 0x39   // NumericString, digit nine
 	BMP_MAX       = 0xFFFF // BMPString, the basic multilingual plane
+)
+
+// The surrogate block, which holds no character of ISO/IEC 10646.
+const (
+	SURROGATE_MIN = 0xD800
+	SURROGATE_MAX = 0xDFFF
 )
 
 // ASCII_ZEROS is the padding a partial byte of bit string text takes, as a

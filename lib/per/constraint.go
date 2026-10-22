@@ -1,5 +1,7 @@
 package per
 
+import "fmt"
+
 // Constraint is the PER-visible constraint on a type: the bounds it restricts
 // values or lengths to, and whether an extension marker follows them.
 //
@@ -30,7 +32,10 @@ func Unconstrained() *Constraint {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func Constrained(lb, ub int64) *Constraint {
+func Constrained(
+	lb,
+	ub int64,
+) *Constraint {
 	return &Constraint{
 		lb: &lb,
 		ub: &ub,
@@ -74,7 +79,9 @@ func Bounded(ub int64) *Constraint {
 //   - 2026-09-22 06:43: initial creation
 func (c *Constraint) Extensible() *Constraint {
 	if c == nil {
-		return &Constraint{ext: true}
+		return &Constraint{
+			ext: true,
+		}
 	}
 
 	return &Constraint{
@@ -195,6 +202,43 @@ func (c *Constraint) _CoversLength(length uint64) bool {
 	}
 
 	return true
+}
+
+// _CheckLength reports an error when length lies outside the root of a length
+// constraint, which X.691 clause 11.9.3.3 gives no encoding. The text carries
+// the numbers only, so a decoded length cannot put text of its own into it.
+//
+// Revisions:
+//   - 2026-10-19 11:14: initial creation (review P3-1)
+func (c *Constraint) _CheckLength(length uint64) error {
+	if c._CoversLength(length) {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"length %d outside the size constraint: %w",
+		length,
+		ErrValueOutOfRange,
+	)
+}
+
+// _CheckUpper reports an error when length is above the upper bound of a length
+// constraint. A decoder calls it before it reads a fragment, so a length that
+// no value can have is refused before the octets it names are read.
+//
+// Revisions:
+//   - 2026-10-19 11:14: initial creation (review P3-1)
+func (c *Constraint) _CheckUpper(length uint64) error {
+	if upper, bounded := c._SizeUpper(); bounded && length > upper {
+		return fmt.Errorf(
+			"length %d above the upper bound %d: %w",
+			length,
+			upper,
+			ErrValueOutOfRange,
+		)
+	}
+
+	return nil
 }
 
 // _Root returns the constraint with its extension marker removed, which is how

@@ -248,3 +248,128 @@ done:
 DATA numeric_table<>+0(SB)/8, $0x3635343332313020
 DATA numeric_table<>+8(SB)/8, $0x0000000000393837
 GLOBL numeric_table<>(SB), RODATA|NOPTR, $16
+
+// func _PackNumericAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_PackNumericAVX512(SB), NOSPLIT, $0-56
+	MOVQ         dst_base+0(FP), AX
+	MOVQ         src_base+24(FP), CX
+	MOVQ         src_len+32(FP), DX
+	ANDQ         $-128, DX
+	MOVL         $0x00000020, BX
+	VPBROADCASTB BX, Z0
+	MOVL         $0x00000030, BX
+	VPBROADCASTB BX, Z1
+	MOVL         $0x00000009, BX
+	VPBROADCASTB BX, Z2
+	MOVL         $0x00000001, BX
+	VPBROADCASTB BX, Z3
+	VPBROADCASTQ numeric_pair_weights_avx512<>+0(SB), Z4
+	VMOVDQU64    numeric_order_qwords<>+0(SB), Z5
+	XORQ         BX, BX
+	XORQ         SI, SI
+	TESTQ        DX, DX
+	JEQ          done
+
+loop:
+	VMOVDQU8   (CX)(BX*1), Z6
+	VPSUBB     Z1, Z6, Z7
+	VPMINUB    Z2, Z7, Z8
+	VPCMPEQB   Z8, Z7, K2
+	VPCMPEQB   Z0, Z6, K1
+	KORQ       K1, K2, K2
+	KNOTQ      K1, K1
+	VPADDB.Z   Z3, Z7, K1, Z6
+	VMOVDQU8   64(CX)(BX*1), Z7
+	VPSUBB     Z1, Z7, Z8
+	VPMINUB    Z2, Z8, Z9
+	VPCMPEQB   Z9, Z8, K3
+	VPCMPEQB   Z0, Z7, K1
+	KORQ       K1, K3, K3
+	KNOTQ      K1, K1
+	VPADDB.Z   Z3, Z8, K1, Z7
+	KANDQ      K2, K3, K1
+	KORTESTQ   K1, K1
+	JCC        done
+	VPMADDUBSW Z4, Z6, Z6
+	VPMADDUBSW Z4, Z7, Z7
+	VPACKUSWB  Z7, Z6, Z6
+	VPERMQ     Z6, Z5, Z6
+	VMOVDQU8   Z6, (AX)(SI*1)
+	ADDQ       $0x00000040, SI
+	ADDQ       $0x00000080, BX
+	CMPQ       BX, DX
+	JL         loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA numeric_pair_weights_avx512<>+0(SB)/8, $0x0110011001100110
+GLOBL numeric_pair_weights_avx512<>(SB), RODATA|NOPTR, $8
+
+DATA numeric_order_qwords<>+0(SB)/8, $0x0000000000000000
+DATA numeric_order_qwords<>+8(SB)/8, $0x0000000000000002
+DATA numeric_order_qwords<>+16(SB)/8, $0x0000000000000004
+DATA numeric_order_qwords<>+24(SB)/8, $0x0000000000000006
+DATA numeric_order_qwords<>+32(SB)/8, $0x0000000000000001
+DATA numeric_order_qwords<>+40(SB)/8, $0x0000000000000003
+DATA numeric_order_qwords<>+48(SB)/8, $0x0000000000000005
+DATA numeric_order_qwords<>+56(SB)/8, $0x0000000000000007
+GLOBL numeric_order_qwords<>(SB), RODATA|NOPTR, $64
+
+// func _UnpackNumericAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_UnpackNumericAVX512(SB), NOSPLIT, $0-56
+	MOVQ            dst_base+0(FP), AX
+	MOVQ            src_base+24(FP), CX
+	MOVQ            src_len+32(FP), DX
+	ANDQ            $-64, DX
+	MOVL            $0x0000000a, BX
+	VPBROADCASTB    BX, Z0
+	MOVL            $0x000f000f, BX
+	VPBROADCASTD    BX, Z1
+	VBROADCASTI32X4 numeric_table_avx512<>+0(SB), Z2
+	XORQ            BX, BX
+	XORQ            SI, SI
+	TESTQ           DX, DX
+	JEQ             done
+
+loop:
+	VMOVDQU8      (CX)(BX*1), Z3
+	VEXTRACTI64X4 $0x01, Z3, Y4
+	VPMOVZXBW     Y3, Z3
+	VPSRLW        $0x04, Z3, Z5
+	VPANDD        Z1, Z3, Z3
+	VPSLLW        $0x08, Z3, Z3
+	VPORD         Z3, Z5, Z3
+	VPMOVZXBW     Y4, Z4
+	VPSRLW        $0x04, Z4, Z5
+	VPANDD        Z1, Z4, Z4
+	VPSLLW        $0x08, Z4, Z4
+	VPORD         Z4, Z5, Z4
+	VPMINUB       Z0, Z3, Z5
+	VPCMPEQB      Z5, Z3, K1
+	VPMINUB       Z0, Z4, Z5
+	VPCMPEQB      Z5, Z4, K2
+	KANDQ         K1, K2, K1
+	KORTESTQ      K1, K1
+	JCC           done
+	VPSHUFB       Z3, Z2, Z3
+	VMOVDQU8      Z3, (AX)(SI*1)
+	VPSHUFB       Z4, Z2, Z3
+	VMOVDQU8      Z3, 64(AX)(SI*1)
+	ADDQ          $0x00000080, SI
+	ADDQ          $0x00000040, BX
+	CMPQ          BX, DX
+	JL            loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA numeric_table_avx512<>+0(SB)/8, $0x3635343332313020
+DATA numeric_table_avx512<>+8(SB)/8, $0x0000000000393837
+GLOBL numeric_table_avx512<>(SB), RODATA|NOPTR, $16

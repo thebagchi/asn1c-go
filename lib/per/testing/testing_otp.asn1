@@ -1,0 +1,11 @@
+TestingOtp DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- The types that only Erlang/OTP 29.1.1 answers. The generators give this module to OTP and
+-- not to pycrate; testing.asn1 holds the types that both oracles compile. A row of one of these
+-- types has no pycrate answer.
+
+-- INSTANCE OF (X.681 Annex C): pycrate cannot compile it. The associated type is
+-- Pdvs-InstSeq of testing.asn1, which both oracles answer.
+Pdvs-Inst ::= INSTANCE OF TYPE-IDENTIFIER
+
+END

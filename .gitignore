@@ -21,6 +21,7 @@ __pycache__/
 *.test
 *.out
 coverage.*
+!compiler/testdata/coverage.tsv
 profile.cov
 tools/bin/
 
@@ -32,3 +33,18 @@ tools/bin/
 # committed under testdata/3gpp/ - so the archives are a build artefact, not a
 # source, and 38MB of them does not belong in history.
 tools/corpus/downloads/
+
+# Intel SDE, fetched by .tools/cmd/sde. The pin and the checksum live in the
+# program. The kit is about 37MB and is not source.
+.tools/cmd/sde/downloads/
+.tools/cmd/sde/kit/
+
+# From the make_repo kit
+*.exe~
+*.dll
+*.so
+*.dylib
+*.coverprofile
+go.work
+go.work.sum
+.env

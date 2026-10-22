@@ -128,3 +128,128 @@ done:
 
 DATA hex_pair_weights<>+0(SB)/8, $0x0110011001100110
 GLOBL hex_pair_weights<>(SB), RODATA|NOPTR, $8
+
+// func _HexEncodeAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_HexEncodeAVX512(SB), NOSPLIT, $0-56
+	MOVQ            dst_base+0(FP), AX
+	MOVQ            src_base+24(FP), CX
+	MOVQ            src_len+32(FP), DX
+	ANDQ            $-64, DX
+	MOVL            $0x0000000f, BX
+	VPBROADCASTB    BX, Z0
+	VBROADCASTI32X4 hex_table_avx512<>+0(SB), Z1
+	XORQ            BX, BX
+	XORQ            SI, SI
+	TESTQ           DX, DX
+	JEQ             done
+
+loop:
+	VMOVDQU8   (CX)(BX*1), Z2
+	VPSRLW     $0x04, Z2, Z3
+	VPANDQ     Z0, Z3, Z3
+	VPANDQ     Z0, Z2, Z2
+	VPSHUFB    Z3, Z1, Z3
+	VPSHUFB    Z2, Z1, Z2
+	VPUNPCKLBW Z2, Z3, Z4
+	VPUNPCKHBW Z2, Z3, Z2
+	VMOVDQU64  hex_order_avx512<>+0(SB), Z3
+	VMOVDQA64  Z4, Z5
+	VPERMT2Q   Z2, Z3, Z5
+	VMOVDQU64  hex_order_avx512<>+64(SB), Z3
+	VPERMT2Q   Z2, Z3, Z4
+	VMOVDQU8   Z5, (AX)(SI*1)
+	VMOVDQU8   Z4, 64(AX)(SI*1)
+	ADDQ       $0x00000080, SI
+	ADDQ       $0x00000040, BX
+	CMPQ       BX, DX
+	JL         loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA hex_table_avx512<>+0(SB)/8, $0x3736353433323130
+DATA hex_table_avx512<>+8(SB)/8, $0x6665646362613938
+GLOBL hex_table_avx512<>(SB), RODATA|NOPTR, $16
+
+DATA hex_order_avx512<>+0(SB)/8, $0x0000000000000000
+DATA hex_order_avx512<>+8(SB)/8, $0x0000000000000001
+DATA hex_order_avx512<>+16(SB)/8, $0x0000000000000008
+DATA hex_order_avx512<>+24(SB)/8, $0x0000000000000009
+DATA hex_order_avx512<>+32(SB)/8, $0x0000000000000002
+DATA hex_order_avx512<>+40(SB)/8, $0x0000000000000003
+DATA hex_order_avx512<>+48(SB)/8, $0x000000000000000a
+DATA hex_order_avx512<>+56(SB)/8, $0x000000000000000b
+DATA hex_order_avx512<>+64(SB)/8, $0x0000000000000004
+DATA hex_order_avx512<>+72(SB)/8, $0x0000000000000005
+DATA hex_order_avx512<>+80(SB)/8, $0x000000000000000c
+DATA hex_order_avx512<>+88(SB)/8, $0x000000000000000d
+DATA hex_order_avx512<>+96(SB)/8, $0x0000000000000006
+DATA hex_order_avx512<>+104(SB)/8, $0x0000000000000007
+DATA hex_order_avx512<>+112(SB)/8, $0x000000000000000e
+DATA hex_order_avx512<>+120(SB)/8, $0x000000000000000f
+GLOBL hex_order_avx512<>(SB), RODATA|NOPTR, $128
+
+// func _HexDecodeAVX512(dst []byte, src []byte) int
+// Requires: AVX, AVX512BW, AVX512F
+TEXT ·_HexDecodeAVX512(SB), NOSPLIT, $0-56
+	MOVQ         dst_base+0(FP), AX
+	MOVQ         src_base+24(FP), CX
+	MOVQ         src_len+32(FP), DX
+	ANDQ         $-128, DX
+	MOVL         $0x00000030, BX
+	VPBROADCASTB BX, Z0
+	MOVL         $0x00000009, BX
+	VPBROADCASTB BX, Z1
+	MOVL         $0x00000020, BX
+	VPBROADCASTB BX, Z2
+	MOVL         $0x00000061, BX
+	VPBROADCASTB BX, Z3
+	MOVL         $0x00000005, BX
+	VPBROADCASTB BX, Z4
+	MOVL         $0x0000000a, BX
+	VPBROADCASTB BX, Z5
+	VPBROADCASTQ hex_pair_weights_avx512<>+0(SB), Z6
+	XORQ         BX, BX
+	XORQ         SI, SI
+	TESTQ        DX, DX
+	JEQ          done
+
+loop:
+	VMOVDQU8   (CX)(BX*1), Z7
+	VPSUBB     Z0, Z7, Z8
+	VPCMPUB    $0x02, Z1, Z8, K1
+	VPORQ      Z2, Z7, Z7
+	VPSUBB     Z3, Z7, Z7
+	VPCMPUB    $0x02, Z4, Z7, K2
+	KORQ       K2, K1, K1
+	VPADDB     Z5, Z7, K2, Z8
+	VMOVDQU8   64(CX)(BX*1), Z7
+	VPSUBB     Z0, Z7, Z9
+	VPCMPUB    $0x02, Z1, Z9, K2
+	VPORQ      Z2, Z7, Z7
+	VPSUBB     Z3, Z7, Z7
+	VPCMPUB    $0x02, Z4, Z7, K3
+	KORQ       K3, K2, K2
+	VPADDB     Z5, Z7, K3, Z9
+	KANDQ      K1, K2, K1
+	KORTESTQ   K1, K1
+	JCC        done
+	VPMADDUBSW Z6, Z8, Z7
+	VPMOVWB    Z7, (AX)(SI*1)
+	VPMADDUBSW Z6, Z9, Z7
+	VPMOVWB    Z7, 32(AX)(SI*1)
+	ADDQ       $0x00000040, SI
+	ADDQ       $0x00000080, BX
+	CMPQ       BX, DX
+	JL         loop
+
+done:
+	VZEROUPPER
+	MOVQ BX, ret+48(FP)
+	RET
+
+DATA hex_pair_weights_avx512<>+0(SB)/8, $0x0110011001100110
+GLOBL hex_pair_weights_avx512<>(SB), RODATA|NOPTR, $8

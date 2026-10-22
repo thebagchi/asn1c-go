@@ -27,20 +27,37 @@ func TestRegressionHexKernelsMatchStandardLibrary(t *testing.T) {
 	t.Parallel()
 
 	for _, kernel := range per.HEX_KERNELS {
-		t.Run(kernel.Name(), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			kernel.Name(),
+			func(t *testing.T) {
+				t.Parallel()
 
-			if !kernel.Have() {
-				t.Skipf("%s is not supported on this processor", kernel.Name())
-			}
+				if !kernel.Have() {
+					t.Skipf(
+						"%s is not supported on this processor",
+						kernel.Name(),
+					)
+				}
 
-			for _, blocks := range HEX_BLOCKS {
-				checkHexEncode(t, kernel, blocks*kernel.EncodeBlock())
-				checkHexDecode(t, kernel, blocks*kernel.DecodeBlock())
-			}
+				for _, blocks := range HEX_BLOCKS {
+					_CheckHexEncode(
+						t,
+						kernel,
+						blocks*kernel.EncodeBlock(),
+					)
+					_CheckHexDecode(
+						t,
+						kernel,
+						blocks*kernel.DecodeBlock(),
+					)
+				}
 
-			checkHexStops(t, kernel)
-		})
+				_CheckHexStops(
+					t,
+					kernel,
+				)
+			},
+		)
 	}
 }
 
@@ -51,7 +68,11 @@ func TestRegressionHexKernelsMatchStandardLibrary(t *testing.T) {
 func TestSelectedHexKernelIsTheWidestSupported(t *testing.T) {
 	t.Parallel()
 
-	checkTable(t, per.HEX_KERNELS, per.HEX_KERNEL)
+	_CheckTable(
+		t,
+		per.HEX_KERNELS,
+		per.HEX_KERNEL,
+	)
 	t.Logf(
 		"selected hex kernel: %s (processor: %s)",
 		per.HEX_KERNEL.Name(),
@@ -59,48 +80,79 @@ func TestSelectedHexKernelIsTheWidestSupported(t *testing.T) {
 	)
 }
 
-// checkHexEncode compares a kernel's rendering with encoding/hex over one
+// _CheckHexEncode compares a kernel's rendering with encoding/hex over one
 // length.
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func checkHexEncode(t *testing.T, kernel textKernel, size int) {
+func _CheckHexEncode(
+	t *testing.T,
+	kernel _TextKernel,
+	size int,
+) {
 	t.Helper()
 
 	var (
-		data = textPayload(size)
-		got  = make([]byte, 2*size)
+		data = _TextPayload(size)
+		got  = make(
+			[]byte,
+			2*size,
+		)
 		want = hex.EncodeToString(data)
 	)
 
-	if done := kernel.Encode(got, data); done != size {
-		t.Fatalf("%s: encode consumed %d of %d bytes", kernel.Name(), done, size)
+	if done := kernel.Encode(
+		got,
+		data,
+	); done != size {
+		t.Fatalf(
+			"%s: encode consumed %d of %d bytes",
+			kernel.Name(),
+			done,
+			size,
+		)
 	}
 
 	if string(got) != want {
-		t.Fatalf("%s: encode %d: got %s, want %s", kernel.Name(), size, got, want)
+		t.Fatalf(
+			"%s: encode %d: got %s, want %s",
+			kernel.Name(),
+			size,
+			got,
+			want,
+		)
 	}
 }
 
-// checkHexDecode compares a kernel's parse with the data over one length in
+// _CheckHexDecode compares a kernel's parse with the data over one length in
 // characters, in both letter cases.
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
 //   - 2026-09-24 01:40: takes the length in characters, the unit the kernel's
 //     block is in
-func checkHexDecode(t *testing.T, kernel textKernel, chars int) {
+func _CheckHexDecode(
+	t *testing.T,
+	kernel _TextKernel,
+	chars int,
+) {
 	t.Helper()
 
 	var (
-		want = textPayload(chars / per.HEX_PAIR)
+		want = _TextPayload(chars / per.HEX_PAIR)
 		text = hex.EncodeToString(want)
 	)
 
 	for _, variant := range []string{text, strings.ToUpper(text)} {
-		got := make([]byte, len(want))
+		got := make(
+			[]byte,
+			len(want),
+		)
 
-		if done := kernel.Decode(got, []byte(variant)); done != chars {
+		if done := kernel.Decode(
+			got,
+			[]byte(variant),
+		); done != chars {
 			t.Fatalf(
 				"%s: decode consumed %d of %d characters",
 				kernel.Name(),
@@ -109,7 +161,10 @@ func checkHexDecode(t *testing.T, kernel textKernel, chars int) {
 			)
 		}
 
-		if !bytes.Equal(got, want) {
+		if !bytes.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf(
 				"%s: decode %q: got % x, want % x",
 				kernel.Name(),
@@ -121,19 +176,22 @@ func checkHexDecode(t *testing.T, kernel textKernel, chars int) {
 	}
 }
 
-// checkHexStops plants a character that is not a hexadecimal digit at every
+// _CheckHexStops plants a character that is not a hexadecimal digit at every
 // position of two blocks and checks the kernel stops at that block with
 // everything before it right.
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func checkHexStops(t *testing.T, kernel textKernel) {
+func _CheckHexStops(
+	t *testing.T,
+	kernel _TextKernel,
+) {
 	t.Helper()
 
 	var (
 		block = kernel.DecodeBlock()
 		chars = 2 * block
-		data  = textPayload(chars / 2)
+		data  = _TextPayload(chars / 2)
 		clean = hex.EncodeToString(data)
 	)
 
@@ -142,11 +200,17 @@ func checkHexStops(t *testing.T, kernel textKernel) {
 		text[at] = 'g'
 
 		var (
-			got  = make([]byte, chars/2)
+			got = make(
+				[]byte,
+				chars/2,
+			)
 			want = at / block * block
 		)
 
-		if done := kernel.Decode(got, text); done != want {
+		if done := kernel.Decode(
+			got,
+			text,
+		); done != want {
 			t.Fatalf(
 				"%s: invalid at %d: consumed %d, want %d",
 				kernel.Name(),
@@ -156,8 +220,15 @@ func checkHexStops(t *testing.T, kernel textKernel) {
 			)
 		}
 
-		if !bytes.Equal(got[:want/2], data[:want/2]) {
-			t.Fatalf("%s: invalid at %d: bytes before it are wrong", kernel.Name(), at)
+		if !bytes.Equal(
+			got[:want/2],
+			data[:want/2],
+		) {
+			t.Fatalf(
+				"%s: invalid at %d: bytes before it are wrong",
+				kernel.Name(),
+				at,
+			)
 		}
 	}
 }

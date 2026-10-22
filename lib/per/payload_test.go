@@ -7,15 +7,18 @@ var (
 	TEXT_SIZES = []int{64, 4096}
 )
 
-// textPayload is a deterministic byte string with every byte value in it,
+// _TextPayload is a deterministic byte string with every byte value in it,
 // shared by the hexadecimal and binary tests and benchmarks.
 //
 // Revisions:
 //   - 2026-09-23 08:30: initial creation
-func textPayload(size int) []byte {
+func _TextPayload(size int) []byte {
 	const STRIDE = 7
 
-	data := make([]byte, size)
+	data := make(
+		[]byte,
+		size,
+	)
 	for idx := range data {
 		data[idx] = byte(idx*STRIDE + 1)
 	}

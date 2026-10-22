@@ -1,10 +1,11 @@
+# Rule kit adopted from make_repo. The rules no published linter expresses are
+# .tools/cmd/convention, run by `make convention`.
+#
 # Enforces the mechanically checkable half of this project's coding conventions.
 #
 # Every linter here stands in for a rule that was previously enforced by remembering it.
-# The rules no off-the-shelf linter can express — the revision history on every
-# function, the leading underscore on unexported names, CAPITAL_SNAKE constants and
-# contiguous struct fields — have no checker in this repository yet, and are held to on
-# review.
+# The rules no published linter expresses are .tools/cmd/convention, run by make convention.
+# -check selects one of them. The default runs every check.
 #
 # The rule that decides the split: a published checker is always preferred to one of our
 # own. Each linter below was adopted on that basis in
@@ -12,9 +13,13 @@
 # trusted — enabled alone, watched to report, watched to go quiet. This configuration was
 # written for golangci-lint 2.13.2; a different version may read a setting differently.
 #
-# Adopted here on 2026-09-22. New and edited code is held to it; existing code is not
+# Adopted here on 2026-09-21. New and edited code is held to it; existing code is not
 # swept, so a run over the whole tree can report findings that predate the rules.
 version: "2"
+
+run:
+  # Paths in this file are read from the module root.
+  relative-path-mode: gomod
 
 linters:
   enable:
@@ -60,9 +65,8 @@ linters:
     # these, because shadowing a builtin is legal Go rather than a suspicious
     # re-declaration - which is why this needed its own linter.
     - predeclared
-    # One receiver kind per type. This is the receiver half of "a struct this module
-    # declares is reached through a pointer"; parameters, results and fields are still
-    # unchecked here, because nothing published expresses them.
+    # A mix of pointer and value receivers on one type.
+    # A value receiver on its own is .tools/cmd/convention (pointer), not this linter.
     - recvcheck
     # Four rules, listed under settings: boolean flag parameters, the parameter count,
     # context first, and a doc comment on every exported declaration.
@@ -93,8 +97,14 @@ linters:
         # sealed interface) is a pattern, not erasure." builtin models every
         # ASN.1 CHOICE the way protoc-gen-go models a oneof, as an unexported
         # interface with a marker method, so the accessor for the chosen
-        # alternative has no concrete type it could return instead.
-        - choice[A-Z]\w*$
+        # alternative has no concrete type it could return instead. The
+        # convention spells an unexported name with a leading _, as in
+        # _ChoiceYearEncoding.
+        - _Choice[A-Z]\w*$
+        # avo's virtual vector register. avo declares reg.VecVirtual as an interface
+        # and every avo constructor (XMM, YMM) returns it, so a kernel generator in
+        # lib/per/gen that hands a register to its caller has no concrete type to return.
+        - github.com/mmcloughlin/avo/reg.VecVirtual
     grouper:
       # Naming: constants and package-level vars are grouped in one block.
       const-require-grouping: true
@@ -186,13 +196,6 @@ linters:
       # named constants makes a case harder to read, because the reader then has to
       # look up what the case is actually about. It stays on for non-test code, where a
       # repeated string usually is a name that wants declaring once.
-      - path: _test\.go
-        linters:
-          - funlen
-          - gocognit
-          - goconst
-          - mnd
-
       # revive's flag-parameter, on the one function whose boolean parameter is
       # the value being encoded rather than a mode.
       #
@@ -226,6 +229,13 @@ linters:
         linters:
           - testpackage
 
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+          - goconst
+          - mnd
+
 formatters:
   enable:
     - gofmt
@@ -243,6 +253,7 @@ formatters:
   # see compiler/tool.go for why goyacc now runs with -l.
   exclusions:
     generated: strict
+
 
   settings:
     gci:

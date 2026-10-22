@@ -31,8 +31,14 @@ var (
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func _HexEncodeGo(dst, src []byte) int {
-	hex.Encode(dst, src)
+func _HexEncodeGo(
+	dst,
+	src []byte,
+) int {
+	hex.Encode(
+		dst,
+		src,
+	)
 
 	return len(src)
 }
@@ -47,8 +53,14 @@ func _HexEncodeGo(dst, src []byte) int {
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func _HexDecodeGo(dst, src []byte) int {
-	pairs, err := hex.Decode(dst, src[:len(src)&^1])
+func _HexDecodeGo(
+	dst,
+	src []byte,
+) int {
+	pairs, err := hex.Decode(
+		dst,
+		src[:len(src)&^1],
+	)
 	if err != nil {
 		return pairs * HEX_PAIR
 	}

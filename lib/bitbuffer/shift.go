@@ -25,7 +25,12 @@ type _Kernel struct {
 	name  string
 	block int
 	have  bool
-	run   func(dst, src []byte, left, right uint8)
+	run   func(
+		dst,
+		src []byte,
+		left,
+		right uint8,
+	)
 }
 
 // The kernels, narrowest first with Go leading, and the one chosen. Everything
@@ -76,8 +81,18 @@ func (k *_Kernel) Have() bool {
 //
 // Revisions:
 //   - 2026-09-23 03:58: initial creation
-func (k *_Kernel) Run(dst, src []byte, left, right uint8) {
-	k.run(dst, src, left, right)
+func (k *_Kernel) Run(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+) {
+	k.run(
+		dst,
+		src,
+		left,
+		right,
+	)
 }
 
 // _ShiftBulk writes as much of out as the selected kernel can, and returns how
@@ -93,7 +108,12 @@ func (k *_Kernel) Run(dst, src []byte, left, right uint8) {
 //   - 2026-09-23 06:50: calls the kernel by name, so a caller's stack buffer
 //     is not moved to the heap on its way through WriteBytes
 //   - 2026-09-24 01:40: portable, now that every architecture has a kernel
-func _ShiftBulk(out, data []byte, used uint8, carry uint64) int {
+func _ShiftBulk(
+	out,
+	data []byte,
+	used uint8,
+	carry uint64,
+) int {
 	// The kernel reads one byte beyond each block, so the block count comes
 	// off len(data)-1 rather than len(data).
 	blocks := (len(data) - 1) / SHIFT_KERNEL.block * SHIFT_KERNEL.block
@@ -104,7 +124,12 @@ func _ShiftBulk(out, data []byte, used uint8, carry uint64) int {
 	free := BITS_PER_BYTE - used
 	out[0] = byte(carry<<free | uint64(data[0])>>used)
 
-	_RunShift(out[1:1+blocks], data, free, used)
+	_RunShift(
+		out[1:1+blocks],
+		data,
+		free,
+		used,
+	)
 
 	return 1 + blocks
 }
@@ -120,13 +145,22 @@ func _ShiftBulk(out, data []byte, used uint8, carry uint64) int {
 //   - 2026-09-23 03:58: initial creation
 //   - 2026-09-23 06:50: calls the kernel by name, for the reason _RunShift gives
 //   - 2026-09-24 01:40: portable, now that every architecture has a kernel
-func _ReadBulk(dst, src []byte, used uint8) int {
+func _ReadBulk(
+	dst,
+	src []byte,
+	used uint8,
+) int {
 	blocks := len(dst) / SHIFT_KERNEL.block * SHIFT_KERNEL.block
 	if blocks == 0 {
 		return 0
 	}
 
-	_RunShift(dst[:blocks], src, used, BITS_PER_BYTE-used)
+	_RunShift(
+		dst[:blocks],
+		src,
+		used,
+		BITS_PER_BYTE-used,
+	)
 
 	return blocks
 }
@@ -140,14 +174,22 @@ func _ReadBulk(dst, src []byte, used uint8) int {
 // Revisions:
 //   - 2026-09-24 01:40: initial creation, the word loop of _ReadShifted as a
 //     kernel in the table
-func _ShiftBlocksGo(dst, src []byte, left, right uint8) {
+func _ShiftBlocksGo(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+) {
 	for idx := 0; idx < len(dst); idx += BLOCK_GO {
 		var (
 			word = binary.BigEndian.Uint64(src[idx:])
 			next = uint64(src[idx+BLOCK_GO])
 		)
 
-		binary.BigEndian.PutUint64(dst[idx:], word<<left|next>>right)
+		binary.BigEndian.PutUint64(
+			dst[idx:],
+			word<<left|next>>right,
+		)
 	}
 }
 

@@ -26,26 +26,41 @@ func TestGrowReservesWithoutExtending(t *testing.T) {
 
 	writer := bitbuffer.CreateWriter()
 
-	if err := writer.WriteBytes(payload(VIEW_SIZE)); err != nil {
+	if err := writer.WriteBytes(_Payload(VIEW_SIZE)); err != nil {
 		t.Fatal(err)
 	}
 
 	var (
 		length = writer.Len()
-		before = append([]byte(nil), writer.Bytes()...)
+		before = append(
+			[]byte(nil),
+			writer.Bytes()...,
+		)
 	)
 
 	writer.Grow(RESERVE)
 
 	if writer.Len() != length {
-		t.Errorf("Grow changed Len from %d to %d", length, writer.Len())
+		t.Errorf(
+			"Grow changed Len from %d to %d",
+			length,
+			writer.Len(),
+		)
 	}
 
 	if writer.Cap() < length+RESERVE {
-		t.Errorf("Cap is %d after Grow(%d) at Len %d", writer.Cap(), RESERVE, length)
+		t.Errorf(
+			"Cap is %d after Grow(%d) at Len %d",
+			writer.Cap(),
+			RESERVE,
+			length,
+		)
 	}
 
-	if !bytes.Equal(writer.Bytes(), before) {
+	if !bytes.Equal(
+		writer.Bytes(),
+		before,
+	) {
 		t.Errorf("Grow changed the contents")
 	}
 
@@ -55,7 +70,11 @@ func TestGrowReservesWithoutExtending(t *testing.T) {
 	writer.Grow(-RESERVE)
 
 	if writer.Cap() != capacity {
-		t.Errorf("Grow of zero or less changed Cap from %d to %d", capacity, writer.Cap())
+		t.Errorf(
+			"Grow of zero or less changed Cap from %d to %d",
+			capacity,
+			writer.Cap(),
+		)
 	}
 }
 
@@ -72,95 +91,145 @@ func TestGrowReservesWithoutExtending(t *testing.T) {
 func TestReadViewAliasesWhenAligned(t *testing.T) {
 	t.Parallel()
 
-	t.Run("aligned view", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"aligned view",
+		func(t *testing.T) {
+			t.Parallel()
 
-		var (
-			data   = payload(INPUT)
-			reader = bitbuffer.CreateReader(data)
-		)
+			var (
+				data   = _Payload(INPUT)
+				reader = bitbuffer.CreateReader(data)
+			)
 
-		view, err := reader.ReadView(VIEW_SIZE)
-		if err != nil {
-			t.Fatal(err)
-		}
+			view, err := reader.ReadView(VIEW_SIZE)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if !bytes.Equal(view, data[:VIEW_SIZE]) {
-			t.Fatalf("view = % x, want % x", view, data[:VIEW_SIZE])
-		}
+			if !bytes.Equal(
+				view,
+				data[:VIEW_SIZE],
+			) {
+				t.Fatalf(
+					"view = % x, want % x",
+					view,
+					data[:VIEW_SIZE],
+				)
+			}
 
-		data[0] ^= 0xFF
+			data[0] ^= 0xFF
 
-		if view[0] != data[0] {
-			t.Errorf("an aligned view copied rather than aliased")
-		}
+			if view[0] != data[0] {
+				t.Errorf("an aligned view copied rather than aliased")
+			}
 
-		const WANT = VIEW_SIZE * bitbuffer.BITS_PER_BYTE
+			const WANT = VIEW_SIZE * bitbuffer.BITS_PER_BYTE
 
-		if reader.NumRead() != WANT {
-			t.Errorf("NumRead = %d, want %d", reader.NumRead(), WANT)
-		}
-	})
+			if reader.NumRead() != WANT {
+				t.Errorf(
+					"NumRead = %d, want %d",
+					reader.NumRead(),
+					WANT,
+				)
+			}
+		},
+	)
 
-	t.Run("misaligned copy", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"misaligned copy",
+		func(t *testing.T) {
+			t.Parallel()
 
-		const (
-			OFFSET = 3
-			REST   = bitbuffer.BITS_PER_BYTE - OFFSET
-		)
+			const (
+				OFFSET = 3
+				REST   = bitbuffer.BITS_PER_BYTE - OFFSET
+			)
 
-		var (
-			data   = payload(INPUT)
-			reader = bitbuffer.CreateReader(data)
-		)
+			var (
+				data   = _Payload(INPUT)
+				reader = bitbuffer.CreateReader(data)
+			)
 
-		if _, err := reader.Read(OFFSET); err != nil {
-			t.Fatal(err)
-		}
+			if _, err := reader.Read(OFFSET); err != nil {
+				t.Fatal(err)
+			}
 
-		view, err := reader.ReadView(VIEW_SIZE)
-		if err != nil {
-			t.Fatal(err)
-		}
+			view, err := reader.ReadView(VIEW_SIZE)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		// The shift written the slow obvious way, here rather than shared
-		// with the kernel tests, which build on amd64 only.
-		want := make([]byte, VIEW_SIZE)
-		for idx := range want {
-			want[idx] = data[idx]<<OFFSET | data[idx+1]>>REST
-		}
+			// The shift written the slow obvious way, here rather than shared
+			// with the kernel tests, which build on amd64 only.
+			want := make(
+				[]byte,
+				VIEW_SIZE,
+			)
+			for idx := range want {
+				want[idx] = data[idx]<<OFFSET | data[idx+1]>>REST
+			}
 
-		if !bytes.Equal(view, want) {
-			t.Fatalf("view = % x, want % x", view, want)
-		}
+			if !bytes.Equal(
+				view,
+				want,
+			) {
+				t.Fatalf(
+					"view = % x, want % x",
+					view,
+					want,
+				)
+			}
 
-		data[0] ^= 0xFF
+			data[0] ^= 0xFF
 
-		if !bytes.Equal(view, want) {
-			t.Errorf("a misaligned view aliased rather than copied")
-		}
-	})
+			if !bytes.Equal(
+				view,
+				want,
+			) {
+				t.Errorf("a misaligned view aliased rather than copied")
+			}
+		},
+	)
 
-	t.Run("short buffer", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"short buffer",
+		func(t *testing.T) {
+			t.Parallel()
 
-		reader := bitbuffer.CreateReader(payload(INPUT))
+			var (
+				reader = bitbuffer.CreateReader(_Payload(INPUT))
 
-		_, err := reader.ReadView(INPUT + 1)
-		if !errors.Is(err, bitbuffer.ErrShortBuffer) {
-			t.Errorf("got %v, want ErrShortBuffer", err)
-		}
-	})
+				_, err = reader.ReadView(INPUT + 1)
+			)
+			if !errors.Is(
+				err,
+				bitbuffer.ErrShortBuffer,
+			) {
+				t.Errorf(
+					"got %v, want ErrShortBuffer",
+					err,
+				)
+			}
+		},
+	)
 
-	t.Run("nothing", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"nothing",
+		func(t *testing.T) {
+			t.Parallel()
 
-		reader := bitbuffer.CreateReader(payload(INPUT))
+			var (
+				reader = bitbuffer.CreateReader(_Payload(INPUT))
 
-		view, err := reader.ReadView(0)
-		if err != nil || len(view) != 0 {
-			t.Errorf("ReadView(0) = % x, %v", view, err)
-		}
-	})
+				view, err = reader.ReadView(0)
+			)
+			if err != nil || len(view) != 0 {
+				t.Errorf(
+					"ReadView(0) = % x, %v",
+					view,
+					err,
+				)
+			}
+		},
+	)
 }

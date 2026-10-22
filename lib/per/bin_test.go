@@ -23,121 +23,177 @@ var (
 	BINARY_INVALID_AT = []int{0, 7, 8, 63, 64, 65, 127, 128, 300, 599}
 )
 
-// TestRegressionBinaryMatchesReference checks BitStringToBinary against the
-// bit loop and BitStringFromBinary against the bytes, at every bit length up
+// TestRegressionBinaryMatchesReference checks FormatBitString against the
+// bit loop and ParseBitString against the bytes, at every bit length up
 // to several blocks, including the lengths that end inside a byte. It covers
 // lib/review.md §9.4.
 //
 // Revisions:
 //   - 2026-09-23 08:50: initial creation
+//   - 2026-10-21 21:38: FormatBitString and ParseBitString, which replaced BitStringToBinary
+//     and BitStringFromBinary (review P31)
 func TestRegressionBinaryMatchesReference(t *testing.T) {
 	t.Parallel()
 
 	for bits := range BINARY_LENGTHS + 1 {
-		t.Run(strconv.Itoa(bits), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			strconv.Itoa(bits),
+			func(t *testing.T) {
+				t.Parallel()
 
-			var (
-				value = bitString(bits)
-				want  = binaryReference(value)
-				got   = per.BitStringToBinary(value)
-			)
-
-			if got != want {
-				t.Fatalf("BitStringToBinary = %s, want %s", got, want)
-			}
-
-			back, err := per.BitStringFromBinary(got)
-			if err != nil {
-				t.Fatalf("BitStringFromBinary: %v", err)
-			}
-
-			if back.BitLength != bits || !bytes.Equal(back.Bytes, value.Bytes) {
-				t.Fatalf(
-					"BitStringFromBinary = %d bits % x, want %d bits % x",
-					back.BitLength,
-					back.Bytes,
-					bits,
-					value.Bytes,
+				var (
+					value    = _BitString(bits)
+					want     = _BinaryReference(value)
+					got, err = per.FormatBitString(value)
 				)
-			}
-		})
+
+				if err != nil || got != want {
+					t.Fatalf(
+						"FormatBitString = %s, %v; want %s",
+						got,
+						err,
+						want,
+					)
+				}
+
+				back, err := per.ParseBitString(got)
+				if err != nil {
+					t.Fatalf(
+						"ParseBitString: %v",
+						err,
+					)
+				}
+
+				if back.BitLength != bits || !bytes.Equal(
+					back.Bytes,
+					value.Bytes,
+				) {
+					t.Fatalf(
+						"ParseBitString = %d bits % x, "+
+							"want %d bits % x",
+						back.BitLength,
+						back.Bytes,
+						bits,
+						value.Bytes,
+					)
+				}
+			},
+		)
 	}
 }
 
-// TestRegressionBinaryClampsToTheBytes checks a BitLength longer than the
-// bytes behind it is cut to them, which the kernel must not read past.
+// TestRegressionBinaryRefusesShortBytes checks a BitLength longer than the
+// bytes behind it is refused, so the kernel never reads past them.
 //
 // Revisions:
-//   - 2026-09-23 08:50: initial creation
-func TestRegressionBinaryClampsToTheBytes(t *testing.T) {
+//   - 2026-09-23 08:50: initial creation, as TestRegressionBinaryClampsToTheBytes
+//   - 2026-10-21 21:38: FormatBitString refuses the value with ErrShortBitString, where
+//     BitStringToBinary cut the length to the bytes (review P31)
+func TestRegressionBinaryRefusesShortBytes(t *testing.T) {
 	t.Parallel()
 
 	var (
-		value = &asn1.BitString{Bytes: textPayload(9), BitLength: 1000}
-		whole = &asn1.BitString{Bytes: textPayload(9), BitLength: 72}
+		value = &asn1.BitString{
+			Bytes:     _TextPayload(9),
+			BitLength: 1000,
+		}
+		got, err = per.FormatBitString(value)
 	)
 
-	if got, want := per.BitStringToBinary(value), binaryReference(whole); got != want {
-		t.Fatalf("BitStringToBinary = %s, want %s", got, want)
+	if got != "" || !errors.Is(
+		err,
+		per.ErrShortBitString,
+	) {
+		t.Fatalf(
+			"FormatBitString = %q, %v; want \"\", ErrShortBitString",
+			got,
+			err,
+		)
 	}
 }
 
 // TestRegressionBinaryRejectsInvalid plants a character that is neither '0'
 // nor '1' at every position that matters to a block kernel and checks the
-// error names the eight-character group holding it, as it always has.
+// error names its index.
 //
 // Revisions:
 //   - 2026-09-23 08:50: initial creation
+//   - 2026-10-21 21:38: the error names the index of the character, not the start of its
+//     eight-character group (review P31)
 func TestRegressionBinaryRejectsInvalid(t *testing.T) {
 	t.Parallel()
 
-	clean := per.BitStringToBinary(bitString(BINARY_LENGTHS))
+	clean, err := per.FormatBitString(_BitString(BINARY_LENGTHS))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, at := range BINARY_INVALID_AT {
-		t.Run("at_"+strconv.Itoa(at), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			"at_"+strconv.Itoa(at),
+			func(t *testing.T) {
+				t.Parallel()
 
-			text := []byte(clean)
-			text[at] = '2'
+				text := []byte(clean)
+				text[at] = '2'
 
-			_, err := per.BitStringFromBinary(string(text))
-			if !errors.Is(err, per.ErrInvalidBinary) {
-				t.Fatalf("got %v, want ErrInvalidBinary", err)
-			}
+				_, err := per.ParseBitString(string(text))
+				if !errors.Is(
+					err,
+					per.ErrInvalidBinary,
+				) {
+					t.Fatalf(
+						"got %v, want ErrInvalidBinary",
+						err,
+					)
+				}
 
-			want := "at offset " + strconv.Itoa(at-at%per.BITS_PER_BYTE) + ":"
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("error %q does not say %q", err, want)
-			}
-		})
+				want := "at index " + strconv.Itoa(at) + ":"
+				if !strings.Contains(
+					err.Error(),
+					want,
+				) {
+					t.Errorf(
+						"error %q does not say %q",
+						err,
+						want,
+					)
+				}
+			},
+		)
 	}
 }
 
-// bitString builds a value of the given bit length over the payload, with the
+// _BitString builds a value of the given bit length over the payload, with the
 // bits past the length cleared, as a parsed value would have them.
 //
 // Revisions:
 //   - 2026-09-23 08:50: initial creation
-func bitString(bits int) *asn1.BitString {
+func _BitString(bits int) *asn1.BitString {
 	var (
 		count = (bits + per.BITS_PER_BYTE - 1) / per.BITS_PER_BYTE
-		data  = textPayload(count)
+		data  = _TextPayload(count)
 	)
 
 	if rest := bits % per.BITS_PER_BYTE; rest != 0 {
 		data[count-1] &= 0xFF << (per.BITS_PER_BYTE - rest)
 	}
 
-	return &asn1.BitString{Bytes: data, BitLength: bits}
+	return &asn1.BitString{
+		Bytes:     data,
+		BitLength: bits,
+	}
 }
 
-// binaryReference renders a bit string the slow obvious way.
+// _BinaryReference renders a bit string the slow obvious way.
 //
 // Revisions:
 //   - 2026-09-23 08:50: initial creation
-func binaryReference(value *asn1.BitString) string {
-	out := make([]byte, value.BitLength)
+func _BinaryReference(value *asn1.BitString) string {
+	out := make(
+		[]byte,
+		value.BitLength,
+	)
 
 	for idx := range out {
 		var (

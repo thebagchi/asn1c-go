@@ -12,6 +12,13 @@ const (
 	GROWTH_FACTOR    = 2    // buffer capacity multiplier, for O(1) amortised growth
 	BYTE_MASK        = 0xFF // all bits of one byte
 
+	// PEEL_READ_MIN is the rest, in bits after the open byte, above which a read takes the
+	// open byte whole and the rest on a byte boundary. Below it the chunk loop measured
+	// faster (7 bits) or the same (16 bits) (review P24). A field wider than
+	// PEEL_FIELD_MIN has such a rest at every offset, so Read can test the width alone.
+	PEEL_READ_MIN  = 16
+	PEEL_FIELD_MIN = PEEL_READ_MIN + BITS_PER_BYTE - 1 // a wider field passes PEEL_READ_MIN
+
 	// Masks that tell the compiler a shift count is in range. Go defines a
 	// shift at or past the operand's width as zero, so without these it emits a
 	// compare and a conditional clear beside every variable shift.

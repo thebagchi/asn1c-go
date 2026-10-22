@@ -46,11 +46,17 @@ var (
 //   - 2026-09-22 09:12: initial creation, in lib/bitbuffer
 //   - 2026-09-24 01:40: moved here
 func _DetectAVX2() bool {
-	if top, _, _, _ := _CPUID(CPUID_MAX_LEAF, CPUID_SUBLEAF_ZERO); top < CPUID_EXTENDED {
+	if top, _, _, _ := _CPUID(
+		CPUID_MAX_LEAF,
+		CPUID_SUBLEAF_ZERO,
+	); top < CPUID_EXTENDED {
 		return false
 	}
 
-	_, _, features, _ := _CPUID(CPUID_FEATURES, CPUID_SUBLEAF_ZERO)
+	_, _, features, _ := _CPUID(
+		CPUID_FEATURES,
+		CPUID_SUBLEAF_ZERO,
+	)
 	if features&(FEATURE_OSXSAVE|FEATURE_AVX) != FEATURE_OSXSAVE|FEATURE_AVX {
 		return false
 	}
@@ -61,7 +67,10 @@ func _DetectAVX2() bool {
 		return false
 	}
 
-	_, extended, _, _ := _CPUID(CPUID_EXTENDED, CPUID_SUBLEAF_ZERO)
+	_, extended, _, _ := _CPUID(
+		CPUID_EXTENDED,
+		CPUID_SUBLEAF_ZERO,
+	)
 
 	return extended&FEATURE_AVX2 != 0
 }
@@ -84,7 +93,10 @@ func _DetectAVX512() bool {
 
 	const WANT = FEATURE_AVX512F | FEATURE_AVX512BW
 
-	_, extended, _, _ := _CPUID(CPUID_EXTENDED, CPUID_SUBLEAF_ZERO)
+	_, extended, _, _ := _CPUID(
+		CPUID_EXTENDED,
+		CPUID_SUBLEAF_ZERO,
+	)
 
 	return extended&WANT == WANT
 }
@@ -103,7 +115,10 @@ func _DetectGFNI() bool {
 		return false
 	}
 
-	_, _, features, _ := _CPUID(CPUID_EXTENDED, CPUID_SUBLEAF_ZERO)
+	_, _, features, _ := _CPUID(
+		CPUID_EXTENDED,
+		CPUID_SUBLEAF_ZERO,
+	)
 
 	return features&FEATURE_GFNI != 0
 }
@@ -112,7 +127,10 @@ func _DetectGFNI() bool {
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func _CPUID(leaf, sub uint32) (uint32, uint32, uint32, uint32)
+func _CPUID(
+	leaf,
+	sub uint32,
+) (uint32, uint32, uint32, uint32)
 
 // _XGetBV returns the two halves of XCR0.
 //

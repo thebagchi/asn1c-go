@@ -64,7 +64,11 @@ type Codec struct {
 //     a Codec that had already allocated
 func CreateWriter() *Codec {
 	return &Codec{
-		buff: make([]byte, 0, INITIAL_CAPACITY),
+		buff: make(
+			[]byte,
+			0,
+			INITIAL_CAPACITY,
+		),
 	}
 }
 
@@ -155,10 +159,25 @@ func (c *Codec) String() string {
 //   - 2026-09-22 06:43: splits the aligned and packed halves into _WriteAligned
 //     and _WritePacked, and masks with a shift so a width of 64 no longer relies
 //     on 1<<64 wrapping to zero
-func (c *Codec) Write(num uint8, value uint64) error {
+func (c *Codec) Write(
+	num uint8,
+	value uint64,
+) error {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "Write", fmt.Sprintf("bits=%d value=%d", num, value))
-		defer c._Trace("EXIT", "Write", "")
+		c._Trace(
+			"ENTER",
+			"Write",
+			fmt.Sprintf(
+				"bits=%d value=%d",
+				num,
+				value,
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"Write",
+			"",
+		)
 	}
 
 	if num == 0 || num > UINT64_BITS {
@@ -168,9 +187,15 @@ func (c *Codec) Write(num uint8, value uint64) error {
 	value = value & (^uint64(0) >> (UINT64_BITS - num))
 
 	if c.offset == 0 || c.offset == BITS_PER_BYTE {
-		c._WriteAligned(num, value)
+		c._WriteAligned(
+			num,
+			value,
+		)
 	} else {
-		c._WritePacked(num, value)
+		c._WritePacked(
+			num,
+			value,
+		)
 	}
 
 	c._IncrementWrite(uint64(num))
@@ -190,31 +215,42 @@ func (c *Codec) Write(num uint8, value uint64) error {
 //     BITS_PER_BYTE. The guard tested len(buff) == 0, which the short-buffer
 //     check above it had already ruled out, so a fresh reader packed its first
 //     read a bit at a time - and a fresh reader is every decoder's first field
+//   - 2026-10-21 10:00: sends a field of more than PEEL_FIELD_MIN bits to _ReadWide, with the
+//     compare that checked the widest field (review P24)
 func (c *Codec) Read(num uint8) (uint64, error) {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "Read", fmt.Sprintf("num=%d", num))
-		defer c._Trace("EXIT", "Read", "")
+		c._Trace(
+			"ENTER",
+			"Read",
+			fmt.Sprintf(
+				"num=%d",
+				num,
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"Read",
+			"",
+		)
 	}
 
 	if num == 0 {
 		return 0, nil
 	}
 
-	if num > UINT64_BITS {
-		return 0, ErrInvalidBitCount
-	}
-
-	if len(c.buff) == 0 {
-		return 0, ErrShortBuffer
-	}
-
 	var (
 		value uint64
 		err   error
 	)
-	if c.offset == 0 || c.offset == BITS_PER_BYTE {
+
+	switch {
+	case num > PEEL_FIELD_MIN:
+		value, err = c._ReadWide(num)
+	case len(c.buff) == 0:
+		return 0, ErrShortBuffer
+	case c.offset == 0 || c.offset == BITS_PER_BYTE:
 		value, err = c._ReadAligned(num)
-	} else {
+	default:
 		value, err = c._ReadPacked(num)
 	}
 
@@ -239,8 +275,19 @@ func (c *Codec) Read(num uint8) (uint64, error) {
 //     _WriteShifted instead of one Write call per byte
 func (c *Codec) WriteBytes(data []byte) error {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "WriteBytes", fmt.Sprintf("len(data)=%d", len(data)))
-		defer c._Trace("EXIT", "WriteBytes", "")
+		c._Trace(
+			"ENTER",
+			"WriteBytes",
+			fmt.Sprintf(
+				"len(data)=%d",
+				len(data),
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"WriteBytes",
+			"",
+		)
 	}
 
 	if len(data) == 0 {
@@ -248,7 +295,10 @@ func (c *Codec) WriteBytes(data []byte) error {
 	}
 
 	if c.offset == 0 || c.offset == BITS_PER_BYTE {
-		c.buff = append(c.buff, data...)
+		c.buff = append(
+			c.buff,
+			data...,
+		)
 		c.offset = BITS_PER_BYTE
 	} else {
 		c._WriteShifted(data)
@@ -268,8 +318,19 @@ func (c *Codec) WriteBytes(data []byte) error {
 //     _ReadShifted instead of one Read call per byte
 func (c *Codec) ReadBytes(n int) ([]byte, error) {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "ReadBytes", fmt.Sprintf("n=%d", n))
-		defer c._Trace("EXIT", "ReadBytes", "")
+		c._Trace(
+			"ENTER",
+			"ReadBytes",
+			fmt.Sprintf(
+				"n=%d",
+				n,
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"ReadBytes",
+			"",
+		)
 	}
 
 	if n < 0 {
@@ -314,10 +375,23 @@ func (c *Codec) ReadBytes(n int) ([]byte, error) {
 //
 // Revisions:
 //   - 2026-09-23 07:40: initial creation
+//   - 2026-10-21 13:12: checks the length, the spent byte included, before it drops that byte
+//     (review P26)
 func (c *Codec) ReadView(n int) ([]byte, error) {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "ReadView", fmt.Sprintf("n=%d", n))
-		defer c._Trace("EXIT", "ReadView", "")
+		c._Trace(
+			"ENTER",
+			"ReadView",
+			fmt.Sprintf(
+				"n=%d",
+				n,
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"ReadView",
+			"",
+		)
 	}
 
 	if c.offset != 0 && c.offset != BITS_PER_BYTE {
@@ -332,17 +406,18 @@ func (c *Codec) ReadView(n int) ([]byte, error) {
 		return []byte{}, nil
 	}
 
+	spent := 0
 	if c.offset == BITS_PER_BYTE {
-		if len(c.buff) == 0 {
-			return nil, ErrShortBuffer
-		}
-
-		c.buff = c.buff[1:]
-		c.offset = 0
+		spent = 1
 	}
 
-	if len(c.buff) < n {
+	if len(c.buff) < spent+n {
 		return nil, ErrShortBuffer
+	}
+
+	if spent > 0 {
+		c.buff = c.buff[spent:]
+		c.offset = 0
 	}
 
 	data := c.buff[:n:n]
@@ -364,7 +439,10 @@ func (c *Codec) Grow(n int) {
 		return
 	}
 
-	c.buff = slices.Grow(c.buff, n)
+	c.buff = slices.Grow(
+		c.buff,
+		n,
+	)
 }
 
 // Align pads the current byte with zero bits so the next write starts a new one.
@@ -376,8 +454,16 @@ func (c *Codec) Grow(n int) {
 //   - 2026-01-20 23:00: initial creation
 func (c *Codec) Align() error {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "Align", "")
-		defer c._Trace("EXIT", "Align", "")
+		c._Trace(
+			"ENTER",
+			"Align",
+			"",
+		)
+		defer c._Trace(
+			"EXIT",
+			"Align",
+			"",
+		)
 	}
 
 	if c.offset > 0 && c.offset < BITS_PER_BYTE {
@@ -397,8 +483,16 @@ func (c *Codec) Align() error {
 //   - 2026-01-20 23:00: initial creation
 func (c *Codec) Advance() error {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "Advance", "")
-		defer c._Trace("EXIT", "Advance", "")
+		c._Trace(
+			"ENTER",
+			"Advance",
+			"",
+		)
+		defer c._Trace(
+			"EXIT",
+			"Advance",
+			"",
+		)
 	}
 
 	if c.offset > 0 {
@@ -413,15 +507,24 @@ func (c *Codec) Advance() error {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation, split out of Write
-func (c *Codec) _WriteAligned(num uint8, value uint64) {
+func (c *Codec) _WriteAligned(
+	num uint8,
+	value uint64,
+) {
 	var (
 		nbytes    = (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
 		remainder = num % BITS_PER_BYTE
 		tmp       [UINT64_BYTES]byte
 	)
 
-	binary.BigEndian.PutUint64(tmp[:], value<<(UINT64_BITS-num))
-	c.buff = append(c.buff, tmp[:nbytes]...)
+	binary.BigEndian.PutUint64(
+		tmp[:],
+		value<<(UINT64_BITS-num),
+	)
+	c.buff = append(
+		c.buff,
+		tmp[:nbytes]...,
+	)
 
 	c.offset = remainder
 	if c.offset == 0 {
@@ -431,9 +534,29 @@ func (c *Codec) _WriteAligned(num uint8, value uint64) {
 
 // _WritePacked appends num bits that start part-way through a byte.
 //
+// A field that fits in the open byte is one chunk. A wider field fills the open
+// byte and sends the rest out as whole bytes (_WritePeel), so the shift by the bit
+// offset runs once and not once per byte.
+//
 // Revisions:
 //   - 2026-09-22 06:43: initial creation, split out of Write
-func (c *Codec) _WritePacked(num uint8, value uint64) {
+//   - 2026-10-21 09:45: a field wider than the open byte fills that byte, then its rest goes
+//     out as whole bytes (review P24)
+func (c *Codec) _WritePacked(
+	num uint8,
+	value uint64,
+) {
+	free := BITS_PER_BYTE - c.offset
+	if num > free {
+		c._WritePeel(
+			num,
+			value,
+			free,
+		)
+
+		return
+	}
+
 	pending := num
 	for pending > 0 {
 		if c.offset == BITS_PER_BYTE {
@@ -443,7 +566,10 @@ func (c *Codec) _WritePacked(num uint8, value uint64) {
 
 		var (
 			free  = BITS_PER_BYTE - c.offset
-			nbits = min(pending, free)
+			nbits = min(
+				pending,
+				free,
+			)
 			rest  = pending - nbits
 			chunk = uint8(value>>rest) & (uint8(1)<<nbits - 1)
 			pos   = len(c.buff) - 1
@@ -486,7 +612,12 @@ func (c *Codec) _WriteShifted(data []byte) {
 
 	var (
 		out = c.buff[last:]
-		idx = _ShiftBulk(out, data, used, carry)
+		idx = _ShiftBulk(
+			out,
+			data,
+			used,
+			carry,
+		)
 	)
 
 	// Whatever the kernel wrote, the word loop picks up from the byte after it,
@@ -497,7 +628,10 @@ func (c *Codec) _WriteShifted(data []byte) {
 
 	for idx+UINT64_BYTES <= len(data) {
 		word := binary.BigEndian.Uint64(data[idx:])
-		binary.BigEndian.PutUint64(out[idx:], carry<<high|word>>used)
+		binary.BigEndian.PutUint64(
+			out[idx:],
+			carry<<high|word>>used,
+		)
 		carry = word & (uint64(1)<<used - 1)
 		idx = idx + UINT64_BYTES
 	}
@@ -515,23 +649,29 @@ func (c *Codec) _WriteShifted(data []byte) {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation, split out of Read
+//   - 2026-10-21 12:31: checks the length, the spent byte included, before it drops that byte,
+//     so a short read leaves the stream where it was (review P25)
 func (c *Codec) _ReadAligned(num uint8) (uint64, error) {
+	spent := 0
 	if c.offset == BITS_PER_BYTE {
-		c.buff = c.buff[1:]
-
-		c.offset = 0
-		if len(c.buff) == 0 {
-			return 0, ErrShortBuffer
-		}
+		spent = 1
 	}
 
 	nbytes := (int(num) + BITS_PER_BYTE - 1) / BITS_PER_BYTE
-	if len(c.buff) < nbytes {
+	if len(c.buff) < spent+nbytes {
 		return 0, ErrShortBuffer
 	}
 
+	if spent > 0 {
+		c.buff = c.buff[spent:]
+		c.offset = 0
+	}
+
 	var tmp [UINT64_BYTES]byte
-	copy(tmp[:nbytes], c.buff[:nbytes])
+	copy(
+		tmp[:nbytes],
+		c.buff[:nbytes],
+	)
 
 	var (
 		value     = binary.BigEndian.Uint64(tmp[:]) >> (UINT64_BITS - num)
@@ -554,27 +694,38 @@ func (c *Codec) _ReadAligned(num uint8) (uint64, error) {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation, split out of Read
+//   - 2026-10-21 12:31: a short read puts the buffer and the offset back, so the stream stays
+//     where it was (review P25)
 func (c *Codec) _ReadPacked(num uint8) (uint64, error) {
 	var (
 		value   uint64
 		pending = num
+		buff    = c.buff
+		offset  = c.offset
 	)
 
 	for pending > 0 {
 		if c.offset == BITS_PER_BYTE {
-			c.buff = c.buff[1:]
+			// Only the spent byte is left.
+			if len(c.buff) <= 1 {
+				c.buff = buff
+				c.offset = offset
 
-			c.offset = 0
-			if len(c.buff) == 0 {
 				return 0, ErrShortBuffer
 			}
+
+			c.buff = c.buff[1:]
+			c.offset = 0
 		}
 
 		var (
 			left  = BITS_PER_BYTE - c.offset
-			nbits = min(pending, left)
-			mask  = uint8(1)<<nbits - 1
-			bits  = uint64(c.buff[0]>>(left-nbits)) & uint64(mask)
+			nbits = min(
+				pending,
+				left,
+			)
+			mask = uint8(1)<<nbits - 1
+			bits = uint64(c.buff[0]>>(left-nbits)) & uint64(mask)
 		)
 
 		value = value<<nbits | bits
@@ -589,22 +740,31 @@ func (c *Codec) _ReadPacked(num uint8) (uint64, error) {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation, split out of ReadBytes
+//   - 2026-10-21 12:31: checks the length, the spent byte included, before it drops that byte
+//     (review P25)
 func (c *Codec) _ReadWhole(n int) ([]byte, error) {
+	spent := 0
 	if c.offset == BITS_PER_BYTE {
-		if len(c.buff) == 0 {
-			return nil, ErrShortBuffer
-		}
-
-		c.buff = c.buff[1:]
-		c.offset = 0
+		spent = 1
 	}
 
-	if len(c.buff) < n {
+	if len(c.buff) < spent+n {
 		return nil, ErrShortBuffer
 	}
 
-	data := make([]byte, n)
-	copy(data, c.buff[:n])
+	if spent > 0 {
+		c.buff = c.buff[spent:]
+		c.offset = 0
+	}
+
+	data := make(
+		[]byte,
+		n,
+	)
+	copy(
+		data,
+		c.buff[:n],
+	)
 	c.buff = c.buff[n:]
 
 	return data, nil
@@ -631,8 +791,15 @@ func (c *Codec) _ReadShifted(n int) ([]byte, error) {
 	var (
 		used = c.offset
 		free = BITS_PER_BYTE - used
-		data = make([]byte, n)
-		idx  = _ReadBulk(data, c.buff, used)
+		data = make(
+			[]byte,
+			n,
+		)
+		idx = _ReadBulk(
+			data,
+			c.buff,
+			used,
+		)
 	)
 
 	// Whatever the kernel filled, the word loop picks up from the byte after
@@ -642,7 +809,10 @@ func (c *Codec) _ReadShifted(n int) ([]byte, error) {
 			word = binary.BigEndian.Uint64(c.buff[idx:])
 			next = uint64(c.buff[idx+UINT64_BYTES])
 		)
-		binary.BigEndian.PutUint64(data[idx:], word<<used|next>>free)
+		binary.BigEndian.PutUint64(
+			data[idx:],
+			word<<used|next>>free,
+		)
 		idx = idx + UINT64_BYTES
 	}
 
@@ -664,13 +834,30 @@ func (c *Codec) _ReadShifted(n int) ([]byte, error) {
 //   - 2026-01-20 23:00: initial creation
 func (c *Codec) _Grow(n int) {
 	if ENABLE_TRACE {
-		c._Trace("ENTER", "_Grow", fmt.Sprintf("n=%d", n))
-		defer c._Trace("EXIT", "_Grow", "")
+		c._Trace(
+			"ENTER",
+			"_Grow",
+			fmt.Sprintf(
+				"n=%d",
+				n,
+			),
+		)
+		defer c._Trace(
+			"EXIT",
+			"_Grow",
+			"",
+		)
 	}
 
 	if cap(c.buff) < len(c.buff)+n {
-		size := max(cap(c.buff)*GROWTH_FACTOR, len(c.buff)+n)
-		c.buff = slices.Grow(c.buff, size-len(c.buff))
+		size := max(
+			cap(c.buff)*GROWTH_FACTOR,
+			len(c.buff)+n,
+		)
+		c.buff = slices.Grow(
+			c.buff,
+			size-len(c.buff),
+		)
 	}
 
 	c.buff = c.buff[:len(c.buff)+n]
@@ -696,7 +883,11 @@ func (c *Codec) _IncrementWrite(bits uint64) {
 //
 // Revisions:
 //   - 2026-01-20 23:00: initial creation
-func (c *Codec) _Trace(event, function, arguments string) {
+func (c *Codec) _Trace(
+	event,
+	function,
+	arguments string,
+) {
 	if !ENABLE_TRACE {
 		return
 	}

@@ -1,93 +1,31 @@
-#!/usr/bin/env python3
+"""Oracle vectors for EncodeBoolean and DecodeBoolean (X.691 12).
 
-import json
-import os
-import subprocess
-import sys
-from binascii import hexlify
+One type, BOOLEAN-PLAIN of testing.asn1, and both values. pycrate 0.8.1 and Erlang/OTP 29.1.1
+both encode each value in APER and UPER, and the run stops when they differ. Output: the key
+"bool" of testing.json; a row is {type, input, aper, uper, ...} in the form of harness.py.
 
-from pycrate_asn1rt.asnobj_basic import BOOL  # type: ignore
+Run: testing.py runs this module; see harness.py
 
+Revisions:
+  - 2026-09-22 06:43: initial creation
+  - 2026-10-20 00:13: ask both oracles for both variants from testing.asn1; one row for each value
+    instead of a row for each variant; return the vectors, write no file
+  - 2026-10-20 00:43: every row keeps the answers of both oracles, py and er for each variant, with
+    expected and derived (see harness.py)
+"""
 
-def encode_per(obj, aligned=True):
-    if aligned:
-        return obj.to_aper()
-    else:
-        return obj.to_uper()
+import harness
 
+KIND = "bool"
+PREFIX = ""
 
-def encode_boolean(value, aligned=True):
-    obj = BOOL(name="BOOLEAN")
-    obj.set_val(value)
-    return encode_per(obj, aligned)
-
-
-def main():
-    results = []
-    cases = [
-        {"value": True, "aligned": True},
-        {"value": True, "aligned": False},
-        {"value": False, "aligned": True},
-        {"value": False, "aligned": False},
-    ]
-    for case in cases:
-        value = case["value"]
-        aligned = case["aligned"]
-        data = encode_boolean(value, aligned)
-        output = hexlify(data).decode("ascii")
-        result = {
-            "input": value,
-            "aligned": aligned,
-            "output": output,
-        }
-        results.append(result)
-
-    # --- Erlang cross-validation ---
-    erlang_cases = [
-        {"value": True},
-        {"value": False},
-    ]
-    for case in erlang_cases:
-        value = case["value"]
-        for aligned in [True, False]:
-            output = encode_boolean_erl(value, aligned)
-            results.append(
-                {
-                    "input": value,
-                    "aligned": aligned,
-                    "output": output,
-                }
-            )
-
-    content = json.dumps(results, indent=2)
-    with open("bool.json", "w") as f:
-        f.write(content)
-
-    print(f"Generated {len(results)} boolean test cases")
+TYPE = "BOOLEAN-PLAIN"
+VALUES = [True, False]
 
 
-# ---------------------------------------------------------------------------
-# Erlang-based encoder (calls encode_boolean.erl for cross-validation).
-# ---------------------------------------------------------------------------
-
-_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
-
-
-def encode_boolean_erl(value, aligned):
-    script = os.path.join(_ERLANG_DIR_, "encode_boolean.erl")
-    cmd = ["escript", script, "-value", "true" if value else "false"]
-    if aligned:
-        cmd.append("-aligned")
-    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(
-            f"Erlang encode error for BOOL value={value} aligned={aligned}:",
-            file=sys.stderr,
-        )
-        print(result.stderr, file=sys.stderr)
-        sys.exit(1)
-    return result.stdout.strip().lower()
-
-
-if __name__ == "__main__":
-    main()
+def vectors():
+    module = harness.pycrate_module(PREFIX)
+    rows = [{"type": TYPE, "input": value} for value in VALUES]
+    py = harness.pycrate_encode(module, [(TYPE, value) for value in VALUES])
+    otp = harness.otp_encode(PREFIX, [(TYPE, "true" if value else "false") for value in VALUES])
+    return harness.merge(rows, py, otp, {})

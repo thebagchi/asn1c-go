@@ -33,7 +33,11 @@ type Real struct {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func NewReal(mantissa int64, exponent, base int) *Real {
+func NewReal(
+	mantissa int64,
+	exponent,
+	base int,
+) *Real {
 	return &Real{
 		mantissa: mantissa,
 		exponent: exponent,
@@ -54,8 +58,15 @@ func NewReal(mantissa int64, exponent, base int) *Real {
 //   - 2026-09-22 06:43: returns a Real rather than three bare numbers, two of
 //     which were ints a caller had to tell apart by position
 func MakeReal(value float64) *Real {
-	if value == 0.0 || math.IsInf(value, 0) || math.IsNaN(value) {
-		return NewReal(0, 0, REAL_BASE_TWO)
+	if value == 0.0 || math.IsInf(
+		value,
+		0,
+	) || math.IsNaN(value) {
+		return NewReal(
+			0,
+			0,
+			REAL_BASE_TWO,
+		)
 	}
 
 	var (
@@ -90,7 +101,11 @@ func MakeReal(value float64) *Real {
 		mantissa = -mantissa
 	}
 
-	return NewReal(mantissa, exponent, REAL_BASE_TWO)
+	return NewReal(
+		mantissa,
+		exponent,
+		REAL_BASE_TWO,
+	)
 }
 
 // Mantissa returns the signed mantissa.
@@ -130,15 +145,27 @@ func (r *Real) Base() int {
 func (r *Real) Float() float64 {
 	switch r.base {
 	case REAL_BASE_TWO:
-		return math.Ldexp(float64(r.mantissa), r.exponent)
+		return math.Ldexp(
+			float64(r.mantissa),
+			r.exponent,
+		)
 	case REAL_BASE_EIGHT:
-		return math.Ldexp(float64(r.mantissa), r.exponent*REAL_BASE_EIGHT_LOG)
+		return math.Ldexp(
+			float64(r.mantissa),
+			r.exponent*REAL_BASE_EIGHT_LOG,
+		)
 	case REAL_BASE_SIXTEEN:
-		return math.Ldexp(float64(r.mantissa), r.exponent*REAL_BASE_SIXTEEN_LOG)
+		return math.Ldexp(
+			float64(r.mantissa),
+			r.exponent*REAL_BASE_SIXTEEN_LOG,
+		)
 	case REAL_BASE_TEN:
 		return math.Pow10(r.exponent) * float64(r.mantissa)
 	default:
-		return math.Pow(float64(r.base), float64(r.exponent)) * float64(r.mantissa)
+		return math.Pow(
+			float64(r.base),
+			float64(r.exponent),
+		) * float64(r.mantissa)
 	}
 }
 
@@ -153,25 +180,21 @@ func (r *Real) Float() float64 {
 //   - 2026-09-22 06:43: initial creation, split out of Encoder.EncodeReal, whose
 //     fifteen unchecked writes into a second bit buffer this replaces with a
 //     byte slice that cannot fail
+//   - 2026-10-19 10:38: split the special values into _SpecialRealContents to stay
+//     under funlen; no behaviour change
 func _RealContents(value float64) []byte {
-	switch {
-	case math.IsNaN(value):
-		return []byte{REAL_NOT_A_NUMBER}
-	case math.IsInf(value, 1):
-		return []byte{REAL_PLUS_INFINITY}
-	case math.IsInf(value, -1):
-		return []byte{REAL_MINUS_INFINITY}
-	case value == 0.0 && math.Signbit(value):
-		return []byte{REAL_MINUS_ZERO}
-	case value == 0.0:
-		return nil
+	special, ok := _SpecialRealContents(value)
+	if ok {
+		return special
 	}
 
-	parts := MakeReal(value)
+	var (
+		parts = MakeReal(value)
 
-	mantissa := parts.Mantissa()
+		mantissa = parts.Mantissa()
 
-	first := byte(REAL_BINARY_FLAG)
+		first = byte(REAL_BINARY_FLAG)
+	)
 	if mantissa < 0 {
 		first = first | REAL_BINARY_SIGN_BIT
 		mantissa = -mantissa
@@ -189,12 +212,49 @@ func _RealContents(value float64) []byte {
 
 	contents := []byte{first}
 	if len(exponent) > EXPONENT_24_OCTETS {
-		contents = append(contents, byte(len(exponent)))
+		contents = append(
+			contents,
+			byte(len(exponent)),
+		)
 	}
 
-	contents = append(contents, exponent...)
+	contents = append(
+		contents,
+		exponent...,
+	)
 
-	return append(contents, _MantissaOctets(uint64(mantissa))...)
+	return append(
+		contents,
+		_MantissaOctets(uint64(mantissa))...,
+	)
+}
+
+// _SpecialRealContents renders the REAL values that have no binary form: NaN,
+// the infinities and the two zeros. The boolean is false for any other value.
+//
+// Revisions:
+//   - 2026-10-19 10:38: initial creation
+func _SpecialRealContents(value float64) ([]byte, bool) {
+	switch {
+	case math.IsNaN(value):
+		return []byte{REAL_NOT_A_NUMBER}, true
+	case math.IsInf(
+		value,
+		1,
+	):
+		return []byte{REAL_PLUS_INFINITY}, true
+	case math.IsInf(
+		value,
+		-1,
+	):
+		return []byte{REAL_MINUS_INFINITY}, true
+	case value == 0.0 && math.Signbit(value):
+		return []byte{REAL_MINUS_ZERO}, true
+	case value == 0.0:
+		return nil, true
+	}
+
+	return nil, false
 }
 
 // _ParseReal reads the contents octets of X.690 clause 8.5.
@@ -237,9 +297,16 @@ func _ParseSpecialReal(first byte) (float64, error) {
 	case REAL_NOT_A_NUMBER:
 		return math.NaN(), nil
 	case REAL_MINUS_ZERO:
-		return math.Copysign(0, -1), nil
+		return math.Copysign(
+			0,
+			-1,
+		), nil
 	default:
-		return 0, fmt.Errorf("first octet %#02x: %w", first, ErrRealReserved)
+		return 0, fmt.Errorf(
+			"first octet %#02x: %w",
+			first,
+			ErrRealReserved,
+		)
 	}
 }
 
@@ -253,19 +320,37 @@ func _ParseSpecialReal(first byte) (float64, error) {
 //   - 2026-09-22 06:43: initial creation
 func _ParseDecimalReal(contents []byte) (float64, error) {
 	if first := contents[0] & LENGTH_SIX_BIT_MASK; first > REAL_NR3_FORM {
-		return 0, fmt.Errorf("number representation %d: %w", first, ErrRealReserved)
+		return 0, fmt.Errorf(
+			"number representation %d: %w",
+			first,
+			ErrRealReserved,
+		)
 	}
 
 	text := strings.TrimSpace(string(contents[1:]))
-	text = strings.ReplaceAll(text, ",", ".")
+	text = strings.ReplaceAll(
+		text,
+		",",
+		".",
+	)
 
 	if text == "" {
-		return 0, fmt.Errorf("decimal form: %w", ErrRealTruncated)
+		return 0, fmt.Errorf(
+			"decimal form: %w",
+			ErrRealTruncated,
+		)
 	}
 
-	value, err := strconv.ParseFloat(text, 64)
+	value, err := strconv.ParseFloat(
+		text,
+		64,
+	)
 	if err != nil {
-		return 0, fmt.Errorf("decimal form %q: %w", text, err)
+		return 0, fmt.Errorf(
+			"decimal form %q: %w",
+			text,
+			err,
+		)
 	}
 
 	return value, nil
@@ -273,10 +358,16 @@ func _ParseDecimalReal(contents []byte) (float64, error) {
 
 // _ParseBinaryReal reads the binary form of X.690 clause 8.5.7.
 //
+// A mantissa that float64 cannot hold still rounds.
+//
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
+//   - 2026-10-20 01:12: keeps the mantissa unsigned and applies the sign and
+//     the scale with Ldexp (review P11-1)
+//   - 2026-10-20 01:16: one Ldexp for the scale and the exponent, so a wide
+//     value does not underflow in a first step (review P11-1)
 func _ParseBinaryReal(contents []byte) (float64, error) {
-	first := contents[0]
+	var first = contents[0]
 
 	exponent, rest, err := _ReadExponent(contents)
 	if err != nil {
@@ -284,26 +375,71 @@ func _ParseBinaryReal(contents []byte) (float64, error) {
 	}
 
 	if len(rest) > MAX_VALUE_OCTETS {
-		return 0, fmt.Errorf("%d octets: %w", len(rest), ErrRealMantissa)
+		return 0, fmt.Errorf(
+			"%d octets: %w",
+			len(rest),
+			ErrRealMantissa,
+		)
 	}
 
-	mantissa := _BigEndian(rest)
+	var (
+		mantissa = _BigEndian(rest)
 
-	// Clause 8.5.7.3: the scaling factor multiplies the mantissa by 2**F. PER
-	// only ever writes zero, but a decoder reads what it is given.
-	scale := int((first >> REAL_SCALE_SHIFT) & REAL_SCALE_MASK)
-
-	signed := int64(mantissa)
-	if first&REAL_BINARY_SIGN_BIT != 0 {
-		signed = -signed
-	}
+		// Clause 8.5.7.3: the scaling factor multiplies the mantissa by 2**F. PER
+		// only ever writes zero, but a decoder reads what it is given.
+		scale = int((first >> REAL_SCALE_SHIFT) & REAL_SCALE_MASK)
+	)
 
 	base, err := _ReadBase(first)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewReal(signed<<scale, exponent, base).Float(), nil
+	// Clause 8.5.7.1: the mantissa octets are unsigned and bit 7 is the sign.
+	// One Ldexp applies the scale and the exponent together, so a wide value
+	// that only fits after both do not underflow in a first step. A mantissa
+	// of 2**63 stays positive, and a wide mantissa keeps its bits until the
+	// one rounding.
+	value := math.Ldexp(
+		float64(mantissa),
+		scale+_BitExponent(
+			exponent,
+			base,
+		),
+	)
+	if first&REAL_BINARY_SIGN_BIT != 0 {
+		value = -value
+	}
+
+	return value, nil
+}
+
+// _BitExponent returns the power of two that exponent stands for in base. The
+// exponent is clamped first. Ldexp already saturates to zero or infinity far
+// inside the clamp, so the clamp changes no result and cannot overflow int.
+//
+// Revisions:
+//   - 2026-10-20 01:16: initial creation (review P11-1)
+func _BitExponent(
+	exponent,
+	base int,
+) int {
+	exponent = max(
+		-REAL_EXPONENT_CLAMP,
+		min(
+			exponent,
+			REAL_EXPONENT_CLAMP,
+		),
+	)
+
+	switch base {
+	case REAL_BASE_EIGHT:
+		return exponent * REAL_BASE_EIGHT_LOG
+	case REAL_BASE_SIXTEEN:
+		return exponent * REAL_BASE_SIXTEEN_LOG
+	default:
+		return exponent
+	}
 }
 
 // _ReadBase reads the base from bits 6 and 5 of the first contents octet, per
@@ -320,7 +456,10 @@ func _ReadBase(first byte) (int, error) {
 	case REAL_BASE_SELECT_16:
 		return REAL_BASE_SIXTEEN, nil
 	default:
-		return 0, fmt.Errorf("base selector 3: %w", ErrRealReserved)
+		return 0, fmt.Errorf(
+			"base selector 3: %w",
+			ErrRealReserved,
+		)
 	}
 }
 
@@ -341,27 +480,44 @@ func _ReadExponent(contents []byte) (int, []byte, error) {
 		width = int(form) + 1
 	default:
 		if len(contents) < DER_HEADER_OCTETS {
-			return 0, nil, fmt.Errorf("exponent length octet: %w", ErrRealTruncated)
+			return 0, nil, fmt.Errorf(
+				"exponent length octet: %w",
+				ErrRealTruncated,
+			)
 		}
 
 		width = int(contents[1])
 		start = DER_HEADER_OCTETS
 
 		if width == 0 {
-			return 0, nil, fmt.Errorf("exponent of zero octets: %w", ErrRealReserved)
+			return 0, nil, fmt.Errorf(
+				"exponent of zero octets: %w",
+				ErrRealReserved,
+			)
 		}
 	}
 
 	end := start + width
 	if end > len(contents) {
-		return 0, nil, fmt.Errorf("%d exponent octets: %w", width, ErrRealTruncated)
+		return 0, nil, fmt.Errorf(
+			"%d exponent octets: %w",
+			width,
+			ErrRealTruncated,
+		)
 	}
 
 	if width > MAX_VALUE_OCTETS {
-		return 0, nil, fmt.Errorf("%d exponent octets: %w", width, ErrRealMantissa)
+		return 0, nil, fmt.Errorf(
+			"%d exponent octets: %w",
+			width,
+			ErrRealMantissa,
+		)
 	}
 
-	return int(_SignExtend(_BigEndian(contents[start:end]), width)), contents[end:], nil
+	return int(_SignExtend(
+		_BigEndian(contents[start:end]),
+		width,
+	)), contents[end:], nil
 }
 
 // _BigEndian reads up to MAX_VALUE_OCTETS octets as one big-endian number.
@@ -388,12 +544,18 @@ func _BigEndian(octets []byte) uint64 {
 //
 // Revisions:
 //   - 2026-09-22 09:12: initial creation, replacing two copies of this loop
-func _Octets(value uint64, width int) []byte {
+func _Octets(
+	value uint64,
+	width int,
+) []byte {
 	if width <= 0 {
 		return nil
 	}
 
-	octets := make([]byte, width)
+	octets := make(
+		[]byte,
+		width,
+	)
 	for i := width - 1; i >= 0; i-- {
 		octets[i] = byte(value)
 		value >>= BITS_PER_BYTE
@@ -406,7 +568,10 @@ func _Octets(value uint64, width int) []byte {
 //
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
-func _SignExtend(raw uint64, width int) int64 {
+func _SignExtend(
+	raw uint64,
+	width int,
+) int64 {
 	shift := uint(UINT64_BITS - width*BITS_PER_BYTE)
 
 	return int64(raw<<shift) >> shift
@@ -418,7 +583,10 @@ func _SignExtend(raw uint64, width int) int64 {
 // Revisions:
 //   - 2026-09-22 06:43: initial creation
 func _ExponentOctets(exponent int) []byte {
-	return _Octets(uint64(exponent), OctetsTwosComplementBinaryInteger(int64(exponent)))
+	return _Octets(
+		uint64(exponent),
+		OctetsTwosComplementBinaryInteger(int64(exponent)),
+	)
 }
 
 // _MantissaOctets renders an unsigned mantissa as the fewest octets that hold
@@ -431,5 +599,8 @@ func _MantissaOctets(mantissa uint64) []byte {
 		return nil
 	}
 
-	return _Octets(mantissa, OctetsNonNegativeBinaryIntegerLength(mantissa))
+	return _Octets(
+		mantissa,
+		OctetsNonNegativeBinaryIntegerLength(mantissa),
+	)
 }

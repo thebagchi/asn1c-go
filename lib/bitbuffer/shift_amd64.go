@@ -71,16 +71,41 @@ func _ShiftKernels() []*_Kernel {
 //   - 2026-09-24 01:10: dispatches on the kernel init selected rather than on
 //     the feature bits, so the selection is made in one place
 //   - 2026-09-24 01:38: switches on which kernel was selected, not its block
-func _RunShift(dst, src []byte, left, right uint8) {
+func _RunShift(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+) {
 	switch SHIFT_KERNEL {
 	case SHIFT_AVX512:
-		_ShiftBlocksAVX512(dst, src, left, right)
+		_ShiftBlocksAVX512(
+			dst,
+			src,
+			left,
+			right,
+		)
 	case SHIFT_AVX2:
-		_ShiftBlocksAVX2(dst, src, left, right)
+		_ShiftBlocksAVX2(
+			dst,
+			src,
+			left,
+			right,
+		)
 	case SHIFT_SSE2:
-		_ShiftBlocksSSE2(dst, src, left, right)
+		_ShiftBlocksSSE2(
+			dst,
+			src,
+			left,
+			right,
+		)
 	default:
-		_ShiftBlocksGo(dst, src, left, right)
+		_ShiftBlocksGo(
+			dst,
+			src,
+			left,
+			right,
+		)
 	}
 }
 
@@ -94,7 +119,12 @@ func _RunShift(dst, src []byte, left, right uint8) {
 //   - 2026-09-23 09:10: initial creation, in place of the generated stub
 //
 //go:noescape
-func _ShiftBlocksSSE2(dst, src []byte, left, right uint8)
+func _ShiftBlocksSSE2(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+)
 
 // _ShiftBlocksAVX2 is _ShiftBlocksSSE2 at thirty-two bytes per iteration, in
 // VEX encodings only, ending in VZEROUPPER.
@@ -103,7 +133,12 @@ func _ShiftBlocksSSE2(dst, src []byte, left, right uint8)
 //   - 2026-09-23 09:10: initial creation, in place of the generated stub
 //
 //go:noescape
-func _ShiftBlocksAVX2(dst, src []byte, left, right uint8)
+func _ShiftBlocksAVX2(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+)
 
 // _ShiftBlocksAVX512 is _ShiftBlocksSSE2 at sixty-four bytes per iteration, in
 // EVEX encodings only, ending in VZEROUPPER. It needs AVX512BW.
@@ -112,4 +147,9 @@ func _ShiftBlocksAVX2(dst, src []byte, left, right uint8)
 //   - 2026-09-23 09:10: initial creation, in place of the generated stub
 //
 //go:noescape
-func _ShiftBlocksAVX512(dst, src []byte, left, right uint8)
+func _ShiftBlocksAVX512(
+	dst,
+	src []byte,
+	left,
+	right uint8,
+)

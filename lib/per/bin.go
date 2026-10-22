@@ -32,10 +32,16 @@ var (
 // Revisions:
 //   - 2026-09-24 01:40: initial creation, the word loop of BitStringToBinary
 //     as a kernel in the table
-func _BinaryEncodeGo(dst, src []byte) int {
+func _BinaryEncodeGo(
+	dst,
+	src []byte,
+) int {
 	for idx, value := range src {
 		lanes := _SpreadBits(value)
-		binary.BigEndian.PutUint64(dst[idx*BITS_PER_BYTE:], lanes|ASCII_ZERO_LANES)
+		binary.BigEndian.PutUint64(
+			dst[idx*BITS_PER_BYTE:],
+			lanes|ASCII_ZERO_LANES,
+		)
 	}
 
 	return len(src)
@@ -48,7 +54,10 @@ func _BinaryEncodeGo(dst, src []byte) int {
 // Revisions:
 //   - 2026-09-24 01:40: initial creation, the word loop of BitStringFromBinary
 //     as a kernel in the table
-func _BinaryDecodeGo(dst, src []byte) int {
+func _BinaryDecodeGo(
+	dst,
+	src []byte,
+) int {
 	pos := 0
 
 	for ; pos+BITS_PER_BYTE <= len(src); pos += BITS_PER_BYTE {

@@ -2,9 +2,10 @@ package per
 
 // The names the tables give the kernels, one per instruction set.
 const (
-	NAME_GO   = "Go"
-	NAME_SSE2 = "SSE2"
-	NAME_AVX2 = "AVX2"
+	NAME_GO     = "Go"
+	NAME_SSE2   = "SSE2"
+	NAME_AVX2   = "AVX2"
+	NAME_AVX512 = "AVX512"
 )
 
 // _Kernel is one implementation of a text conversion, in both directions: the
@@ -32,8 +33,14 @@ type _Kernel struct {
 	have        bool
 	encodeBlock int
 	decodeBlock int
-	encode      func(dst, src []byte) int
-	decode      func(dst, src []byte) int
+	encode      func(
+		dst,
+		src []byte,
+	) int
+	decode func(
+		dst,
+		src []byte,
+	) int
 }
 
 // Name says which instruction set the kernel is built on, or "Go".
@@ -74,16 +81,28 @@ func (k *_Kernel) DecodeBlock() int {
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func (k *_Kernel) Encode(dst, src []byte) int {
-	return k.encode(dst, src)
+func (k *_Kernel) Encode(
+	dst,
+	src []byte,
+) int {
+	return k.encode(
+		dst,
+		src,
+	)
 }
 
 // Decode converts src back into dst, on the same terms as Encode.
 //
 // Revisions:
 //   - 2026-09-24 01:40: initial creation
-func (k *_Kernel) Decode(dst, src []byte) int {
-	return k.decode(dst, src)
+func (k *_Kernel) Decode(
+	dst,
+	src []byte,
+) int {
+	return k.decode(
+		dst,
+		src,
+	)
 }
 
 // _Select returns the widest kernel the machine supports: the last in the

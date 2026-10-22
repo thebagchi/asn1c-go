@@ -1,0 +1,4112 @@
+Testing DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- The one ASN.1 file of the oracle tests in lib/per.
+--
+-- pycrate 0.8.1 and Erlang/OTP 29.1.1 both read this text. The generators in this directory
+-- ask them for the PER octets of every row, and testing.py writes testing.json. No script
+-- writes ASN.1, and every type in this file compiles in both oracles.
+--
+-- Names. A type is named <Prefix>-<name>. The prefix is the kind of the vectors: Unsigned,
+-- Namedbits, Strings, Fragments, Regression, Iri, Oid, Reloid, Additions, Composites, Pdvs
+-- and Times. The six oldest kinds keep one name for each constraint shape: BOOLEAN-PLAIN,
+-- INTEGER-..., ENUM-..., FLOAT-64, OCTETSTRING-... and BITSTRING-.... A comment in a section
+-- writes a type without its prefix. The class of Pdvs is PDVS-TYPE-ID, because a class name
+-- is in upper case. BOOLEAN-PLAIN is not called BOOL, because the generated code of pycrate
+-- has a class BOOL of its own.
+--
+-- Spelling. A type has the spelling that both oracles accept: INTEGER for INTEGER (MIN..MAX),
+-- VisibleString for ISO646String (the same type), and a SEQUENCE in place of a type with two
+-- parameters in Times.
+--
+-- Types that only one oracle answers are in two other files: testing_otp.asn1 (module
+-- TestingOtp, for OTP: INSTANCE OF TYPE-IDENTIFIER, which pycrate cannot compile) and
+-- testing_pycrate.asn1 (module TestingPycrate, for pycrate: a FROM with the extension marker,
+-- a FROM of one character, and a FROM set above U+007F, which OTP cannot read).
+
+-- BOOLEAN (kind bool)
+
+BOOLEAN-PLAIN ::= BOOLEAN
+
+-- INTEGER with a range, semi-constrained and extensible (kind integer)
+
+-- unconstrained
+INTEGER-NULL-NULL-FALSE ::= INTEGER
+
+-- semi-constrained (lower bound only), not extensible
+INTEGER-0-NULL-FALSE    ::= INTEGER (0..MAX)
+INTEGER-10-NULL-FALSE   ::= INTEGER (10..MAX)
+INTEGER-20-NULL-FALSE   ::= INTEGER (20..MAX)
+INTEGER-100-NULL-FALSE  ::= INTEGER (100..MAX)
+INTEGER-N1-NULL-FALSE   ::= INTEGER (-1..MAX)
+INTEGER-N10-NULL-FALSE  ::= INTEGER (-10..MAX)
+INTEGER-N100-NULL-FALSE ::= INTEGER (-100..MAX)
+INTEGER-N200-NULL-FALSE ::= INTEGER (-200..MAX)
+
+-- semi-constrained (lower bound only), extensible
+INTEGER-0-NULL-TRUE    ::= INTEGER (0..MAX, ...)
+INTEGER-N1-NULL-TRUE   ::= INTEGER (-1..MAX, ...)
+INTEGER-10-NULL-TRUE   ::= INTEGER (10..MAX, ...)
+INTEGER-20-NULL-TRUE   ::= INTEGER (20..MAX, ...)
+INTEGER-N100-NULL-TRUE ::= INTEGER (-100..MAX, ...)
+INTEGER-100-NULL-TRUE  ::= INTEGER (100..MAX, ...)
+INTEGER-N200-NULL-TRUE ::= INTEGER (-200..MAX, ...)
+
+-- constrained (0 to various upper bounds), not extensible
+INTEGER-0-1-FALSE          ::= INTEGER (0..1)
+INTEGER-0-2-FALSE          ::= INTEGER (0..2)
+INTEGER-0-4-FALSE          ::= INTEGER (0..4)
+INTEGER-0-8-FALSE          ::= INTEGER (0..8)
+INTEGER-0-16-FALSE         ::= INTEGER (0..16)
+INTEGER-0-32-FALSE         ::= INTEGER (0..32)
+INTEGER-0-64-FALSE         ::= INTEGER (0..64)
+INTEGER-0-99-FALSE         ::= INTEGER (0..99)
+INTEGER-0-100-FALSE        ::= INTEGER (0..100)
+INTEGER-0-127-FALSE        ::= INTEGER (0..127)
+INTEGER-0-128-FALSE        ::= INTEGER (0..128)
+INTEGER-0-200-FALSE        ::= INTEGER (0..200)
+INTEGER-0-253-FALSE        ::= INTEGER (0..253)
+INTEGER-0-254-FALSE        ::= INTEGER (0..254)
+INTEGER-0-255-FALSE        ::= INTEGER (0..255)
+INTEGER-0-256-FALSE        ::= INTEGER (0..256)
+INTEGER-0-257-FALSE        ::= INTEGER (0..257)
+INTEGER-0-511-FALSE        ::= INTEGER (0..511)
+INTEGER-0-512-FALSE        ::= INTEGER (0..512)
+INTEGER-0-1000-FALSE       ::= INTEGER (0..1000)
+INTEGER-0-1024-FALSE       ::= INTEGER (0..1024)
+INTEGER-0-2047-FALSE       ::= INTEGER (0..2047)
+INTEGER-0-2048-FALSE       ::= INTEGER (0..2048)
+INTEGER-0-4096-FALSE       ::= INTEGER (0..4096)
+INTEGER-0-8192-FALSE       ::= INTEGER (0..8192)
+INTEGER-0-10000-FALSE      ::= INTEGER (0..10000)
+INTEGER-0-16384-FALSE      ::= INTEGER (0..16384)
+INTEGER-0-32000-FALSE      ::= INTEGER (0..32000)
+INTEGER-0-32768-FALSE      ::= INTEGER (0..32768)
+INTEGER-0-65534-FALSE      ::= INTEGER (0..65534)
+INTEGER-0-65535-FALSE      ::= INTEGER (0..65535)
+INTEGER-0-65536-FALSE      ::= INTEGER (0..65536)
+INTEGER-0-65537-FALSE      ::= INTEGER (0..65537)
+INTEGER-0-100000-FALSE     ::= INTEGER (0..100000)
+INTEGER-0-131072-FALSE     ::= INTEGER (0..131072)
+INTEGER-0-262144-FALSE     ::= INTEGER (0..262144)
+INTEGER-0-524288-FALSE     ::= INTEGER (0..524288)
+INTEGER-0-1000000-FALSE    ::= INTEGER (0..1000000)
+INTEGER-0-1048576-FALSE    ::= INTEGER (0..1048576)
+INTEGER-0-2097152-FALSE    ::= INTEGER (0..2097152)
+INTEGER-0-4194304-FALSE    ::= INTEGER (0..4194304)
+INTEGER-0-8388608-FALSE    ::= INTEGER (0..8388608)
+INTEGER-0-16777216-FALSE   ::= INTEGER (0..16777216)
+INTEGER-0-33554432-FALSE   ::= INTEGER (0..33554432)
+INTEGER-0-67108864-FALSE   ::= INTEGER (0..67108864)
+INTEGER-0-134217728-FALSE  ::= INTEGER (0..134217728)
+INTEGER-0-268435456-FALSE  ::= INTEGER (0..268435456)
+INTEGER-0-536870911-FALSE  ::= INTEGER (0..536870911)
+INTEGER-0-1073741823-FALSE ::= INTEGER (0..1073741823)
+INTEGER-0-2147483647-FALSE ::= INTEGER (0..2147483647)
+INTEGER-0-4294967295-FALSE ::= INTEGER (0..4294967295)
+
+-- other constrained ranges (non-negative), not extensible
+INTEGER-10-150-FALSE    ::= INTEGER (10..150)
+INTEGER-20-40-FALSE     ::= INTEGER (20..40)
+INTEGER-50-100-FALSE    ::= INTEGER (50..100)
+INTEGER-50-50-FALSE     ::= INTEGER (50..50)
+INTEGER-100-200-FALSE   ::= INTEGER (100..200)
+INTEGER-1-1-FALSE       ::= INTEGER (1..1)
+INTEGER-1-3-FALSE       ::= INTEGER (1..3)
+INTEGER-3-6-FALSE       ::= INTEGER (3..6)
+INTEGER-4000-4254-FALSE ::= INTEGER (4000..4254)
+INTEGER-4000-4255-FALSE ::= INTEGER (4000..4255)
+INTEGER-1-65538-FALSE   ::= INTEGER (1..65538)
+
+-- constrained with negative bounds, not extensible
+INTEGER-N200-N10-FALSE               ::= INTEGER (-200..-10)
+INTEGER-N100-100-FALSE               ::= INTEGER (-100..100)
+INTEGER-N100-N10-FALSE               ::= INTEGER (-100..-10)
+INTEGER-N50-50-FALSE                 ::= INTEGER (-50..50)
+INTEGER-N10-10-FALSE                 ::= INTEGER (-10..10)
+INTEGER-N128-127-FALSE               ::= INTEGER (-128..127)
+INTEGER-N2147483648-2147483647-FALSE ::= INTEGER (-2147483648..2147483647)
+
+-- constrained (0 to various upper bounds), extensible
+INTEGER-0-1-TRUE          ::= INTEGER (0..1, ...)
+INTEGER-0-2-TRUE          ::= INTEGER (0..2, ...)
+INTEGER-0-4-TRUE          ::= INTEGER (0..4, ...)
+INTEGER-0-8-TRUE          ::= INTEGER (0..8, ...)
+INTEGER-0-16-TRUE         ::= INTEGER (0..16, ...)
+INTEGER-0-32-TRUE         ::= INTEGER (0..32, ...)
+INTEGER-0-64-TRUE         ::= INTEGER (0..64, ...)
+INTEGER-0-99-TRUE         ::= INTEGER (0..99, ...)
+INTEGER-0-100-TRUE        ::= INTEGER (0..100, ...)
+INTEGER-0-128-TRUE        ::= INTEGER (0..128, ...)
+INTEGER-0-200-TRUE        ::= INTEGER (0..200, ...)
+INTEGER-0-256-TRUE        ::= INTEGER (0..256, ...)
+INTEGER-0-257-TRUE        ::= INTEGER (0..257, ...)
+INTEGER-0-512-TRUE        ::= INTEGER (0..512, ...)
+INTEGER-0-1000-TRUE       ::= INTEGER (0..1000, ...)
+INTEGER-0-1024-TRUE       ::= INTEGER (0..1024, ...)
+INTEGER-0-2048-TRUE       ::= INTEGER (0..2048, ...)
+INTEGER-0-4096-TRUE       ::= INTEGER (0..4096, ...)
+INTEGER-0-8192-TRUE       ::= INTEGER (0..8192, ...)
+INTEGER-0-10000-TRUE      ::= INTEGER (0..10000, ...)
+INTEGER-0-16384-TRUE      ::= INTEGER (0..16384, ...)
+INTEGER-0-32000-TRUE      ::= INTEGER (0..32000, ...)
+INTEGER-0-32768-TRUE      ::= INTEGER (0..32768, ...)
+INTEGER-0-65535-TRUE      ::= INTEGER (0..65535, ...)
+INTEGER-0-65536-TRUE      ::= INTEGER (0..65536, ...)
+INTEGER-0-100000-TRUE     ::= INTEGER (0..100000, ...)
+INTEGER-0-131072-TRUE     ::= INTEGER (0..131072, ...)
+INTEGER-0-262144-TRUE     ::= INTEGER (0..262144, ...)
+INTEGER-0-524288-TRUE     ::= INTEGER (0..524288, ...)
+INTEGER-0-1000000-TRUE    ::= INTEGER (0..1000000, ...)
+INTEGER-0-1048576-TRUE    ::= INTEGER (0..1048576, ...)
+INTEGER-0-2097152-TRUE    ::= INTEGER (0..2097152, ...)
+INTEGER-0-4194304-TRUE    ::= INTEGER (0..4194304, ...)
+INTEGER-0-8388608-TRUE    ::= INTEGER (0..8388608, ...)
+INTEGER-0-16777216-TRUE   ::= INTEGER (0..16777216, ...)
+INTEGER-0-33554432-TRUE   ::= INTEGER (0..33554432, ...)
+INTEGER-0-67108864-TRUE   ::= INTEGER (0..67108864, ...)
+INTEGER-0-134217728-TRUE  ::= INTEGER (0..134217728, ...)
+INTEGER-0-268435456-TRUE  ::= INTEGER (0..268435456, ...)
+INTEGER-0-536870911-TRUE  ::= INTEGER (0..536870911, ...)
+INTEGER-0-1073741823-TRUE ::= INTEGER (0..1073741823, ...)
+INTEGER-0-2147483647-TRUE ::= INTEGER (0..2147483647, ...)
+INTEGER-0-4294967295-TRUE ::= INTEGER (0..4294967295, ...)
+
+-- other constrained ranges, extensible
+INTEGER-10-150-TRUE    ::= INTEGER (10..150, ...)
+INTEGER-20-40-TRUE     ::= INTEGER (20..40, ...)
+INTEGER-50-100-TRUE    ::= INTEGER (50..100, ...)
+INTEGER-50-50-TRUE     ::= INTEGER (50..50, ...)
+INTEGER-100-100-TRUE   ::= INTEGER (100..100, ...)
+INTEGER-100-200-TRUE   ::= INTEGER (100..200, ...)
+INTEGER-1000-1000-TRUE ::= INTEGER (1000..1000, ...)
+INTEGER-1-1-TRUE       ::= INTEGER (1..1, ...)
+INTEGER-1-3-TRUE       ::= INTEGER (1..3, ...)
+INTEGER-3-6-TRUE       ::= INTEGER (3..6, ...)
+INTEGER-4000-4254-TRUE ::= INTEGER (4000..4254, ...)
+INTEGER-4000-4255-TRUE ::= INTEGER (4000..4255, ...)
+INTEGER-1-65538-TRUE   ::= INTEGER (1..65538, ...)
+
+-- constrained with negative bounds, extensible
+INTEGER-N500-500-TRUE               ::= INTEGER (-500..500, ...)
+INTEGER-N200-N10-TRUE               ::= INTEGER (-200..-10, ...)
+INTEGER-N100-100-TRUE               ::= INTEGER (-100..100, ...)
+INTEGER-N100-N10-TRUE               ::= INTEGER (-100..-10, ...)
+INTEGER-N50-50-TRUE                 ::= INTEGER (-50..50, ...)
+INTEGER-N10-10-TRUE                 ::= INTEGER (-10..10, ...)
+INTEGER-N128-127-TRUE               ::= INTEGER (-128..127, ...)
+INTEGER-N2147483648-2147483647-TRUE ::= INTEGER (-2147483648..2147483647, ...)
+
+-- other constrained ranges: a range of three octets, a negative lower bound with a range above
+-- 64K, and a small extensible range
+INTEGER-0-16777215-FALSE             ::= INTEGER (0..16777215)
+INTEGER-N1799999999-1800000001-FALSE ::= INTEGER (-1799999999..1800000001)
+INTEGER-N1799999999-1800000001-TRUE  ::= INTEGER (-1799999999..1800000001, ...)
+INTEGER-N500000-500000-FALSE         ::= INTEGER (-500000..500000)
+INTEGER-N500000-500000-TRUE          ::= INTEGER (-500000..500000, ...)
+INTEGER-2-17-TRUE                    ::= INTEGER (2..17, ...)
+
+-- INTEGER over 64 bits (kind unsigned)
+
+Unsigned-Full     ::= INTEGER (0..18446744073709551615)
+Unsigned-High     ::= INTEGER (9223372036854775808..18446744073709551615)
+Unsigned-Byte     ::= INTEGER (0..255)
+Unsigned-Wide     ::= INTEGER (0..256)
+Unsigned-Short    ::= INTEGER (0..65535)
+Unsigned-Long     ::= INTEGER (0..65536)
+Unsigned-Single   ::= INTEGER (1000..1000)
+Unsigned-Semi     ::= INTEGER (0..MAX)
+Unsigned-SemiHigh ::= INTEGER (9223372036854775808..MAX)
+
+-- ENUMERATED (kind enumerated)
+
+ENUM-2-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2
+}
+
+ENUM-3-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3
+}
+
+ENUM-4-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4
+}
+
+ENUM-5-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5
+}
+
+ENUM-6-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6
+}
+
+ENUM-7-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7
+}
+
+ENUM-8-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8
+}
+
+ENUM-9-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9
+}
+
+ENUM-10-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10
+}
+
+ENUM-15-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15
+}
+
+ENUM-16-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16
+}
+
+ENUM-17-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17
+}
+
+ENUM-33-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33
+}
+
+ENUM-65-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65
+}
+
+ENUM-128-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128
+}
+
+ENUM-129-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    m-129
+}
+
+ENUM-255-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    m-129,
+    m-130,
+    m-131,
+    m-132,
+    m-133,
+    m-134,
+    m-135,
+    m-136,
+    m-137,
+    m-138,
+    m-139,
+    m-140,
+    m-141,
+    m-142,
+    m-143,
+    m-144,
+    m-145,
+    m-146,
+    m-147,
+    m-148,
+    m-149,
+    m-150,
+    m-151,
+    m-152,
+    m-153,
+    m-154,
+    m-155,
+    m-156,
+    m-157,
+    m-158,
+    m-159,
+    m-160,
+    m-161,
+    m-162,
+    m-163,
+    m-164,
+    m-165,
+    m-166,
+    m-167,
+    m-168,
+    m-169,
+    m-170,
+    m-171,
+    m-172,
+    m-173,
+    m-174,
+    m-175,
+    m-176,
+    m-177,
+    m-178,
+    m-179,
+    m-180,
+    m-181,
+    m-182,
+    m-183,
+    m-184,
+    m-185,
+    m-186,
+    m-187,
+    m-188,
+    m-189,
+    m-190,
+    m-191,
+    m-192,
+    m-193,
+    m-194,
+    m-195,
+    m-196,
+    m-197,
+    m-198,
+    m-199,
+    m-200,
+    m-201,
+    m-202,
+    m-203,
+    m-204,
+    m-205,
+    m-206,
+    m-207,
+    m-208,
+    m-209,
+    m-210,
+    m-211,
+    m-212,
+    m-213,
+    m-214,
+    m-215,
+    m-216,
+    m-217,
+    m-218,
+    m-219,
+    m-220,
+    m-221,
+    m-222,
+    m-223,
+    m-224,
+    m-225,
+    m-226,
+    m-227,
+    m-228,
+    m-229,
+    m-230,
+    m-231,
+    m-232,
+    m-233,
+    m-234,
+    m-235,
+    m-236,
+    m-237,
+    m-238,
+    m-239,
+    m-240,
+    m-241,
+    m-242,
+    m-243,
+    m-244,
+    m-245,
+    m-246,
+    m-247,
+    m-248,
+    m-249,
+    m-250,
+    m-251,
+    m-252,
+    m-253,
+    m-254,
+    m-255
+}
+
+ENUM-256-0-FALSE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    m-129,
+    m-130,
+    m-131,
+    m-132,
+    m-133,
+    m-134,
+    m-135,
+    m-136,
+    m-137,
+    m-138,
+    m-139,
+    m-140,
+    m-141,
+    m-142,
+    m-143,
+    m-144,
+    m-145,
+    m-146,
+    m-147,
+    m-148,
+    m-149,
+    m-150,
+    m-151,
+    m-152,
+    m-153,
+    m-154,
+    m-155,
+    m-156,
+    m-157,
+    m-158,
+    m-159,
+    m-160,
+    m-161,
+    m-162,
+    m-163,
+    m-164,
+    m-165,
+    m-166,
+    m-167,
+    m-168,
+    m-169,
+    m-170,
+    m-171,
+    m-172,
+    m-173,
+    m-174,
+    m-175,
+    m-176,
+    m-177,
+    m-178,
+    m-179,
+    m-180,
+    m-181,
+    m-182,
+    m-183,
+    m-184,
+    m-185,
+    m-186,
+    m-187,
+    m-188,
+    m-189,
+    m-190,
+    m-191,
+    m-192,
+    m-193,
+    m-194,
+    m-195,
+    m-196,
+    m-197,
+    m-198,
+    m-199,
+    m-200,
+    m-201,
+    m-202,
+    m-203,
+    m-204,
+    m-205,
+    m-206,
+    m-207,
+    m-208,
+    m-209,
+    m-210,
+    m-211,
+    m-212,
+    m-213,
+    m-214,
+    m-215,
+    m-216,
+    m-217,
+    m-218,
+    m-219,
+    m-220,
+    m-221,
+    m-222,
+    m-223,
+    m-224,
+    m-225,
+    m-226,
+    m-227,
+    m-228,
+    m-229,
+    m-230,
+    m-231,
+    m-232,
+    m-233,
+    m-234,
+    m-235,
+    m-236,
+    m-237,
+    m-238,
+    m-239,
+    m-240,
+    m-241,
+    m-242,
+    m-243,
+    m-244,
+    m-245,
+    m-246,
+    m-247,
+    m-248,
+    m-249,
+    m-250,
+    m-251,
+    m-252,
+    m-253,
+    m-254,
+    m-255,
+    m-256
+}
+
+ENUM-1-1-TRUE ::= ENUMERATED {
+    m-1,
+    ...,
+    m-2
+}
+
+ENUM-2-2-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    ...,
+    m-3,
+    m-4
+}
+
+ENUM-3-2-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    ...,
+    m-4,
+    m-5
+}
+
+ENUM-4-256-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    ...,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    m-129,
+    m-130,
+    m-131,
+    m-132,
+    m-133,
+    m-134,
+    m-135,
+    m-136,
+    m-137,
+    m-138,
+    m-139,
+    m-140,
+    m-141,
+    m-142,
+    m-143,
+    m-144,
+    m-145,
+    m-146,
+    m-147,
+    m-148,
+    m-149,
+    m-150,
+    m-151,
+    m-152,
+    m-153,
+    m-154,
+    m-155,
+    m-156,
+    m-157,
+    m-158,
+    m-159,
+    m-160,
+    m-161,
+    m-162,
+    m-163,
+    m-164,
+    m-165,
+    m-166,
+    m-167,
+    m-168,
+    m-169,
+    m-170,
+    m-171,
+    m-172,
+    m-173,
+    m-174,
+    m-175,
+    m-176,
+    m-177,
+    m-178,
+    m-179,
+    m-180,
+    m-181,
+    m-182,
+    m-183,
+    m-184,
+    m-185,
+    m-186,
+    m-187,
+    m-188,
+    m-189,
+    m-190,
+    m-191,
+    m-192,
+    m-193,
+    m-194,
+    m-195,
+    m-196,
+    m-197,
+    m-198,
+    m-199,
+    m-200,
+    m-201,
+    m-202,
+    m-203,
+    m-204,
+    m-205,
+    m-206,
+    m-207,
+    m-208,
+    m-209,
+    m-210,
+    m-211,
+    m-212,
+    m-213,
+    m-214,
+    m-215,
+    m-216,
+    m-217,
+    m-218,
+    m-219,
+    m-220,
+    m-221,
+    m-222,
+    m-223,
+    m-224,
+    m-225,
+    m-226,
+    m-227,
+    m-228,
+    m-229,
+    m-230,
+    m-231,
+    m-232,
+    m-233,
+    m-234,
+    m-235,
+    m-236,
+    m-237,
+    m-238,
+    m-239,
+    m-240,
+    m-241,
+    m-242,
+    m-243,
+    m-244,
+    m-245,
+    m-246,
+    m-247,
+    m-248,
+    m-249,
+    m-250,
+    m-251,
+    m-252,
+    m-253,
+    m-254,
+    m-255,
+    m-256,
+    m-257,
+    m-258,
+    m-259,
+    m-260
+}
+
+ENUM-7-2-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    ...,
+    m-8,
+    m-9
+}
+
+ENUM-17-2-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    ...,
+    m-18,
+    m-19
+}
+
+ENUM-128-4-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    ...,
+    m-129,
+    m-130,
+    m-131,
+    m-132
+}
+
+ENUM-129-2-TRUE ::= ENUMERATED {
+    m-1,
+    m-2,
+    m-3,
+    m-4,
+    m-5,
+    m-6,
+    m-7,
+    m-8,
+    m-9,
+    m-10,
+    m-11,
+    m-12,
+    m-13,
+    m-14,
+    m-15,
+    m-16,
+    m-17,
+    m-18,
+    m-19,
+    m-20,
+    m-21,
+    m-22,
+    m-23,
+    m-24,
+    m-25,
+    m-26,
+    m-27,
+    m-28,
+    m-29,
+    m-30,
+    m-31,
+    m-32,
+    m-33,
+    m-34,
+    m-35,
+    m-36,
+    m-37,
+    m-38,
+    m-39,
+    m-40,
+    m-41,
+    m-42,
+    m-43,
+    m-44,
+    m-45,
+    m-46,
+    m-47,
+    m-48,
+    m-49,
+    m-50,
+    m-51,
+    m-52,
+    m-53,
+    m-54,
+    m-55,
+    m-56,
+    m-57,
+    m-58,
+    m-59,
+    m-60,
+    m-61,
+    m-62,
+    m-63,
+    m-64,
+    m-65,
+    m-66,
+    m-67,
+    m-68,
+    m-69,
+    m-70,
+    m-71,
+    m-72,
+    m-73,
+    m-74,
+    m-75,
+    m-76,
+    m-77,
+    m-78,
+    m-79,
+    m-80,
+    m-81,
+    m-82,
+    m-83,
+    m-84,
+    m-85,
+    m-86,
+    m-87,
+    m-88,
+    m-89,
+    m-90,
+    m-91,
+    m-92,
+    m-93,
+    m-94,
+    m-95,
+    m-96,
+    m-97,
+    m-98,
+    m-99,
+    m-100,
+    m-101,
+    m-102,
+    m-103,
+    m-104,
+    m-105,
+    m-106,
+    m-107,
+    m-108,
+    m-109,
+    m-110,
+    m-111,
+    m-112,
+    m-113,
+    m-114,
+    m-115,
+    m-116,
+    m-117,
+    m-118,
+    m-119,
+    m-120,
+    m-121,
+    m-122,
+    m-123,
+    m-124,
+    m-125,
+    m-126,
+    m-127,
+    m-128,
+    m-129,
+    ...,
+    m-130,
+    m-131
+}
+
+-- REAL (kind real)
+
+FLOAT-64 ::= REAL
+
+-- OCTET STRING (kind octet_string)
+
+-- unconstrained
+OCTETSTRING-NULL-NULL-FALSE ::= OCTET STRING
+
+-- semi-constrained (lb only)
+OCTETSTRING-0-NULL-FALSE  ::= OCTET STRING (SIZE (0..MAX))
+OCTETSTRING-1-NULL-FALSE  ::= OCTET STRING (SIZE (1..MAX))
+OCTETSTRING-10-NULL-FALSE ::= OCTET STRING (SIZE (10..MAX))
+
+-- fixed size (lb==ub), not extensible
+OCTETSTRING-1-1-FALSE   ::= OCTET STRING (SIZE (1))
+OCTETSTRING-4-4-FALSE   ::= OCTET STRING (SIZE (4))
+OCTETSTRING-8-8-FALSE   ::= OCTET STRING (SIZE (8))
+OCTETSTRING-16-16-FALSE ::= OCTET STRING (SIZE (16))
+OCTETSTRING-64-64-FALSE ::= OCTET STRING (SIZE (64))
+
+-- boundary ranges (length determinant thresholds), not extensible
+OCTETSTRING-1-127-FALSE ::= OCTET STRING (SIZE (1..127))
+OCTETSTRING-1-128-FALSE ::= OCTET STRING (SIZE (1..128))
+OCTETSTRING-1-255-FALSE ::= OCTET STRING (SIZE (1..255))
+OCTETSTRING-1-256-FALSE ::= OCTET STRING (SIZE (1..256))
+
+-- constrained (lb=0, various ub), not extensible
+OCTETSTRING-0-2-FALSE       ::= OCTET STRING (SIZE (0..2))
+OCTETSTRING-0-4-FALSE       ::= OCTET STRING (SIZE (0..4))
+OCTETSTRING-0-8-FALSE       ::= OCTET STRING (SIZE (0..8))
+OCTETSTRING-0-10-FALSE      ::= OCTET STRING (SIZE (0..10))
+OCTETSTRING-0-16-FALSE      ::= OCTET STRING (SIZE (0..16))
+OCTETSTRING-0-32-FALSE      ::= OCTET STRING (SIZE (0..32))
+OCTETSTRING-0-64-FALSE      ::= OCTET STRING (SIZE (0..64))
+OCTETSTRING-0-128-FALSE     ::= OCTET STRING (SIZE (0..128))
+OCTETSTRING-0-256-FALSE     ::= OCTET STRING (SIZE (0..256))
+OCTETSTRING-0-512-FALSE     ::= OCTET STRING (SIZE (0..512))
+OCTETSTRING-0-1024-FALSE    ::= OCTET STRING (SIZE (0..1024))
+OCTETSTRING-0-2048-FALSE    ::= OCTET STRING (SIZE (0..2048))
+OCTETSTRING-0-4096-FALSE    ::= OCTET STRING (SIZE (0..4096))
+OCTETSTRING-0-8192-FALSE    ::= OCTET STRING (SIZE (0..8192))
+OCTETSTRING-0-16384-FALSE   ::= OCTET STRING (SIZE (0..16384))
+OCTETSTRING-0-32768-FALSE   ::= OCTET STRING (SIZE (0..32768))
+OCTETSTRING-0-65536-FALSE   ::= OCTET STRING (SIZE (0..65536))
+OCTETSTRING-0-131072-FALSE  ::= OCTET STRING (SIZE (0..131072))
+OCTETSTRING-0-262144-FALSE  ::= OCTET STRING (SIZE (0..262144))
+OCTETSTRING-0-524288-FALSE  ::= OCTET STRING (SIZE (0..524288))
+OCTETSTRING-0-1048576-FALSE ::= OCTET STRING (SIZE (0..1048576))
+OCTETSTRING-0-2097152-FALSE ::= OCTET STRING (SIZE (0..2097152))
+
+-- constrained (lb=0, various ub), extensible
+OCTETSTRING-0-0-TRUE      ::= OCTET STRING (SIZE (0, ...))
+OCTETSTRING-0-1-TRUE      ::= OCTET STRING (SIZE (0..1, ...))
+OCTETSTRING-0-2-TRUE      ::= OCTET STRING (SIZE (0..2, ...))
+OCTETSTRING-0-4-TRUE      ::= OCTET STRING (SIZE (0..4, ...))
+OCTETSTRING-0-8-TRUE      ::= OCTET STRING (SIZE (0..8, ...))
+OCTETSTRING-0-16-TRUE     ::= OCTET STRING (SIZE (0..16, ...))
+OCTETSTRING-0-32-TRUE     ::= OCTET STRING (SIZE (0..32, ...))
+OCTETSTRING-0-64-TRUE     ::= OCTET STRING (SIZE (0..64, ...))
+OCTETSTRING-0-128-TRUE    ::= OCTET STRING (SIZE (0..128, ...))
+OCTETSTRING-0-256-TRUE    ::= OCTET STRING (SIZE (0..256, ...))
+OCTETSTRING-0-512-TRUE    ::= OCTET STRING (SIZE (0..512, ...))
+OCTETSTRING-0-1024-TRUE   ::= OCTET STRING (SIZE (0..1024, ...))
+OCTETSTRING-0-2048-TRUE   ::= OCTET STRING (SIZE (0..2048, ...))
+OCTETSTRING-0-4096-TRUE   ::= OCTET STRING (SIZE (0..4096, ...))
+OCTETSTRING-0-8192-TRUE   ::= OCTET STRING (SIZE (0..8192, ...))
+OCTETSTRING-0-16384-TRUE  ::= OCTET STRING (SIZE (0..16384, ...))
+OCTETSTRING-0-32768-TRUE  ::= OCTET STRING (SIZE (0..32768, ...))
+OCTETSTRING-0-65536-TRUE  ::= OCTET STRING (SIZE (0..65536, ...))
+OCTETSTRING-0-131072-TRUE ::= OCTET STRING (SIZE (0..131072, ...))
+OCTETSTRING-0-262144-TRUE ::= OCTET STRING (SIZE (0..262144, ...))
+OCTETSTRING-0-524288-TRUE ::= OCTET STRING (SIZE (0..524288, ...))
+
+-- fixed size (lb==ub), extensible
+OCTETSTRING-1-1-TRUE   ::= OCTET STRING (SIZE (1, ...))
+OCTETSTRING-4-4-TRUE   ::= OCTET STRING (SIZE (4, ...))
+OCTETSTRING-8-8-TRUE   ::= OCTET STRING (SIZE (8, ...))
+OCTETSTRING-16-16-TRUE ::= OCTET STRING (SIZE (16, ...))
+OCTETSTRING-64-64-TRUE ::= OCTET STRING (SIZE (64, ...))
+
+-- boundary ranges, extensible
+OCTETSTRING-1-127-TRUE ::= OCTET STRING (SIZE (1..127, ...))
+OCTETSTRING-1-128-TRUE ::= OCTET STRING (SIZE (1..128, ...))
+OCTETSTRING-1-255-TRUE ::= OCTET STRING (SIZE (1..255, ...))
+OCTETSTRING-1-256-TRUE ::= OCTET STRING (SIZE (1..256, ...))
+
+-- lb > 0 constrained, not extensible
+OCTETSTRING-4-16-FALSE  ::= OCTET STRING (SIZE (4..16))
+OCTETSTRING-8-32-FALSE  ::= OCTET STRING (SIZE (8..32))
+OCTETSTRING-16-64-FALSE ::= OCTET STRING (SIZE (16..64))
+
+-- lb > 0 constrained, extensible
+OCTETSTRING-4-16-TRUE  ::= OCTET STRING (SIZE (4..16, ...))
+OCTETSTRING-8-32-TRUE  ::= OCTET STRING (SIZE (8..32, ...))
+OCTETSTRING-16-64-TRUE ::= OCTET STRING (SIZE (16..64, ...))
+
+-- BIT STRING (kind bit_string)
+
+-- unconstrained
+BITSTRING-NULL-NULL-FALSE ::= BIT STRING
+
+-- semi-constrained (lb only)
+BITSTRING-0-NULL-FALSE  ::= BIT STRING (SIZE (0..MAX))
+BITSTRING-1-NULL-FALSE  ::= BIT STRING (SIZE (1..MAX))
+BITSTRING-10-NULL-FALSE ::= BIT STRING (SIZE (10..MAX))
+
+-- fixed size (lb==ub), not extensible
+BITSTRING-1-1-FALSE     ::= BIT STRING (SIZE (1))
+BITSTRING-8-8-FALSE     ::= BIT STRING (SIZE (8))
+BITSTRING-16-16-FALSE   ::= BIT STRING (SIZE (16))
+BITSTRING-32-32-FALSE   ::= BIT STRING (SIZE (32))
+BITSTRING-64-64-FALSE   ::= BIT STRING (SIZE (64))
+BITSTRING-128-128-FALSE ::= BIT STRING (SIZE (128))
+
+-- constrained (lb=0, various ub), not extensible
+BITSTRING-0-2-FALSE       ::= BIT STRING (SIZE (0..2))
+BITSTRING-0-4-FALSE       ::= BIT STRING (SIZE (0..4))
+BITSTRING-0-8-FALSE       ::= BIT STRING (SIZE (0..8))
+BITSTRING-0-10-FALSE      ::= BIT STRING (SIZE (0..10))
+BITSTRING-0-16-FALSE      ::= BIT STRING (SIZE (0..16))
+BITSTRING-0-32-FALSE      ::= BIT STRING (SIZE (0..32))
+BITSTRING-0-64-FALSE      ::= BIT STRING (SIZE (0..64))
+BITSTRING-0-128-FALSE     ::= BIT STRING (SIZE (0..128))
+BITSTRING-0-256-FALSE     ::= BIT STRING (SIZE (0..256))
+BITSTRING-0-512-FALSE     ::= BIT STRING (SIZE (0..512))
+BITSTRING-0-1024-FALSE    ::= BIT STRING (SIZE (0..1024))
+BITSTRING-0-2048-FALSE    ::= BIT STRING (SIZE (0..2048))
+BITSTRING-0-4096-FALSE    ::= BIT STRING (SIZE (0..4096))
+BITSTRING-0-8192-FALSE    ::= BIT STRING (SIZE (0..8192))
+BITSTRING-0-16384-FALSE   ::= BIT STRING (SIZE (0..16384))
+BITSTRING-0-32768-FALSE   ::= BIT STRING (SIZE (0..32768))
+BITSTRING-0-65536-FALSE   ::= BIT STRING (SIZE (0..65536))
+BITSTRING-0-131072-FALSE  ::= BIT STRING (SIZE (0..131072))
+BITSTRING-0-262144-FALSE  ::= BIT STRING (SIZE (0..262144))
+BITSTRING-0-524288-FALSE  ::= BIT STRING (SIZE (0..524288))
+BITSTRING-0-1048576-FALSE ::= BIT STRING (SIZE (0..1048576))
+BITSTRING-0-2097152-FALSE ::= BIT STRING (SIZE (0..2097152))
+
+-- constrained (lb=0, various ub), extensible
+BITSTRING-0-0-TRUE      ::= BIT STRING (SIZE (0, ...))
+BITSTRING-0-1-TRUE      ::= BIT STRING (SIZE (0..1, ...))
+BITSTRING-0-2-TRUE      ::= BIT STRING (SIZE (0..2, ...))
+BITSTRING-0-4-TRUE      ::= BIT STRING (SIZE (0..4, ...))
+BITSTRING-0-8-TRUE      ::= BIT STRING (SIZE (0..8, ...))
+BITSTRING-0-16-TRUE     ::= BIT STRING (SIZE (0..16, ...))
+BITSTRING-0-32-TRUE     ::= BIT STRING (SIZE (0..32, ...))
+BITSTRING-0-64-TRUE     ::= BIT STRING (SIZE (0..64, ...))
+BITSTRING-0-128-TRUE    ::= BIT STRING (SIZE (0..128, ...))
+BITSTRING-0-256-TRUE    ::= BIT STRING (SIZE (0..256, ...))
+BITSTRING-0-512-TRUE    ::= BIT STRING (SIZE (0..512, ...))
+BITSTRING-0-1024-TRUE   ::= BIT STRING (SIZE (0..1024, ...))
+BITSTRING-0-2048-TRUE   ::= BIT STRING (SIZE (0..2048, ...))
+BITSTRING-0-4096-TRUE   ::= BIT STRING (SIZE (0..4096, ...))
+BITSTRING-0-8192-TRUE   ::= BIT STRING (SIZE (0..8192, ...))
+BITSTRING-0-16384-TRUE  ::= BIT STRING (SIZE (0..16384, ...))
+BITSTRING-0-32768-TRUE  ::= BIT STRING (SIZE (0..32768, ...))
+BITSTRING-0-65536-TRUE  ::= BIT STRING (SIZE (0..65536, ...))
+BITSTRING-0-131072-TRUE ::= BIT STRING (SIZE (0..131072, ...))
+BITSTRING-0-262144-TRUE ::= BIT STRING (SIZE (0..262144, ...))
+BITSTRING-0-524288-TRUE ::= BIT STRING (SIZE (0..524288, ...))
+
+-- fixed size (lb==ub), extensible
+BITSTRING-1-1-TRUE     ::= BIT STRING (SIZE (1, ...))
+BITSTRING-8-8-TRUE     ::= BIT STRING (SIZE (8, ...))
+BITSTRING-16-16-TRUE   ::= BIT STRING (SIZE (16, ...))
+BITSTRING-32-32-TRUE   ::= BIT STRING (SIZE (32, ...))
+BITSTRING-64-64-TRUE   ::= BIT STRING (SIZE (64, ...))
+BITSTRING-128-128-TRUE ::= BIT STRING (SIZE (128, ...))
+
+-- lb > 0 constrained, not extensible
+BITSTRING-4-16-FALSE  ::= BIT STRING (SIZE (4..16))
+BITSTRING-8-32-FALSE  ::= BIT STRING (SIZE (8..32))
+BITSTRING-16-64-FALSE ::= BIT STRING (SIZE (16..64))
+
+-- lb > 0 constrained, extensible
+BITSTRING-4-16-TRUE  ::= BIT STRING (SIZE (4..16, ...))
+BITSTRING-8-32-TRUE  ::= BIT STRING (SIZE (8..32, ...))
+BITSTRING-16-64-TRUE ::= BIT STRING (SIZE (16..64, ...))
+
+-- BIT STRING with a named bit list (kind namedbits)
+
+Namedbits-N0 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)}
+Namedbits-N1 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)} (SIZE(8))
+Namedbits-N2 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)} (SIZE(4..12))
+Namedbits-N3 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)} (SIZE(0..20))
+Namedbits-N4 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)} (SIZE(2..7,...))
+Namedbits-N5 ::= BIT STRING {a(0), b(1), c(2), d(5), e(9)} (SIZE(16..32))
+
+-- Restricted character strings: one type for each combination of kind, SIZE and FROM.
+-- The kind of each type is in the vectors; a name is Strings-T followed by a number.
+
+Strings-T1   ::= BMPString
+Strings-T2   ::= BMPString (SIZE(1))
+Strings-T3   ::= BMPString (SIZE(2))
+Strings-T4   ::= BMPString (SIZE(3))
+Strings-T5   ::= BMPString (SIZE(4))
+Strings-T6   ::= BMPString (SIZE(5))
+Strings-T7   ::= BMPString (SIZE(8))
+Strings-T8   ::= BMPString (SIZE(16))
+Strings-T9   ::= BMPString (SIZE(0..1))
+Strings-T10  ::= BMPString (SIZE(0..2))
+Strings-T11  ::= BMPString (SIZE(0..4))
+Strings-T12  ::= BMPString (SIZE(1..2))
+Strings-T13  ::= BMPString (SIZE(1..4))
+Strings-T14  ::= BMPString (SIZE(2..6))
+Strings-T15  ::= BMPString (SIZE(0..10))
+Strings-T16  ::= BMPString (SIZE(5..20))
+Strings-T17  ::= BMPString (SIZE(0..255))
+Strings-T18  ::= BMPString (SIZE(0..256))
+Strings-T19  ::= BMPString (SIZE(10..300))
+Strings-T20  ::= BMPString (SIZE(2..MAX))
+Strings-T21  ::= BMPString (SIZE(3,...))
+Strings-T22  ::= BMPString (SIZE(1..4,...))
+Strings-T23  ::= BMPString (SIZE(0..2,...))
+Strings-T24  ::= BMPString (SIZE(0..100000))
+Strings-T25  ::= BMPString (SIZE(1..MAX))
+Strings-T26  ::= BMPString (SIZE(1..70000,...))
+Strings-T27  ::= BMPString (SIZE(65535))
+Strings-T28  ::= BMPString (SIZE(65536))
+Strings-T29  ::= BMPString (SIZE(0..65535))
+Strings-T30  ::= BMPString (SIZE(0..65536))
+Strings-T31  ::= BMPString (SIZE(63488))
+Strings-T32  ::= BMPString (SIZE(1..63488))
+Strings-T33  ::= BMPString (SIZE(0..63498,...))
+Strings-T34  ::= BMPString (SIZE(1..11))
+Strings-T35  ::= BMPString (SIZE(11))
+Strings-T36  ::= GeneralString
+Strings-T37  ::= GeneralString (SIZE(3))
+Strings-T38  ::= GeneralString (SIZE(2))
+Strings-T39  ::= GeneralString (SIZE(1))
+Strings-T40  ::= GeneralString (SIZE(1..4))
+Strings-T41  ::= GeneralString (SIZE(0..10))
+Strings-T42  ::= GeneralString (SIZE(2..MAX))
+Strings-T43  ::= GeneralString (SIZE(3,...))
+Strings-T44  ::= GeneralString (SIZE(1..4,...))
+Strings-T45  ::= GeneralString (SIZE(0..100000))
+Strings-T46  ::= GraphicString
+Strings-T47  ::= GraphicString (SIZE(3))
+Strings-T48  ::= GraphicString (SIZE(2))
+Strings-T49  ::= GraphicString (SIZE(1))
+Strings-T50  ::= GraphicString (SIZE(1..4))
+Strings-T51  ::= GraphicString (SIZE(0..10))
+Strings-T52  ::= GraphicString (SIZE(2..MAX))
+Strings-T53  ::= GraphicString (SIZE(3,...))
+Strings-T54  ::= GraphicString (SIZE(1..4,...))
+Strings-T55  ::= GraphicString (SIZE(0..100000))
+Strings-T56  ::= IA5String
+Strings-T57  ::= IA5String (SIZE(1))
+Strings-T58  ::= IA5String (SIZE(2))
+Strings-T59  ::= IA5String (SIZE(3))
+Strings-T60  ::= IA5String (SIZE(4))
+Strings-T61  ::= IA5String (SIZE(5))
+Strings-T62  ::= IA5String (SIZE(8))
+Strings-T63  ::= IA5String (SIZE(16))
+Strings-T64  ::= IA5String (SIZE(0..1))
+Strings-T65  ::= IA5String (SIZE(0..2))
+Strings-T66  ::= IA5String (SIZE(0..4))
+Strings-T67  ::= IA5String (SIZE(1..2))
+Strings-T68  ::= IA5String (SIZE(1..4))
+Strings-T69  ::= IA5String (SIZE(2..6))
+Strings-T70  ::= IA5String (SIZE(0..10))
+Strings-T71  ::= IA5String (SIZE(5..20))
+Strings-T72  ::= IA5String (SIZE(0..255))
+Strings-T73  ::= IA5String (SIZE(0..256))
+Strings-T74  ::= IA5String (SIZE(10..300))
+Strings-T75  ::= IA5String (SIZE(2..MAX))
+Strings-T76  ::= IA5String (SIZE(3,...))
+Strings-T77  ::= IA5String (SIZE(1..4,...))
+Strings-T78  ::= IA5String (SIZE(0..2,...))
+Strings-T79  ::= IA5String (SIZE(0..100000))
+Strings-T80  ::= IA5String (SIZE(1..MAX))
+Strings-T81  ::= IA5String (SIZE(1..70000,...))
+Strings-T82  ::= IA5String (SIZE(65535))
+Strings-T83  ::= IA5String (SIZE(65536))
+Strings-T84  ::= IA5String (SIZE(0..65535))
+Strings-T85  ::= IA5String (SIZE(0..65536))
+Strings-T86  ::= IA5String (SIZE(127))
+Strings-T87  ::= IA5String (SIZE(1..127))
+Strings-T88  ::= IA5String (SIZE(0..137,...))
+Strings-T89  ::= IA5String (SIZE(128))
+Strings-T90  ::= IA5String (SIZE(1..128))
+Strings-T91  ::= IA5String (SIZE(0..138,...))
+Strings-T92  ::= VisibleString
+Strings-T93  ::= VisibleString (SIZE(1))
+Strings-T94  ::= VisibleString (SIZE(2))
+Strings-T95  ::= VisibleString (SIZE(3))
+Strings-T96  ::= VisibleString (SIZE(4))
+Strings-T97  ::= VisibleString (SIZE(5))
+Strings-T98  ::= VisibleString (SIZE(8))
+Strings-T99  ::= VisibleString (SIZE(16))
+Strings-T100 ::= VisibleString (SIZE(0..1))
+Strings-T101 ::= VisibleString (SIZE(0..2))
+Strings-T102 ::= VisibleString (SIZE(0..4))
+Strings-T103 ::= VisibleString (SIZE(1..2))
+Strings-T104 ::= VisibleString (SIZE(1..4))
+Strings-T105 ::= VisibleString (SIZE(2..6))
+Strings-T106 ::= VisibleString (SIZE(0..10))
+Strings-T107 ::= VisibleString (SIZE(5..20))
+Strings-T108 ::= VisibleString (SIZE(0..255))
+Strings-T109 ::= VisibleString (SIZE(0..256))
+Strings-T110 ::= VisibleString (SIZE(10..300))
+Strings-T111 ::= VisibleString (SIZE(2..MAX))
+Strings-T112 ::= VisibleString (SIZE(3,...))
+Strings-T113 ::= VisibleString (SIZE(1..4,...))
+Strings-T114 ::= VisibleString (SIZE(0..2,...))
+Strings-T115 ::= VisibleString (SIZE(0..100000))
+Strings-T116 ::= VisibleString (SIZE(1..MAX))
+Strings-T117 ::= VisibleString (SIZE(1..70000,...))
+Strings-T118 ::= VisibleString (SIZE(65535))
+Strings-T119 ::= VisibleString (SIZE(65536))
+Strings-T120 ::= VisibleString (SIZE(0..65535))
+Strings-T121 ::= VisibleString (SIZE(0..65536))
+Strings-T122 ::= VisibleString (SIZE(95))
+Strings-T123 ::= VisibleString (SIZE(1..95))
+Strings-T124 ::= VisibleString (SIZE(0..105,...))
+Strings-T125 ::= NumericString
+Strings-T126 ::= NumericString (SIZE(1))
+Strings-T127 ::= NumericString (SIZE(2))
+Strings-T128 ::= NumericString (SIZE(3))
+Strings-T129 ::= NumericString (SIZE(4))
+Strings-T130 ::= NumericString (SIZE(5))
+Strings-T131 ::= NumericString (SIZE(8))
+Strings-T132 ::= NumericString (SIZE(16))
+Strings-T133 ::= NumericString (SIZE(0..1))
+Strings-T134 ::= NumericString (SIZE(0..2))
+Strings-T135 ::= NumericString (SIZE(0..4))
+Strings-T136 ::= NumericString (SIZE(1..2))
+Strings-T137 ::= NumericString (SIZE(1..4))
+Strings-T138 ::= NumericString (SIZE(2..6))
+Strings-T139 ::= NumericString (SIZE(0..10))
+Strings-T140 ::= NumericString (SIZE(5..20))
+Strings-T141 ::= NumericString (SIZE(0..255))
+Strings-T142 ::= NumericString (SIZE(0..256))
+Strings-T143 ::= NumericString (SIZE(10..300))
+Strings-T144 ::= NumericString (SIZE(2..MAX))
+Strings-T145 ::= NumericString (SIZE(3,...))
+Strings-T146 ::= NumericString (SIZE(1..4,...))
+Strings-T147 ::= NumericString (SIZE(0..2,...))
+Strings-T148 ::= NumericString (SIZE(0..100000))
+Strings-T149 ::= NumericString (SIZE(1..MAX))
+Strings-T150 ::= NumericString (SIZE(1..70000,...))
+Strings-T151 ::= NumericString (SIZE(65535))
+Strings-T152 ::= NumericString (SIZE(65536))
+Strings-T153 ::= NumericString (SIZE(0..65535))
+Strings-T154 ::= NumericString (SIZE(0..65536))
+Strings-T155 ::= NumericString (SIZE(11))
+Strings-T156 ::= NumericString (SIZE(1..11))
+Strings-T157 ::= NumericString (SIZE(0..21,...))
+Strings-T158 ::= PrintableString
+Strings-T159 ::= PrintableString (SIZE(1))
+Strings-T160 ::= PrintableString (SIZE(2))
+Strings-T161 ::= PrintableString (SIZE(3))
+Strings-T162 ::= PrintableString (SIZE(4))
+Strings-T163 ::= PrintableString (SIZE(5))
+Strings-T164 ::= PrintableString (SIZE(8))
+Strings-T165 ::= PrintableString (SIZE(16))
+Strings-T166 ::= PrintableString (SIZE(0..1))
+Strings-T167 ::= PrintableString (SIZE(0..2))
+Strings-T168 ::= PrintableString (SIZE(0..4))
+Strings-T169 ::= PrintableString (SIZE(1..2))
+Strings-T170 ::= PrintableString (SIZE(1..4))
+Strings-T171 ::= PrintableString (SIZE(2..6))
+Strings-T172 ::= PrintableString (SIZE(0..10))
+Strings-T173 ::= PrintableString (SIZE(5..20))
+Strings-T174 ::= PrintableString (SIZE(0..255))
+Strings-T175 ::= PrintableString (SIZE(0..256))
+Strings-T176 ::= PrintableString (SIZE(10..300))
+Strings-T177 ::= PrintableString (SIZE(2..MAX))
+Strings-T178 ::= PrintableString (SIZE(3,...))
+Strings-T179 ::= PrintableString (SIZE(1..4,...))
+Strings-T180 ::= PrintableString (SIZE(0..2,...))
+Strings-T181 ::= PrintableString (SIZE(0..100000))
+Strings-T182 ::= PrintableString (SIZE(1..MAX))
+Strings-T183 ::= PrintableString (SIZE(1..70000,...))
+Strings-T184 ::= PrintableString (SIZE(65535))
+Strings-T185 ::= PrintableString (SIZE(65536))
+Strings-T186 ::= PrintableString (SIZE(0..65535))
+Strings-T187 ::= PrintableString (SIZE(0..65536))
+Strings-T188 ::= PrintableString (SIZE(74))
+Strings-T189 ::= PrintableString (SIZE(1..74))
+Strings-T190 ::= PrintableString (SIZE(0..84,...))
+Strings-T191 ::= TeletexString
+Strings-T192 ::= TeletexString (SIZE(3))
+Strings-T193 ::= TeletexString (SIZE(2))
+Strings-T194 ::= TeletexString (SIZE(1))
+Strings-T195 ::= TeletexString (SIZE(1..4))
+Strings-T196 ::= TeletexString (SIZE(0..10))
+Strings-T197 ::= TeletexString (SIZE(2..MAX))
+Strings-T198 ::= TeletexString (SIZE(3,...))
+Strings-T199 ::= TeletexString (SIZE(1..4,...))
+Strings-T200 ::= TeletexString (SIZE(0..100000))
+Strings-T201 ::= T61String
+Strings-T202 ::= T61String (SIZE(3))
+Strings-T203 ::= T61String (SIZE(2))
+Strings-T204 ::= T61String (SIZE(1))
+Strings-T205 ::= T61String (SIZE(1..4))
+Strings-T206 ::= T61String (SIZE(0..10))
+Strings-T207 ::= T61String (SIZE(2..MAX))
+Strings-T208 ::= T61String (SIZE(3,...))
+Strings-T209 ::= T61String (SIZE(1..4,...))
+Strings-T210 ::= T61String (SIZE(0..100000))
+Strings-T211 ::= UniversalString
+Strings-T212 ::= UniversalString (SIZE(1))
+Strings-T213 ::= UniversalString (SIZE(2))
+Strings-T214 ::= UniversalString (SIZE(3))
+Strings-T215 ::= UniversalString (SIZE(4))
+Strings-T216 ::= UniversalString (SIZE(5))
+Strings-T217 ::= UniversalString (SIZE(8))
+Strings-T218 ::= UniversalString (SIZE(16))
+Strings-T219 ::= UniversalString (SIZE(0..1))
+Strings-T220 ::= UniversalString (SIZE(0..2))
+Strings-T221 ::= UniversalString (SIZE(0..4))
+Strings-T222 ::= UniversalString (SIZE(1..2))
+Strings-T223 ::= UniversalString (SIZE(1..4))
+Strings-T224 ::= UniversalString (SIZE(2..6))
+Strings-T225 ::= UniversalString (SIZE(0..10))
+Strings-T226 ::= UniversalString (SIZE(5..20))
+Strings-T227 ::= UniversalString (SIZE(0..255))
+Strings-T228 ::= UniversalString (SIZE(0..256))
+Strings-T229 ::= UniversalString (SIZE(10..300))
+Strings-T230 ::= UniversalString (SIZE(2..MAX))
+Strings-T231 ::= UniversalString (SIZE(3,...))
+Strings-T232 ::= UniversalString (SIZE(1..4,...))
+Strings-T233 ::= UniversalString (SIZE(0..2,...))
+Strings-T234 ::= UniversalString (SIZE(0..100000))
+Strings-T235 ::= UniversalString (SIZE(1..MAX))
+Strings-T236 ::= UniversalString (SIZE(1..70000,...))
+Strings-T237 ::= UniversalString (SIZE(65535))
+Strings-T238 ::= UniversalString (SIZE(65536))
+Strings-T239 ::= UniversalString (SIZE(0..65535))
+Strings-T240 ::= UniversalString (SIZE(0..65536))
+Strings-T241 ::= UniversalString (SIZE(1..16))
+Strings-T242 ::= UTF8String
+Strings-T243 ::= UTF8String (SIZE(3))
+Strings-T244 ::= UTF8String (SIZE(2))
+Strings-T245 ::= UTF8String (SIZE(1))
+Strings-T246 ::= UTF8String (SIZE(1..4))
+Strings-T247 ::= UTF8String (SIZE(0..10))
+Strings-T248 ::= UTF8String (SIZE(2..MAX))
+Strings-T249 ::= UTF8String (SIZE(3,...))
+Strings-T250 ::= UTF8String (SIZE(1..4,...))
+Strings-T251 ::= UTF8String (SIZE(0..100000))
+Strings-T252 ::= VideotexString
+Strings-T253 ::= VideotexString (SIZE(3))
+Strings-T254 ::= VideotexString (SIZE(2))
+Strings-T255 ::= VideotexString (SIZE(1))
+Strings-T256 ::= VideotexString (SIZE(1..4))
+Strings-T257 ::= VideotexString (SIZE(0..10))
+Strings-T258 ::= VideotexString (SIZE(2..MAX))
+Strings-T259 ::= VideotexString (SIZE(3,...))
+Strings-T260 ::= VideotexString (SIZE(1..4,...))
+Strings-T261 ::= VideotexString (SIZE(0..100000))
+Strings-T262 ::= VisibleString
+Strings-T263 ::= VisibleString (SIZE(1))
+Strings-T264 ::= VisibleString (SIZE(2))
+Strings-T265 ::= VisibleString (SIZE(3))
+Strings-T266 ::= VisibleString (SIZE(4))
+Strings-T267 ::= VisibleString (SIZE(5))
+Strings-T268 ::= VisibleString (SIZE(8))
+Strings-T269 ::= VisibleString (SIZE(16))
+Strings-T270 ::= VisibleString (SIZE(0..1))
+Strings-T271 ::= VisibleString (SIZE(0..2))
+Strings-T272 ::= VisibleString (SIZE(0..4))
+Strings-T273 ::= VisibleString (SIZE(1..2))
+Strings-T274 ::= VisibleString (SIZE(1..4))
+Strings-T275 ::= VisibleString (SIZE(2..6))
+Strings-T276 ::= VisibleString (SIZE(0..10))
+Strings-T277 ::= VisibleString (SIZE(5..20))
+Strings-T278 ::= VisibleString (SIZE(0..255))
+Strings-T279 ::= VisibleString (SIZE(0..256))
+Strings-T280 ::= VisibleString (SIZE(10..300))
+Strings-T281 ::= VisibleString (SIZE(2..MAX))
+Strings-T282 ::= VisibleString (SIZE(3,...))
+Strings-T283 ::= VisibleString (SIZE(1..4,...))
+Strings-T284 ::= VisibleString (SIZE(0..2,...))
+Strings-T285 ::= VisibleString (SIZE(0..100000))
+Strings-T286 ::= VisibleString (SIZE(1..MAX))
+Strings-T287 ::= VisibleString (SIZE(1..70000,...))
+Strings-T288 ::= VisibleString (SIZE(65535))
+Strings-T289 ::= VisibleString (SIZE(65536))
+Strings-T290 ::= VisibleString (SIZE(0..65535))
+Strings-T291 ::= VisibleString (SIZE(0..65536))
+Strings-T292 ::= VisibleString (SIZE(95))
+Strings-T293 ::= VisibleString (SIZE(1..95))
+Strings-T294 ::= VisibleString (SIZE(0..105,...))
+Strings-T295 ::= IA5String (FROM("a".."z"))
+Strings-T296 ::= IA5String (FROM("ACGT"))
+Strings-T297 ::= IA5String (FROM("ab"))
+Strings-T298 ::= IA5String (FROM("a".."c"))
+Strings-T299 ::= IA5String (FROM("a".."d"))
+Strings-T300 ::= IA5String (FROM("a".."e"))
+Strings-T301 ::= IA5String (FROM("a".."o"))
+Strings-T302 ::= IA5String (FROM("a".."p"))
+Strings-T303 ::= IA5String (FROM("a".."q"))
+Strings-T304 ::= IA5String (FROM("0".."9"))
+Strings-T305 ::= IA5String (FROM("A".."Z"))
+Strings-T306 ::= IA5String (FROM("01" | "a".."z"))
+Strings-T307 ::= IA5String (FROM("!#-7QZ~"))
+Strings-T308 ::= IA5String (FROM(""..""))
+Strings-T309 ::= IA5String (FROM(" "..""))
+Strings-T310 ::= IA5String (FROM(""..""))
+Strings-T311 ::= IA5String (FROM(" "..""))
+Strings-T312 ::= IA5String (FROM(""..""))
+Strings-T313 ::= IA5String (FROM(" "..""))
+Strings-T314 ::= IA5String (FROM(" "..""))
+Strings-T315 ::= IA5String (FROM(" ".."" | "	"))
+Strings-T316 ::= IA5String (FROM(" ".."" | ""))
+Strings-T317 ::= IA5String (FROM(""..""))
+Strings-T318 ::= IA5String (FROM(" "))
+Strings-T319 ::= IA5String (FROM(" "..""))
+Strings-T320 ::= IA5String (FROM(""..""))
+Strings-T321 ::= VisibleString (FROM("a".."z"))
+Strings-T322 ::= VisibleString (FROM("ACGT"))
+Strings-T323 ::= VisibleString (FROM("ab"))
+Strings-T324 ::= VisibleString (FROM("a".."c"))
+Strings-T325 ::= VisibleString (FROM("a".."d"))
+Strings-T326 ::= VisibleString (FROM("a".."e"))
+Strings-T327 ::= VisibleString (FROM("a".."o"))
+Strings-T328 ::= VisibleString (FROM("a".."p"))
+Strings-T329 ::= VisibleString (FROM("a".."q"))
+Strings-T330 ::= VisibleString (FROM("0".."9"))
+Strings-T331 ::= VisibleString (FROM("A".."Z"))
+Strings-T332 ::= VisibleString (FROM("01" | "a".."z"))
+Strings-T333 ::= VisibleString (FROM("!#-7QZ~"))
+Strings-T334 ::= PrintableString (FROM("a".."z"))
+Strings-T335 ::= PrintableString (FROM("ACGT"))
+Strings-T336 ::= PrintableString (FROM("ab"))
+Strings-T337 ::= PrintableString (FROM("a".."c"))
+Strings-T338 ::= PrintableString (FROM("a".."d"))
+Strings-T339 ::= PrintableString (FROM("a".."e"))
+Strings-T340 ::= PrintableString (FROM("a".."o"))
+Strings-T341 ::= PrintableString (FROM("a".."p"))
+Strings-T342 ::= PrintableString (FROM("a".."q"))
+Strings-T343 ::= PrintableString (FROM("0".."9"))
+Strings-T344 ::= PrintableString (FROM("A".."Z"))
+Strings-T345 ::= PrintableString (FROM("01" | "a".."z"))
+Strings-T346 ::= BMPString (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T347 ::= BMPString (FROM("ACGT"))
+Strings-T348 ::= BMPString (FROM("ab"))
+Strings-T349 ::= BMPString (FROM("abc"))
+Strings-T350 ::= BMPString (FROM("abcd"))
+Strings-T351 ::= BMPString (FROM("abcde"))
+Strings-T352 ::= BMPString (FROM("abcdefghijklmno"))
+Strings-T353 ::= BMPString (FROM("abcdefghijklmnop"))
+Strings-T354 ::= BMPString (FROM("abcdefghijklmnopq"))
+Strings-T355 ::= BMPString (FROM("0123456789"))
+Strings-T356 ::= BMPString (FROM("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+Strings-T357 ::= BMPString (FROM("01abcdefghijklmnopqrstuvwxyz"))
+Strings-T358 ::= BMPString (FROM("!#-7QZ~"))
+Strings-T359 ::= BMPString (FROM(""))
+Strings-T360 ::= BMPString (FROM(" "))
+Strings-T361 ::= BMPString (FROM(""))
+Strings-T362 ::= BMPString (FROM(" "))
+Strings-T363 ::= BMPString (FROM(" "))
+Strings-T364 ::= BMPString (FROM(""))
+Strings-T365 ::= BMPString (FROM(" "))
+Strings-T366 ::= UniversalString (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T367 ::= UniversalString (FROM("ACGT"))
+Strings-T368 ::= UniversalString (FROM("ab"))
+Strings-T369 ::= UniversalString (FROM("abc"))
+Strings-T370 ::= UniversalString (FROM("abcd"))
+Strings-T371 ::= UniversalString (FROM("abcde"))
+Strings-T372 ::= UniversalString (FROM("abcdefghijklmno"))
+Strings-T373 ::= UniversalString (FROM("abcdefghijklmnop"))
+Strings-T374 ::= UniversalString (FROM("abcdefghijklmnopq"))
+Strings-T375 ::= UniversalString (FROM("0123456789"))
+Strings-T376 ::= UniversalString (FROM("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+Strings-T377 ::= UniversalString (FROM("01abcdefghijklmnopqrstuvwxyz"))
+Strings-T378 ::= UniversalString (FROM("!#-7QZ~"))
+Strings-T379 ::= UniversalString (FROM(""))
+Strings-T380 ::= UniversalString (FROM(" "))
+Strings-T381 ::= UniversalString (FROM(""))
+Strings-T382 ::= UniversalString (FROM(" "))
+Strings-T383 ::= UniversalString (FROM(" "))
+Strings-T384 ::= UniversalString (FROM(""))
+Strings-T385 ::= UniversalString (FROM(" "))
+Strings-T386 ::= VisibleString (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T387 ::= VisibleString (FROM("ACGT"))
+Strings-T388 ::= VisibleString (FROM("ab"))
+Strings-T389 ::= VisibleString (FROM("abc"))
+Strings-T390 ::= VisibleString (FROM("abcd"))
+Strings-T391 ::= VisibleString (FROM("abcde"))
+Strings-T392 ::= VisibleString (FROM("abcdefghijklmno"))
+Strings-T393 ::= VisibleString (FROM("abcdefghijklmnop"))
+Strings-T394 ::= VisibleString (FROM("abcdefghijklmnopq"))
+Strings-T395 ::= VisibleString (FROM("0123456789"))
+Strings-T396 ::= VisibleString (FROM("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+Strings-T397 ::= VisibleString (FROM("01abcdefghijklmnopqrstuvwxyz"))
+Strings-T398 ::= VisibleString (FROM("!#-7QZ~"))
+Strings-T399 ::= IA5String (SIZE(3)) (FROM("a".."z"))
+Strings-T400 ::= IA5String (SIZE(1)) (FROM("a".."z"))
+Strings-T401 ::= IA5String (SIZE(5)) (FROM("a".."z"))
+Strings-T402 ::= IA5String (SIZE(9)) (FROM("a".."z"))
+Strings-T403 ::= IA5String (SIZE(1..4)) (FROM("a".."z"))
+Strings-T404 ::= IA5String (SIZE(0..3)) (FROM("a".."z"))
+Strings-T405 ::= IA5String (SIZE(2..20)) (FROM("a".."z"))
+Strings-T406 ::= IA5String (SIZE(3,...)) (FROM("a".."z"))
+Strings-T407 ::= IA5String (SIZE(1..4,...)) (FROM("a".."z"))
+Strings-T408 ::= IA5String (SIZE(3)) (FROM("ACGT"))
+Strings-T409 ::= IA5String (SIZE(1)) (FROM("ACGT"))
+Strings-T410 ::= IA5String (SIZE(5)) (FROM("ACGT"))
+Strings-T411 ::= IA5String (SIZE(9)) (FROM("ACGT"))
+Strings-T412 ::= IA5String (SIZE(1..4)) (FROM("ACGT"))
+Strings-T413 ::= IA5String (SIZE(0..3)) (FROM("ACGT"))
+Strings-T414 ::= IA5String (SIZE(2..20)) (FROM("ACGT"))
+Strings-T415 ::= IA5String (SIZE(3,...)) (FROM("ACGT"))
+Strings-T416 ::= IA5String (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T417 ::= IA5String (SIZE(3)) (FROM("ab"))
+Strings-T418 ::= IA5String (SIZE(1)) (FROM("ab"))
+Strings-T419 ::= IA5String (SIZE(5)) (FROM("ab"))
+Strings-T420 ::= IA5String (SIZE(9)) (FROM("ab"))
+Strings-T421 ::= IA5String (SIZE(1..4)) (FROM("ab"))
+Strings-T422 ::= IA5String (SIZE(0..3)) (FROM("ab"))
+Strings-T423 ::= IA5String (SIZE(2..20)) (FROM("ab"))
+Strings-T424 ::= IA5String (SIZE(3,...)) (FROM("ab"))
+Strings-T425 ::= IA5String (SIZE(1..4,...)) (FROM("ab"))
+Strings-T426 ::= IA5String (SIZE(3)) (FROM("a".."e"))
+Strings-T427 ::= IA5String (SIZE(1)) (FROM("a".."e"))
+Strings-T428 ::= IA5String (SIZE(5)) (FROM("a".."e"))
+Strings-T429 ::= IA5String (SIZE(9)) (FROM("a".."e"))
+Strings-T430 ::= IA5String (SIZE(1..4)) (FROM("a".."e"))
+Strings-T431 ::= IA5String (SIZE(0..3)) (FROM("a".."e"))
+Strings-T432 ::= IA5String (SIZE(2..20)) (FROM("a".."e"))
+Strings-T433 ::= IA5String (SIZE(3,...)) (FROM("a".."e"))
+Strings-T434 ::= IA5String (SIZE(1..4,...)) (FROM("a".."e"))
+Strings-T435 ::= IA5String (SIZE(3)) (FROM("a".."q"))
+Strings-T436 ::= IA5String (SIZE(1)) (FROM("a".."q"))
+Strings-T437 ::= IA5String (SIZE(5)) (FROM("a".."q"))
+Strings-T438 ::= IA5String (SIZE(9)) (FROM("a".."q"))
+Strings-T439 ::= IA5String (SIZE(1..4)) (FROM("a".."q"))
+Strings-T440 ::= IA5String (SIZE(0..3)) (FROM("a".."q"))
+Strings-T441 ::= IA5String (SIZE(2..20)) (FROM("a".."q"))
+Strings-T442 ::= IA5String (SIZE(3,...)) (FROM("a".."q"))
+Strings-T443 ::= IA5String (SIZE(1..4,...)) (FROM("a".."q"))
+Strings-T444 ::= IA5String (SIZE(3)) (FROM("0".."9"))
+Strings-T445 ::= IA5String (SIZE(1)) (FROM("0".."9"))
+Strings-T446 ::= IA5String (SIZE(5)) (FROM("0".."9"))
+Strings-T447 ::= IA5String (SIZE(9)) (FROM("0".."9"))
+Strings-T448 ::= IA5String (SIZE(1..4)) (FROM("0".."9"))
+Strings-T449 ::= IA5String (SIZE(0..3)) (FROM("0".."9"))
+Strings-T450 ::= IA5String (SIZE(2..20)) (FROM("0".."9"))
+Strings-T451 ::= IA5String (SIZE(3,...)) (FROM("0".."9"))
+Strings-T452 ::= IA5String (SIZE(1..4,...)) (FROM("0".."9"))
+Strings-T453 ::= IA5String (SIZE(3)) (FROM(""..""))
+Strings-T454 ::= IA5String (SIZE(1)) (FROM(""..""))
+Strings-T455 ::= IA5String (SIZE(5)) (FROM(""..""))
+Strings-T456 ::= IA5String (SIZE(9)) (FROM(""..""))
+Strings-T457 ::= IA5String (SIZE(1..4)) (FROM(""..""))
+Strings-T458 ::= IA5String (SIZE(0..3)) (FROM(""..""))
+Strings-T459 ::= IA5String (SIZE(2..20)) (FROM(""..""))
+Strings-T460 ::= IA5String (SIZE(3,...)) (FROM(""..""))
+Strings-T461 ::= IA5String (SIZE(1..4,...)) (FROM(""..""))
+Strings-T462 ::= IA5String (SIZE(3)) (FROM(" ".."" | "	"))
+Strings-T463 ::= IA5String (SIZE(1)) (FROM(" ".."" | "	"))
+Strings-T464 ::= IA5String (SIZE(5)) (FROM(" ".."" | "	"))
+Strings-T465 ::= IA5String (SIZE(9)) (FROM(" ".."" | "	"))
+Strings-T466 ::= IA5String (SIZE(1..4)) (FROM(" ".."" | "	"))
+Strings-T467 ::= IA5String (SIZE(0..3)) (FROM(" ".."" | "	"))
+Strings-T468 ::= IA5String (SIZE(2..20)) (FROM(" ".."" | "	"))
+Strings-T469 ::= IA5String (SIZE(3,...)) (FROM(" ".."" | "	"))
+Strings-T470 ::= IA5String (SIZE(1..4,...)) (FROM(" ".."" | "	"))
+Strings-T471 ::= IA5String (SIZE(3)) (FROM(" "..""))
+Strings-T472 ::= IA5String (SIZE(1)) (FROM(" "..""))
+Strings-T473 ::= IA5String (SIZE(5)) (FROM(" "..""))
+Strings-T474 ::= IA5String (SIZE(9)) (FROM(" "..""))
+Strings-T475 ::= IA5String (SIZE(1..4)) (FROM(" "..""))
+Strings-T476 ::= IA5String (SIZE(0..3)) (FROM(" "..""))
+Strings-T477 ::= IA5String (SIZE(2..20)) (FROM(" "..""))
+Strings-T478 ::= IA5String (SIZE(3,...)) (FROM(" "..""))
+Strings-T479 ::= IA5String (SIZE(1..4,...)) (FROM(" "..""))
+Strings-T480 ::= VisibleString (SIZE(3)) (FROM("a".."z"))
+Strings-T481 ::= VisibleString (SIZE(1)) (FROM("a".."z"))
+Strings-T482 ::= VisibleString (SIZE(5)) (FROM("a".."z"))
+Strings-T483 ::= VisibleString (SIZE(9)) (FROM("a".."z"))
+Strings-T484 ::= VisibleString (SIZE(1..4)) (FROM("a".."z"))
+Strings-T485 ::= VisibleString (SIZE(0..3)) (FROM("a".."z"))
+Strings-T486 ::= VisibleString (SIZE(2..20)) (FROM("a".."z"))
+Strings-T487 ::= VisibleString (SIZE(3,...)) (FROM("a".."z"))
+Strings-T488 ::= VisibleString (SIZE(1..4,...)) (FROM("a".."z"))
+Strings-T489 ::= VisibleString (SIZE(3)) (FROM("ACGT"))
+Strings-T490 ::= VisibleString (SIZE(1)) (FROM("ACGT"))
+Strings-T491 ::= VisibleString (SIZE(5)) (FROM("ACGT"))
+Strings-T492 ::= VisibleString (SIZE(9)) (FROM("ACGT"))
+Strings-T493 ::= VisibleString (SIZE(1..4)) (FROM("ACGT"))
+Strings-T494 ::= VisibleString (SIZE(0..3)) (FROM("ACGT"))
+Strings-T495 ::= VisibleString (SIZE(2..20)) (FROM("ACGT"))
+Strings-T496 ::= VisibleString (SIZE(3,...)) (FROM("ACGT"))
+Strings-T497 ::= VisibleString (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T498 ::= VisibleString (SIZE(3)) (FROM("ab"))
+Strings-T499 ::= VisibleString (SIZE(1)) (FROM("ab"))
+Strings-T500 ::= VisibleString (SIZE(5)) (FROM("ab"))
+Strings-T501 ::= VisibleString (SIZE(9)) (FROM("ab"))
+Strings-T502 ::= VisibleString (SIZE(1..4)) (FROM("ab"))
+Strings-T503 ::= VisibleString (SIZE(0..3)) (FROM("ab"))
+Strings-T504 ::= VisibleString (SIZE(2..20)) (FROM("ab"))
+Strings-T505 ::= VisibleString (SIZE(3,...)) (FROM("ab"))
+Strings-T506 ::= VisibleString (SIZE(1..4,...)) (FROM("ab"))
+Strings-T507 ::= VisibleString (SIZE(3)) (FROM("a".."e"))
+Strings-T508 ::= VisibleString (SIZE(1)) (FROM("a".."e"))
+Strings-T509 ::= VisibleString (SIZE(5)) (FROM("a".."e"))
+Strings-T510 ::= VisibleString (SIZE(9)) (FROM("a".."e"))
+Strings-T511 ::= VisibleString (SIZE(1..4)) (FROM("a".."e"))
+Strings-T512 ::= VisibleString (SIZE(0..3)) (FROM("a".."e"))
+Strings-T513 ::= VisibleString (SIZE(2..20)) (FROM("a".."e"))
+Strings-T514 ::= VisibleString (SIZE(3,...)) (FROM("a".."e"))
+Strings-T515 ::= VisibleString (SIZE(1..4,...)) (FROM("a".."e"))
+Strings-T516 ::= VisibleString (SIZE(3)) (FROM("a".."q"))
+Strings-T517 ::= VisibleString (SIZE(1)) (FROM("a".."q"))
+Strings-T518 ::= VisibleString (SIZE(5)) (FROM("a".."q"))
+Strings-T519 ::= VisibleString (SIZE(9)) (FROM("a".."q"))
+Strings-T520 ::= VisibleString (SIZE(1..4)) (FROM("a".."q"))
+Strings-T521 ::= VisibleString (SIZE(0..3)) (FROM("a".."q"))
+Strings-T522 ::= VisibleString (SIZE(2..20)) (FROM("a".."q"))
+Strings-T523 ::= VisibleString (SIZE(3,...)) (FROM("a".."q"))
+Strings-T524 ::= VisibleString (SIZE(1..4,...)) (FROM("a".."q"))
+Strings-T525 ::= VisibleString (SIZE(3)) (FROM("0".."9"))
+Strings-T526 ::= VisibleString (SIZE(1)) (FROM("0".."9"))
+Strings-T527 ::= VisibleString (SIZE(5)) (FROM("0".."9"))
+Strings-T528 ::= VisibleString (SIZE(9)) (FROM("0".."9"))
+Strings-T529 ::= VisibleString (SIZE(1..4)) (FROM("0".."9"))
+Strings-T530 ::= VisibleString (SIZE(0..3)) (FROM("0".."9"))
+Strings-T531 ::= VisibleString (SIZE(2..20)) (FROM("0".."9"))
+Strings-T532 ::= VisibleString (SIZE(3,...)) (FROM("0".."9"))
+Strings-T533 ::= VisibleString (SIZE(1..4,...)) (FROM("0".."9"))
+Strings-T534 ::= PrintableString (SIZE(3)) (FROM("a".."z"))
+Strings-T535 ::= PrintableString (SIZE(1)) (FROM("a".."z"))
+Strings-T536 ::= PrintableString (SIZE(5)) (FROM("a".."z"))
+Strings-T537 ::= PrintableString (SIZE(9)) (FROM("a".."z"))
+Strings-T538 ::= PrintableString (SIZE(1..4)) (FROM("a".."z"))
+Strings-T539 ::= PrintableString (SIZE(0..3)) (FROM("a".."z"))
+Strings-T540 ::= PrintableString (SIZE(2..20)) (FROM("a".."z"))
+Strings-T541 ::= PrintableString (SIZE(3,...)) (FROM("a".."z"))
+Strings-T542 ::= PrintableString (SIZE(1..4,...)) (FROM("a".."z"))
+Strings-T543 ::= PrintableString (SIZE(3)) (FROM("ACGT"))
+Strings-T544 ::= PrintableString (SIZE(1)) (FROM("ACGT"))
+Strings-T545 ::= PrintableString (SIZE(5)) (FROM("ACGT"))
+Strings-T546 ::= PrintableString (SIZE(9)) (FROM("ACGT"))
+Strings-T547 ::= PrintableString (SIZE(1..4)) (FROM("ACGT"))
+Strings-T548 ::= PrintableString (SIZE(0..3)) (FROM("ACGT"))
+Strings-T549 ::= PrintableString (SIZE(2..20)) (FROM("ACGT"))
+Strings-T550 ::= PrintableString (SIZE(3,...)) (FROM("ACGT"))
+Strings-T551 ::= PrintableString (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T552 ::= PrintableString (SIZE(3)) (FROM("ab"))
+Strings-T553 ::= PrintableString (SIZE(1)) (FROM("ab"))
+Strings-T554 ::= PrintableString (SIZE(5)) (FROM("ab"))
+Strings-T555 ::= PrintableString (SIZE(9)) (FROM("ab"))
+Strings-T556 ::= PrintableString (SIZE(1..4)) (FROM("ab"))
+Strings-T557 ::= PrintableString (SIZE(0..3)) (FROM("ab"))
+Strings-T558 ::= PrintableString (SIZE(2..20)) (FROM("ab"))
+Strings-T559 ::= PrintableString (SIZE(3,...)) (FROM("ab"))
+Strings-T560 ::= PrintableString (SIZE(1..4,...)) (FROM("ab"))
+Strings-T561 ::= PrintableString (SIZE(3)) (FROM("a".."e"))
+Strings-T562 ::= PrintableString (SIZE(1)) (FROM("a".."e"))
+Strings-T563 ::= PrintableString (SIZE(5)) (FROM("a".."e"))
+Strings-T564 ::= PrintableString (SIZE(9)) (FROM("a".."e"))
+Strings-T565 ::= PrintableString (SIZE(1..4)) (FROM("a".."e"))
+Strings-T566 ::= PrintableString (SIZE(0..3)) (FROM("a".."e"))
+Strings-T567 ::= PrintableString (SIZE(2..20)) (FROM("a".."e"))
+Strings-T568 ::= PrintableString (SIZE(3,...)) (FROM("a".."e"))
+Strings-T569 ::= PrintableString (SIZE(1..4,...)) (FROM("a".."e"))
+Strings-T570 ::= PrintableString (SIZE(3)) (FROM("a".."q"))
+Strings-T571 ::= PrintableString (SIZE(1)) (FROM("a".."q"))
+Strings-T572 ::= PrintableString (SIZE(5)) (FROM("a".."q"))
+Strings-T573 ::= PrintableString (SIZE(9)) (FROM("a".."q"))
+Strings-T574 ::= PrintableString (SIZE(1..4)) (FROM("a".."q"))
+Strings-T575 ::= PrintableString (SIZE(0..3)) (FROM("a".."q"))
+Strings-T576 ::= PrintableString (SIZE(2..20)) (FROM("a".."q"))
+Strings-T577 ::= PrintableString (SIZE(3,...)) (FROM("a".."q"))
+Strings-T578 ::= PrintableString (SIZE(1..4,...)) (FROM("a".."q"))
+Strings-T579 ::= PrintableString (SIZE(3)) (FROM("0".."9"))
+Strings-T580 ::= PrintableString (SIZE(1)) (FROM("0".."9"))
+Strings-T581 ::= PrintableString (SIZE(5)) (FROM("0".."9"))
+Strings-T582 ::= PrintableString (SIZE(9)) (FROM("0".."9"))
+Strings-T583 ::= PrintableString (SIZE(1..4)) (FROM("0".."9"))
+Strings-T584 ::= PrintableString (SIZE(0..3)) (FROM("0".."9"))
+Strings-T585 ::= PrintableString (SIZE(2..20)) (FROM("0".."9"))
+Strings-T586 ::= PrintableString (SIZE(3,...)) (FROM("0".."9"))
+Strings-T587 ::= PrintableString (SIZE(1..4,...)) (FROM("0".."9"))
+Strings-T588 ::= BMPString (SIZE(3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T589 ::= BMPString (SIZE(1)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T590 ::= BMPString (SIZE(5)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T591 ::= BMPString (SIZE(9)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T592 ::= BMPString (SIZE(1..4)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T593 ::= BMPString (SIZE(0..3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T594 ::= BMPString (SIZE(2..20)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T595 ::= BMPString (SIZE(3,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T596 ::= BMPString (SIZE(1..4,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T597 ::= BMPString (SIZE(3)) (FROM("ACGT"))
+Strings-T598 ::= BMPString (SIZE(1)) (FROM("ACGT"))
+Strings-T599 ::= BMPString (SIZE(5)) (FROM("ACGT"))
+Strings-T600 ::= BMPString (SIZE(9)) (FROM("ACGT"))
+Strings-T601 ::= BMPString (SIZE(1..4)) (FROM("ACGT"))
+Strings-T602 ::= BMPString (SIZE(0..3)) (FROM("ACGT"))
+Strings-T603 ::= BMPString (SIZE(2..20)) (FROM("ACGT"))
+Strings-T604 ::= BMPString (SIZE(3,...)) (FROM("ACGT"))
+Strings-T605 ::= BMPString (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T606 ::= BMPString (SIZE(3)) (FROM("ab"))
+Strings-T607 ::= BMPString (SIZE(1)) (FROM("ab"))
+Strings-T608 ::= BMPString (SIZE(5)) (FROM("ab"))
+Strings-T609 ::= BMPString (SIZE(9)) (FROM("ab"))
+Strings-T610 ::= BMPString (SIZE(1..4)) (FROM("ab"))
+Strings-T611 ::= BMPString (SIZE(0..3)) (FROM("ab"))
+Strings-T612 ::= BMPString (SIZE(2..20)) (FROM("ab"))
+Strings-T613 ::= BMPString (SIZE(3,...)) (FROM("ab"))
+Strings-T614 ::= BMPString (SIZE(1..4,...)) (FROM("ab"))
+Strings-T615 ::= BMPString (SIZE(3)) (FROM("abcde"))
+Strings-T616 ::= BMPString (SIZE(1)) (FROM("abcde"))
+Strings-T617 ::= BMPString (SIZE(5)) (FROM("abcde"))
+Strings-T618 ::= BMPString (SIZE(9)) (FROM("abcde"))
+Strings-T619 ::= BMPString (SIZE(1..4)) (FROM("abcde"))
+Strings-T620 ::= BMPString (SIZE(0..3)) (FROM("abcde"))
+Strings-T621 ::= BMPString (SIZE(2..20)) (FROM("abcde"))
+Strings-T622 ::= BMPString (SIZE(3,...)) (FROM("abcde"))
+Strings-T623 ::= BMPString (SIZE(1..4,...)) (FROM("abcde"))
+Strings-T624 ::= BMPString (SIZE(3)) (FROM("abcdefghijklmnopq"))
+Strings-T625 ::= BMPString (SIZE(1)) (FROM("abcdefghijklmnopq"))
+Strings-T626 ::= BMPString (SIZE(5)) (FROM("abcdefghijklmnopq"))
+Strings-T627 ::= BMPString (SIZE(9)) (FROM("abcdefghijklmnopq"))
+Strings-T628 ::= BMPString (SIZE(1..4)) (FROM("abcdefghijklmnopq"))
+Strings-T629 ::= BMPString (SIZE(0..3)) (FROM("abcdefghijklmnopq"))
+Strings-T630 ::= BMPString (SIZE(2..20)) (FROM("abcdefghijklmnopq"))
+Strings-T631 ::= BMPString (SIZE(3,...)) (FROM("abcdefghijklmnopq"))
+Strings-T632 ::= BMPString (SIZE(1..4,...)) (FROM("abcdefghijklmnopq"))
+Strings-T633 ::= BMPString (SIZE(3)) (FROM("0123456789"))
+Strings-T634 ::= BMPString (SIZE(1)) (FROM("0123456789"))
+Strings-T635 ::= BMPString (SIZE(5)) (FROM("0123456789"))
+Strings-T636 ::= BMPString (SIZE(9)) (FROM("0123456789"))
+Strings-T637 ::= BMPString (SIZE(1..4)) (FROM("0123456789"))
+Strings-T638 ::= BMPString (SIZE(0..3)) (FROM("0123456789"))
+Strings-T639 ::= BMPString (SIZE(2..20)) (FROM("0123456789"))
+Strings-T640 ::= BMPString (SIZE(3,...)) (FROM("0123456789"))
+Strings-T641 ::= BMPString (SIZE(1..4,...)) (FROM("0123456789"))
+Strings-T642 ::= BMPString (SIZE(3)) (FROM(""))
+Strings-T643 ::= BMPString (SIZE(1)) (FROM(""))
+Strings-T644 ::= BMPString (SIZE(5)) (FROM(""))
+Strings-T645 ::= BMPString (SIZE(9)) (FROM(""))
+Strings-T646 ::= BMPString (SIZE(1..4)) (FROM(""))
+Strings-T647 ::= BMPString (SIZE(0..3)) (FROM(""))
+Strings-T648 ::= BMPString (SIZE(2..20)) (FROM(""))
+Strings-T649 ::= BMPString (SIZE(3,...)) (FROM(""))
+Strings-T650 ::= BMPString (SIZE(1..4,...)) (FROM(""))
+Strings-T651 ::= UniversalString (SIZE(3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T652 ::= UniversalString (SIZE(1)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T653 ::= UniversalString (SIZE(5)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T654 ::= UniversalString (SIZE(9)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T655 ::= UniversalString (SIZE(1..4)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T656 ::= UniversalString (SIZE(0..3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T657 ::= UniversalString (SIZE(2..20)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T658 ::= UniversalString (SIZE(3,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T659 ::= UniversalString (SIZE(1..4,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T660 ::= UniversalString (SIZE(3)) (FROM("ACGT"))
+Strings-T661 ::= UniversalString (SIZE(1)) (FROM("ACGT"))
+Strings-T662 ::= UniversalString (SIZE(5)) (FROM("ACGT"))
+Strings-T663 ::= UniversalString (SIZE(9)) (FROM("ACGT"))
+Strings-T664 ::= UniversalString (SIZE(1..4)) (FROM("ACGT"))
+Strings-T665 ::= UniversalString (SIZE(0..3)) (FROM("ACGT"))
+Strings-T666 ::= UniversalString (SIZE(2..20)) (FROM("ACGT"))
+Strings-T667 ::= UniversalString (SIZE(3,...)) (FROM("ACGT"))
+Strings-T668 ::= UniversalString (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T669 ::= UniversalString (SIZE(3)) (FROM("ab"))
+Strings-T670 ::= UniversalString (SIZE(1)) (FROM("ab"))
+Strings-T671 ::= UniversalString (SIZE(5)) (FROM("ab"))
+Strings-T672 ::= UniversalString (SIZE(9)) (FROM("ab"))
+Strings-T673 ::= UniversalString (SIZE(1..4)) (FROM("ab"))
+Strings-T674 ::= UniversalString (SIZE(0..3)) (FROM("ab"))
+Strings-T675 ::= UniversalString (SIZE(2..20)) (FROM("ab"))
+Strings-T676 ::= UniversalString (SIZE(3,...)) (FROM("ab"))
+Strings-T677 ::= UniversalString (SIZE(1..4,...)) (FROM("ab"))
+Strings-T678 ::= UniversalString (SIZE(3)) (FROM("abcde"))
+Strings-T679 ::= UniversalString (SIZE(1)) (FROM("abcde"))
+Strings-T680 ::= UniversalString (SIZE(5)) (FROM("abcde"))
+Strings-T681 ::= UniversalString (SIZE(9)) (FROM("abcde"))
+Strings-T682 ::= UniversalString (SIZE(1..4)) (FROM("abcde"))
+Strings-T683 ::= UniversalString (SIZE(0..3)) (FROM("abcde"))
+Strings-T684 ::= UniversalString (SIZE(2..20)) (FROM("abcde"))
+Strings-T685 ::= UniversalString (SIZE(3,...)) (FROM("abcde"))
+Strings-T686 ::= UniversalString (SIZE(1..4,...)) (FROM("abcde"))
+Strings-T687 ::= UniversalString (SIZE(3)) (FROM("abcdefghijklmnopq"))
+Strings-T688 ::= UniversalString (SIZE(1)) (FROM("abcdefghijklmnopq"))
+Strings-T689 ::= UniversalString (SIZE(5)) (FROM("abcdefghijklmnopq"))
+Strings-T690 ::= UniversalString (SIZE(9)) (FROM("abcdefghijklmnopq"))
+Strings-T691 ::= UniversalString (SIZE(1..4)) (FROM("abcdefghijklmnopq"))
+Strings-T692 ::= UniversalString (SIZE(0..3)) (FROM("abcdefghijklmnopq"))
+Strings-T693 ::= UniversalString (SIZE(2..20)) (FROM("abcdefghijklmnopq"))
+Strings-T694 ::= UniversalString (SIZE(3,...)) (FROM("abcdefghijklmnopq"))
+Strings-T695 ::= UniversalString (SIZE(1..4,...)) (FROM("abcdefghijklmnopq"))
+Strings-T696 ::= UniversalString (SIZE(3)) (FROM("0123456789"))
+Strings-T697 ::= UniversalString (SIZE(1)) (FROM("0123456789"))
+Strings-T698 ::= UniversalString (SIZE(5)) (FROM("0123456789"))
+Strings-T699 ::= UniversalString (SIZE(9)) (FROM("0123456789"))
+Strings-T700 ::= UniversalString (SIZE(1..4)) (FROM("0123456789"))
+Strings-T701 ::= UniversalString (SIZE(0..3)) (FROM("0123456789"))
+Strings-T702 ::= UniversalString (SIZE(2..20)) (FROM("0123456789"))
+Strings-T703 ::= UniversalString (SIZE(3,...)) (FROM("0123456789"))
+Strings-T704 ::= UniversalString (SIZE(1..4,...)) (FROM("0123456789"))
+Strings-T705 ::= UniversalString (SIZE(3)) (FROM(""))
+Strings-T706 ::= UniversalString (SIZE(1)) (FROM(""))
+Strings-T707 ::= UniversalString (SIZE(5)) (FROM(""))
+Strings-T708 ::= UniversalString (SIZE(9)) (FROM(""))
+Strings-T709 ::= UniversalString (SIZE(1..4)) (FROM(""))
+Strings-T710 ::= UniversalString (SIZE(0..3)) (FROM(""))
+Strings-T711 ::= UniversalString (SIZE(2..20)) (FROM(""))
+Strings-T712 ::= UniversalString (SIZE(3,...)) (FROM(""))
+Strings-T713 ::= UniversalString (SIZE(1..4,...)) (FROM(""))
+Strings-T714 ::= VisibleString (SIZE(3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T715 ::= VisibleString (SIZE(1)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T716 ::= VisibleString (SIZE(5)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T717 ::= VisibleString (SIZE(9)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T718 ::= VisibleString (SIZE(1..4)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T719 ::= VisibleString (SIZE(0..3)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T720 ::= VisibleString (SIZE(2..20)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T721 ::= VisibleString (SIZE(3,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T722 ::= VisibleString (SIZE(1..4,...)) (FROM("abcdefghijklmnopqrstuvwxyz"))
+Strings-T723 ::= VisibleString (SIZE(3)) (FROM("ACGT"))
+Strings-T724 ::= VisibleString (SIZE(1)) (FROM("ACGT"))
+Strings-T725 ::= VisibleString (SIZE(5)) (FROM("ACGT"))
+Strings-T726 ::= VisibleString (SIZE(9)) (FROM("ACGT"))
+Strings-T727 ::= VisibleString (SIZE(1..4)) (FROM("ACGT"))
+Strings-T728 ::= VisibleString (SIZE(0..3)) (FROM("ACGT"))
+Strings-T729 ::= VisibleString (SIZE(2..20)) (FROM("ACGT"))
+Strings-T730 ::= VisibleString (SIZE(3,...)) (FROM("ACGT"))
+Strings-T731 ::= VisibleString (SIZE(1..4,...)) (FROM("ACGT"))
+Strings-T732 ::= VisibleString (SIZE(3)) (FROM("ab"))
+Strings-T733 ::= VisibleString (SIZE(1)) (FROM("ab"))
+Strings-T734 ::= VisibleString (SIZE(5)) (FROM("ab"))
+Strings-T735 ::= VisibleString (SIZE(9)) (FROM("ab"))
+Strings-T736 ::= VisibleString (SIZE(1..4)) (FROM("ab"))
+Strings-T737 ::= VisibleString (SIZE(0..3)) (FROM("ab"))
+Strings-T738 ::= VisibleString (SIZE(2..20)) (FROM("ab"))
+Strings-T739 ::= VisibleString (SIZE(3,...)) (FROM("ab"))
+Strings-T740 ::= VisibleString (SIZE(1..4,...)) (FROM("ab"))
+Strings-T741 ::= VisibleString (SIZE(3)) (FROM("abcde"))
+Strings-T742 ::= VisibleString (SIZE(1)) (FROM("abcde"))
+Strings-T743 ::= VisibleString (SIZE(5)) (FROM("abcde"))
+Strings-T744 ::= VisibleString (SIZE(9)) (FROM("abcde"))
+Strings-T745 ::= VisibleString (SIZE(1..4)) (FROM("abcde"))
+Strings-T746 ::= VisibleString (SIZE(0..3)) (FROM("abcde"))
+Strings-T747 ::= VisibleString (SIZE(2..20)) (FROM("abcde"))
+Strings-T748 ::= VisibleString (SIZE(3,...)) (FROM("abcde"))
+Strings-T749 ::= VisibleString (SIZE(1..4,...)) (FROM("abcde"))
+Strings-T750 ::= VisibleString (SIZE(3)) (FROM("abcdefghijklmnopq"))
+Strings-T751 ::= VisibleString (SIZE(1)) (FROM("abcdefghijklmnopq"))
+Strings-T752 ::= VisibleString (SIZE(5)) (FROM("abcdefghijklmnopq"))
+Strings-T753 ::= VisibleString (SIZE(9)) (FROM("abcdefghijklmnopq"))
+Strings-T754 ::= VisibleString (SIZE(1..4)) (FROM("abcdefghijklmnopq"))
+Strings-T755 ::= VisibleString (SIZE(0..3)) (FROM("abcdefghijklmnopq"))
+Strings-T756 ::= VisibleString (SIZE(2..20)) (FROM("abcdefghijklmnopq"))
+Strings-T757 ::= VisibleString (SIZE(3,...)) (FROM("abcdefghijklmnopq"))
+Strings-T758 ::= VisibleString (SIZE(1..4,...)) (FROM("abcdefghijklmnopq"))
+Strings-T759 ::= VisibleString (SIZE(3)) (FROM("0123456789"))
+Strings-T760 ::= VisibleString (SIZE(1)) (FROM("0123456789"))
+Strings-T761 ::= VisibleString (SIZE(5)) (FROM("0123456789"))
+Strings-T762 ::= VisibleString (SIZE(9)) (FROM("0123456789"))
+Strings-T763 ::= VisibleString (SIZE(1..4)) (FROM("0123456789"))
+Strings-T764 ::= VisibleString (SIZE(0..3)) (FROM("0123456789"))
+Strings-T765 ::= VisibleString (SIZE(2..20)) (FROM("0123456789"))
+Strings-T766 ::= VisibleString (SIZE(3,...)) (FROM("0123456789"))
+Strings-T767 ::= VisibleString (SIZE(1..4,...)) (FROM("0123456789"))
+Strings-T768 ::= NumericString (FROM("0123"))
+Strings-T769 ::= NumericString (SIZE(3)) (FROM("0123"))
+Strings-T770 ::= NumericString (SIZE(1)) (FROM("0123"))
+Strings-T771 ::= NumericString (SIZE(5)) (FROM("0123"))
+Strings-T772 ::= NumericString (SIZE(9)) (FROM("0123"))
+Strings-T773 ::= NumericString (SIZE(1..4)) (FROM("0123"))
+Strings-T774 ::= NumericString (SIZE(0..3)) (FROM("0123"))
+Strings-T775 ::= NumericString (SIZE(2..20)) (FROM("0123"))
+Strings-T776 ::= NumericString (SIZE(3,...)) (FROM("0123"))
+Strings-T777 ::= NumericString (SIZE(1..4,...)) (FROM("0123"))
+Strings-T778 ::= NumericString (FROM("13579"))
+Strings-T779 ::= NumericString (SIZE(3)) (FROM("13579"))
+Strings-T780 ::= NumericString (SIZE(1)) (FROM("13579"))
+Strings-T781 ::= NumericString (SIZE(5)) (FROM("13579"))
+Strings-T782 ::= NumericString (SIZE(9)) (FROM("13579"))
+Strings-T783 ::= NumericString (SIZE(1..4)) (FROM("13579"))
+Strings-T784 ::= NumericString (SIZE(0..3)) (FROM("13579"))
+Strings-T785 ::= NumericString (SIZE(2..20)) (FROM("13579"))
+Strings-T786 ::= NumericString (SIZE(3,...)) (FROM("13579"))
+Strings-T787 ::= NumericString (SIZE(1..4,...)) (FROM("13579"))
+Strings-T788 ::= NumericString (FROM("0123456789"))
+Strings-T789 ::= NumericString (SIZE(3)) (FROM("0123456789"))
+Strings-T790 ::= NumericString (SIZE(1)) (FROM("0123456789"))
+Strings-T791 ::= NumericString (SIZE(5)) (FROM("0123456789"))
+Strings-T792 ::= NumericString (SIZE(9)) (FROM("0123456789"))
+Strings-T793 ::= NumericString (SIZE(1..4)) (FROM("0123456789"))
+Strings-T794 ::= NumericString (SIZE(0..3)) (FROM("0123456789"))
+Strings-T795 ::= NumericString (SIZE(2..20)) (FROM("0123456789"))
+Strings-T796 ::= NumericString (SIZE(3,...)) (FROM("0123456789"))
+Strings-T797 ::= NumericString (SIZE(1..4,...)) (FROM("0123456789"))
+Strings-T798 ::= NumericString (FROM(" 01"))
+Strings-T799 ::= NumericString (SIZE(3)) (FROM(" 01"))
+Strings-T800 ::= NumericString (SIZE(1)) (FROM(" 01"))
+Strings-T801 ::= NumericString (SIZE(5)) (FROM(" 01"))
+Strings-T802 ::= NumericString (SIZE(9)) (FROM(" 01"))
+Strings-T803 ::= NumericString (SIZE(1..4)) (FROM(" 01"))
+Strings-T804 ::= NumericString (SIZE(0..3)) (FROM(" 01"))
+Strings-T805 ::= NumericString (SIZE(2..20)) (FROM(" 01"))
+Strings-T806 ::= NumericString (SIZE(3,...)) (FROM(" 01"))
+Strings-T807 ::= NumericString (SIZE(1..4,...)) (FROM(" 01"))
+Strings-T808 ::= NumericString (FROM(" 0123456789"))
+Strings-T809 ::= NumericString (SIZE(3)) (FROM(" 0123456789"))
+Strings-T810 ::= NumericString (SIZE(1)) (FROM(" 0123456789"))
+Strings-T811 ::= NumericString (SIZE(5)) (FROM(" 0123456789"))
+Strings-T812 ::= NumericString (SIZE(9)) (FROM(" 0123456789"))
+Strings-T813 ::= NumericString (SIZE(1..4)) (FROM(" 0123456789"))
+Strings-T814 ::= NumericString (SIZE(0..3)) (FROM(" 0123456789"))
+Strings-T815 ::= NumericString (SIZE(2..20)) (FROM(" 0123456789"))
+Strings-T816 ::= NumericString (SIZE(3,...)) (FROM(" 0123456789"))
+Strings-T817 ::= NumericString (SIZE(1..4,...)) (FROM(" 0123456789"))
+Strings-T818 ::= NumericString (FROM("012345678"))
+Strings-T819 ::= NumericString (SIZE(3)) (FROM("012345678"))
+Strings-T820 ::= NumericString (SIZE(1)) (FROM("012345678"))
+Strings-T821 ::= NumericString (SIZE(5)) (FROM("012345678"))
+Strings-T822 ::= NumericString (SIZE(9)) (FROM("012345678"))
+Strings-T823 ::= NumericString (SIZE(1..4)) (FROM("012345678"))
+Strings-T824 ::= NumericString (SIZE(0..3)) (FROM("012345678"))
+Strings-T825 ::= NumericString (SIZE(2..20)) (FROM("012345678"))
+Strings-T826 ::= NumericString (SIZE(3,...)) (FROM("012345678"))
+Strings-T827 ::= NumericString (SIZE(1..4,...)) (FROM("012345678"))
+
+-- Fragmented lengths, X.691 11.9.3.8 (kind fragment)
+
+Fragments-Octets ::= OCTET STRING
+Fragments-Bits   ::= BIT STRING
+Fragments-Text   ::= IA5String
+
+-- Regression rows (kind regression)
+
+Regression-Full     ::= INTEGER (-9223372036854775808..9223372036854775807)
+Regression-MinusOne ::= INTEGER (-1..9223372036854775807)
+Regression-Zero     ::= INTEGER (0..9223372036854775807)
+Regression-Uni      ::= UniversalString
+Regression-UniSize  ::= UniversalString (SIZE(1..4))
+Regression-UniFixed ::= UniversalString (SIZE(3))
+Regression-Null     ::= NULL
+Regression-Single   ::= INTEGER (5..5)
+
+-- IRI (kind iri)
+
+-- Neither oracle compiles OID-IRI and RELATIVE-OID-IRI as a type. X.691 clauses
+-- 26 and 27 encode each as the UTF-8 contents octets behind an unconstrained
+-- length (X.690 8.21, 8.22), which is what a UTF8String holds (X.691 30.5).
+Iri-Text ::= UTF8String
+
+-- OBJECT IDENTIFIER (kind oid)
+
+Oid-Oid ::= OBJECT IDENTIFIER
+
+-- RELATIVE-OID (kind relativeoid)
+
+Reloid-Rel ::= RELATIVE-OID
+
+-- Extension additions, X.691 19.7 (kind additions)
+
+-- 70 extension additions: the bitmap of X.691 19.7 has more than 64 bits, so the normally
+-- small length takes the form of 11.9.3.4 for n > 64 (a 1 bit, then an unconstrained length).
+Additions-ExtBig ::= SEQUENCE {
+    a BOOLEAN,
+    ...,
+    x1 BOOLEAN OPTIONAL,
+    x2 BOOLEAN OPTIONAL,
+    x3 BOOLEAN OPTIONAL,
+    x4 BOOLEAN OPTIONAL,
+    x5 BOOLEAN OPTIONAL,
+    x6 BOOLEAN OPTIONAL,
+    x7 BOOLEAN OPTIONAL,
+    x8 BOOLEAN OPTIONAL,
+    x9 BOOLEAN OPTIONAL,
+    x10 BOOLEAN OPTIONAL,
+    x11 BOOLEAN OPTIONAL,
+    x12 BOOLEAN OPTIONAL,
+    x13 BOOLEAN OPTIONAL,
+    x14 BOOLEAN OPTIONAL,
+    x15 BOOLEAN OPTIONAL,
+    x16 BOOLEAN OPTIONAL,
+    x17 BOOLEAN OPTIONAL,
+    x18 BOOLEAN OPTIONAL,
+    x19 BOOLEAN OPTIONAL,
+    x20 BOOLEAN OPTIONAL,
+    x21 BOOLEAN OPTIONAL,
+    x22 BOOLEAN OPTIONAL,
+    x23 BOOLEAN OPTIONAL,
+    x24 BOOLEAN OPTIONAL,
+    x25 BOOLEAN OPTIONAL,
+    x26 BOOLEAN OPTIONAL,
+    x27 BOOLEAN OPTIONAL,
+    x28 BOOLEAN OPTIONAL,
+    x29 BOOLEAN OPTIONAL,
+    x30 BOOLEAN OPTIONAL,
+    x31 BOOLEAN OPTIONAL,
+    x32 BOOLEAN OPTIONAL,
+    x33 BOOLEAN OPTIONAL,
+    x34 BOOLEAN OPTIONAL,
+    x35 BOOLEAN OPTIONAL,
+    x36 BOOLEAN OPTIONAL,
+    x37 BOOLEAN OPTIONAL,
+    x38 BOOLEAN OPTIONAL,
+    x39 BOOLEAN OPTIONAL,
+    x40 BOOLEAN OPTIONAL,
+    x41 BOOLEAN OPTIONAL,
+    x42 BOOLEAN OPTIONAL,
+    x43 BOOLEAN OPTIONAL,
+    x44 BOOLEAN OPTIONAL,
+    x45 BOOLEAN OPTIONAL,
+    x46 BOOLEAN OPTIONAL,
+    x47 BOOLEAN OPTIONAL,
+    x48 BOOLEAN OPTIONAL,
+    x49 BOOLEAN OPTIONAL,
+    x50 BOOLEAN OPTIONAL,
+    x51 BOOLEAN OPTIONAL,
+    x52 BOOLEAN OPTIONAL,
+    x53 BOOLEAN OPTIONAL,
+    x54 BOOLEAN OPTIONAL,
+    x55 BOOLEAN OPTIONAL,
+    x56 BOOLEAN OPTIONAL,
+    x57 BOOLEAN OPTIONAL,
+    x58 BOOLEAN OPTIONAL,
+    x59 BOOLEAN OPTIONAL,
+    x60 BOOLEAN OPTIONAL,
+    x61 BOOLEAN OPTIONAL,
+    x62 BOOLEAN OPTIONAL,
+    x63 BOOLEAN OPTIONAL,
+    x64 BOOLEAN OPTIONAL,
+    x65 BOOLEAN OPTIONAL,
+    x66 BOOLEAN OPTIONAL,
+    x67 BOOLEAN OPTIONAL,
+    x68 BOOLEAN OPTIONAL,
+    x69 BOOLEAN OPTIONAL,
+    x70 BOOLEAN OPTIONAL
+}
+
+-- SEQUENCE, SET, CHOICE, SEQUENCE OF, SET OF (kind composites)
+
+-- SEQUENCE with OPTIONAL and DEFAULT components (X.691 19.2, 19.5).
+Composites-Opt ::= SEQUENCE {
+    a BOOLEAN OPTIONAL,
+    b INTEGER (0..255) DEFAULT 7,
+    c IA5String (SIZE (1..8)) OPTIONAL,
+    d BOOLEAN DEFAULT TRUE,
+    e INTEGER (0..255)
+}
+
+-- The same bits as Opt with b and d sent, even when equal to their DEFAULT.
+Composites-OptSent ::= SEQUENCE {
+    a BOOLEAN OPTIONAL,
+    b INTEGER (0..255) OPTIONAL,
+    c IA5String (SIZE (1..8)) OPTIONAL,
+    d BOOLEAN OPTIONAL,
+    e INTEGER (0..255)
+}
+
+Composites-Empty ::= SEQUENCE {}
+
+Composites-EmptyExt ::= SEQUENCE {
+    ...
+}
+
+-- Version 1 and version 2 of an extensible SEQUENCE (X.691 19.1, 19.6 to 19.9).
+Composites-Ext1 ::= SEQUENCE {
+    a BOOLEAN,
+    b INTEGER (0..255) OPTIONAL,
+    ...,
+    c INTEGER (0..255) OPTIONAL
+}
+
+-- An addition whose inner encoding is empty: NULL gives the open type 00 (X.691 11.1.3, 11.2).
+Composites-ExtN ::= SEQUENCE {
+    a BOOLEAN,
+    ...,
+    n NULL OPTIONAL
+}
+
+-- A root component after the second extension marker is encoded before the
+-- additions (X.691 19.9 note 2).
+Composites-ExtT1 ::= SEQUENCE {
+    a BOOLEAN,
+    b INTEGER (0..255) OPTIONAL,
+    ...,
+    c INTEGER (0..255) OPTIONAL,
+    ...,
+    t INTEGER (0..255)
+}
+
+Composites-Ext2 ::= SEQUENCE {
+    a BOOLEAN,
+    b INTEGER (0..255) OPTIONAL,
+    ...,
+    c INTEGER (0..255) OPTIONAL,
+    d IA5String (SIZE (1..8)) OPTIONAL,
+    g BOOLEAN OPTIONAL,
+    [[
+        e BOOLEAN,
+        f INTEGER (0..255) OPTIONAL
+    ]]
+}
+
+-- SET (X.691 21): Set1 has context tags in textual order, Set2 sorts to c, b, e, a, d.
+Composites-Set1 ::= SET {
+    a BOOLEAN,
+    b INTEGER (0..255) OPTIONAL,
+    c IA5String (SIZE (1..8))
+}
+
+Composites-Set2 ::= SET {
+    a [2] BOOLEAN,
+    b [0] INTEGER (0..255),
+    c [APPLICATION 1] IA5String (SIZE (1..8)),
+    d [PRIVATE 0] BOOLEAN OPTIONAL,
+    e [1] BOOLEAN DEFAULT FALSE
+}
+
+-- The same components as Set1 and Set2, declared as a SEQUENCE in the sorted order of
+-- X.691 21 (same tags). Their encodings are the expected ones of the SET types.
+Composites-Set1Seq ::= SEQUENCE {
+    a BOOLEAN,
+    b INTEGER (0..255) OPTIONAL,
+    c IA5String (SIZE (1..8))
+}
+
+Composites-Set2Seq ::= SEQUENCE {
+    c [APPLICATION 1] IA5String (SIZE (1..8)),
+    b [0] INTEGER (0..255),
+    e [1] BOOLEAN DEFAULT FALSE,
+    a [2] BOOLEAN,
+    d [PRIVATE 0] BOOLEAN OPTIONAL
+}
+
+-- CHOICE (X.691 23).
+Composites-Ch1 ::= CHOICE {
+    a INTEGER (0..255)
+}
+
+Composites-Ch2 ::= CHOICE {
+    a BOOLEAN,
+    b INTEGER (0..255)
+}
+
+Composites-Ch3 ::= CHOICE {
+    a BOOLEAN,
+    b INTEGER (0..255),
+    c IA5String (SIZE (1..8))
+}
+
+Composites-Ch5 ::= CHOICE {
+    a BOOLEAN,
+    b INTEGER (0..255),
+    c IA5String (SIZE (1..8)),
+    d BOOLEAN,
+    e INTEGER (0..255)
+}
+
+Composites-ChExt1 ::= CHOICE {
+    a BOOLEAN,
+    b INTEGER (0..255),
+    ...,
+    c IA5String (SIZE (1..8))
+}
+
+Composites-ChExt2 ::= CHOICE {
+    a BOOLEAN,
+    b INTEGER (0..255),
+    ...,
+    c IA5String (SIZE (1..8)),
+    d BOOLEAN,
+    e INTEGER (0..255)
+}
+
+-- SEQUENCE OF and SET OF (X.691 20, 22).
+Composites-SeqNo   ::= SEQUENCE OF INTEGER (0..255)
+Composites-Seq3    ::= SEQUENCE (SIZE (3)) OF INTEGER (0..255)
+Composites-Seq10   ::= SEQUENCE (SIZE (0..10)) OF INTEGER (0..255)
+Composites-SeqExt  ::= SEQUENCE (SIZE (1..5, ...)) OF INTEGER (0..255)
+Composites-Seq70k  ::= SEQUENCE (SIZE (0..70000)) OF INTEGER (0..255)
+Composites-SeqBool ::= SEQUENCE OF BOOLEAN
+Composites-SetNo   ::= SET OF INTEGER (0..255)
+Composites-SetExt  ::= SET (SIZE (1..5, ...)) OF INTEGER (0..255)
+
+-- EMBEDDED PDV, EXTERNAL, CHARACTER STRING (kind pdvs)
+
+-- Oracle types of Phase 8: EMBEDDED PDV (X.691 28), EXTERNAL (29), CHARACTER STRING (31).
+-- Pdv, Ext and Cs are the built-in types. PdvSeq, ExtSeq and CsSeq are the types that
+-- the clauses name; the vectors take their answers where a built-in type of an oracle
+-- does not follow the clause (generator pdvs.py states where).
+
+-- The CLASS TYPE-IDENTIFIER of X.681 Annex A, written out so that both oracles read
+-- the same text.
+PDVS-TYPE-ID ::= CLASS {
+    &id OBJECT IDENTIFIER UNIQUE,
+    &Type
+} WITH SYNTAX {&Type IDENTIFIED BY &id}
+
+-- The identification of X.680 36.5, 37.5 and 44.5.
+Pdvs-Ident ::= CHOICE {
+    syntaxes SEQUENCE {
+        abstract OBJECT IDENTIFIER,
+        transfer OBJECT IDENTIFIER
+    },
+    syntax OBJECT IDENTIFIER,
+    presentation-context-id INTEGER,
+    context-negotiation SEQUENCE {
+        presentation-context-id INTEGER,
+        transfer-syntax OBJECT IDENTIFIER
+    },
+    transfer-syntax OBJECT IDENTIFIER,
+    fixed NULL
+}
+
+Pdvs-Pdv ::= EMBEDDED PDV
+
+-- X.691 28.3: the type of X.680 36.5 without data-value-descriptor, so without a
+-- preamble.
+Pdvs-PdvSeq ::= SEQUENCE {
+    identification Pdvs-Ident,
+    data-value OCTET STRING
+}
+
+Pdvs-Cs ::= CHARACTER STRING
+
+-- X.691 31.3: the type of X.680 44.5 without data-value-descriptor.
+Pdvs-CsSeq ::= SEQUENCE {
+    identification Pdvs-Ident,
+    string-value OCTET STRING
+}
+
+Pdvs-Ext ::= EXTERNAL
+
+-- X.691 29.1.
+Pdvs-ExtSeq ::= [UNIVERSAL 8] IMPLICIT SEQUENCE {
+    direct-reference OBJECT IDENTIFIER OPTIONAL,
+    indirect-reference INTEGER OPTIONAL,
+    data-value-descriptor ObjectDescriptor OPTIONAL,
+    encoding CHOICE {
+        single-ASN1-type [0] PDVS-TYPE-ID.&Type,
+        octet-aligned [1] IMPLICIT OCTET STRING,
+        arbitrary [2] IMPLICIT BIT STRING
+    }
+}
+
+-- X.681 C.7: the associated type of INSTANCE OF, EXPLICIT tags.
+Pdvs-InstSeq ::= SEQUENCE {
+    type-id PDVS-TYPE-ID.&id,
+    value [0] EXPLICIT PDVS-TYPE-ID.&Type
+}
+
+-- X.691 28.2 and 31.2: with the identification fixed to one alternative, only the data
+-- value is sent, as an OCTET STRING.
+Pdvs-PdvFixed   ::= EMBEDDED PDV (WITH COMPONENTS {..., identification (WITH COMPONENTS {..., fixed PRESENT})})
+Pdvs-PdvSyntax  ::= EMBEDDED PDV (WITH COMPONENTS {..., identification (WITH COMPONENTS {..., syntax PRESENT})})
+Pdvs-CsFixed    ::= CHARACTER STRING (WITH COMPONENTS {..., identification (WITH COMPONENTS {..., fixed PRESENT})})
+Pdvs-Predefined ::= OCTET STRING
+
+-- A small type whose complete encoding is the payload of a single-ASN1-type or of
+-- an INSTANCE OF value (X.691 11.2).
+Pdvs-Small ::= SEQUENCE {
+    a BOOLEAN,
+    b INTEGER (0..255)
+}
+
+-- Time types (kind times)
+
+-- Oracle types of Phase 9: the time types of X.680 38 and their PER encoding, X.691 32.
+-- Neither oracle encodes the time types themselves, so each one is asked for the type that
+-- X.691 32.1.2 names (shall be encoded as if the type ... had been replaced by the type
+-- specified in ... column 3 of Table 2), and the unconstrained TIME for the MIXED-ENCODING of
+-- 32.11. Lines from the 32.2 header down to the last encoding type are the text of
+-- specs/builtin.asn1 (clause 32 of X.691), copied here.
+-- The probe types are at the end of the module.
+-- Three spellings differ from the text of the clause, and each one is the same type (OTP
+-- stops, or never ends, on the clause spelling): INTEGER for INTEGER with the range MIN to MAX;
+-- INTEGER for the remainder of YEAR-ENCODING (the range MIN to 1748 or 2277 to MAX has the
+-- bounds MIN and MAX, so X.691 13.2.4 applies: no bound restricts the value); and SEQUENCE of date and time for
+-- DATE-TIME-ENCODING with two parameters inside the interval types of the rows 36, 40, 43, 46,
+-- 50 and 53.
+--
+-- Revisions:
+--   - 2026-10-19 15:43: initial creation
+
+-- 32.2: encoding subtypes with the Basic=Date property setting (14 types).
+
+Times-CENTURY-ENCODING ::= INTEGER (0..99) -- 7 bits
+-- first two digits of the year component
+
+Times-ANY-CENTURY-ENCODING ::= INTEGER
+-- year component, ignoring the last two digits
+
+Times-YEAR-ENCODING ::= CHOICE { -- 2 bits for choice determinant
+    immediate   INTEGER (2005..2020), -- 4 bits
+    near-future INTEGER (2021..2276), -- 8 bits
+    near-past   INTEGER (1749..2004), -- 8 bits
+    remainder   INTEGER
+}
+-- optimized to provide a 6-bit or 10-bit encoding in common cases
+
+Times-ANY-YEAR-ENCODING ::= INTEGER
+
+Times-YEAR-MONTH-ENCODING ::= SEQUENCE {
+    year  Times-YEAR-ENCODING,
+    month INTEGER (1..12) -- 4 bits
+}
+-- optimized to provide a 10-bit or 14-bit encoding in common cases
+
+Times-ANY-YEAR-MONTH-ENCODING ::= SEQUENCE {
+    year  Times-ANY-YEAR-ENCODING,
+    month INTEGER (1..12)
+}
+
+Times-DATE-ENCODING ::= SEQUENCE {
+    year  Times-YEAR-ENCODING,
+    month INTEGER (1..12), -- 4 bits
+    day   INTEGER (1..31)  -- 5 bits
+}
+-- optimized to provide a 15-bit or 19-bit encoding in common cases
+
+Times-ANY-DATE-ENCODING ::= SEQUENCE {
+    year  Times-ANY-YEAR-ENCODING,
+    month INTEGER (1..12),
+    day   INTEGER (1..31)
+}
+
+Times-YEAR-DAY-ENCODING ::= SEQUENCE {
+    year Times-YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+Times-ANY-YEAR-DAY-ENCODING ::= SEQUENCE {
+    year Times-ANY-YEAR-ENCODING,
+    day  INTEGER (1..366)
+}
+
+Times-YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year Times-YEAR-ENCODING,
+    week INTEGER (1..53) -- 6 bits
+}
+-- optimized to provide a 12-bit or 16-bit encoding in common cases
+
+Times-ANY-YEAR-WEEK-ENCODING ::= SEQUENCE {
+    year Times-ANY-YEAR-ENCODING,
+    week INTEGER (1..53)
+}
+
+Times-YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year Times-YEAR-ENCODING,
+    week INTEGER (1..53), -- 6 bits
+    day  INTEGER (1..7)   -- 3 bits
+}
+-- optimized to provide a 15-bit or 19-bit encoding in common cases
+
+Times-ANY-YEAR-WEEK-DAY-ENCODING ::= SEQUENCE {
+    year Times-ANY-YEAR-ENCODING,
+    week INTEGER (1..53),
+    day  INTEGER (1..7)
+}
+
+-- 32.3: encoding subtypes with the Basic=Time property setting (18 types).
+-- TIME-DIFFERENCE is a shared helper used by every -AND-DIFF variant below.
+
+Times-TIME-DIFFERENCE ::= SEQUENCE {
+    sign    ENUMERATED { positive, negative },
+    hours   INTEGER (0..15),
+    minutes INTEGER (1..59) OPTIONAL -- omitted if zero
+}
+
+Times-HOURS-ENCODING ::= INTEGER (0..24) -- 5 bits
+
+Times-HOURS-UTC-ENCODING ::= INTEGER (0..24) -- 5 bits
+
+Times-HOURS-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24),
+    time-difference Times-TIME-DIFFERENCE
+}
+
+Times-MINUTES-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59)  -- 5 bits
+}
+-- optimized to provide a 10-bit encoding
+
+Times-MINUTES-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59)  -- 5 bits
+}
+-- optimized to provide a 10-bit encoding
+
+Times-MINUTES-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59)
+    },
+    time-difference Times-TIME-DIFFERENCE
+}
+
+Times-TIME-OF-DAY-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59), -- 5 bits
+    seconds INTEGER (0..60)  -- 5 bits
+}
+-- optimized to provide a 15-bit encoding
+
+Times-TIME-OF-DAY-UTC-ENCODING ::= SEQUENCE {
+    hours   INTEGER (0..24), -- 5 bits
+    minutes INTEGER (0..59), -- 5 bits
+    seconds INTEGER (0..60)  -- 5 bits
+}
+-- optimized to provide a 15-bit encoding
+
+Times-TIME-OF-DAY-AND-DIFF-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours   INTEGER (0..24),
+        minutes INTEGER (0..59),
+        seconds INTEGER (0..60)
+    },
+    time-difference Times-TIME-DIFFERENCE
+}
+
+Times-HOURS-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 16-bit encoding for up to 3-digit accuracy
+
+Times-HOURS-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 16-bit encoding for up to 3-digit accuracy
+
+Times-HOURS-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-hours     INTEGER (0..24), -- 5 bits
+    fraction        INTEGER (0..999, ..., 1000..MAX), -- 11 bits for up to 3-digit accuracy
+    time-difference Times-TIME-DIFFERENCE
+}
+
+Times-MINUTES-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 21-bit encoding for up to 3-digit accuracy
+
+Times-MINUTES-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 21-bit encoding for up to 3-digit accuracy
+
+Times-MINUTES-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference Times-TIME-DIFFERENCE
+}
+
+Times-TIME-OF-DAY-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    seconds  INTEGER (0..60), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 26-bit encoding
+
+Times-TIME-OF-DAY-UTC-AND-FRACTION-ENCODING ::= SEQUENCE {
+    hours    INTEGER (0..24), -- 5 bits
+    minutes  INTEGER (0..59), -- 5 bits
+    seconds  INTEGER (0..60), -- 5 bits
+    fraction INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+}
+-- optimized to provide a 26-bit encoding
+
+Times-TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING ::= SEQUENCE {
+    local-time SEQUENCE {
+        hours    INTEGER (0..24),
+        minutes  INTEGER (0..59),
+        seconds  INTEGER (0..60),
+        fraction INTEGER (0..999, ..., 1000..MAX)
+    },
+    time-difference Times-TIME-DIFFERENCE
+}
+
+-- 32.4: encoding subtypes with the Basic=Date-Time property setting.
+-- Date-Type/Time-Type are instantiated with the row-specific types from
+-- 32.2/32.3 that match the abstract value's actual property settings.
+
+Times-DATE-TIME-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    date Date-Type,
+    time Time-Type
+}
+-- optimized to provide a 32-bit encoding in common cases
+
+-- 32.5: encoding subtypes with the Basic=Interval Interval-type=SE
+-- property setting (start/end interval).
+
+Times-START-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    start Date-Type,
+    end   Date-Type
+}
+
+Times-START-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    start Time-Type,
+    end   Time-Type
+}
+
+Times-START-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    start SEQUENCE { date Date-Type, time Time-Type },
+    end   SEQUENCE { date Date-Type, time Time-Type }
+}
+
+-- 32.6: encoding subtypes with the Basic=Interval Interval-type=D property
+-- setting (duration). The weeks component is present iff years/months/days/
+-- hours/minutes/seconds are all absent; a zero-valued time element is
+-- present only if it is the least-significant one, or has a fractional
+-- part, keeping the encoding canonical.
+
+Times-DURATION-INTERVAL-ENCODING ::= SEQUENCE { -- 8 bits for optionality
+    years   INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 years
+    months  INTEGER (0..15, ..., 16..MAX) OPTIONAL, -- 4 bits for up to 15 months
+    weeks   INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 weeks
+    days    INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 days
+    hours   INTEGER (0..31, ..., 32..MAX) OPTIONAL, -- 5 bits for up to 31 hours
+    minutes INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 minutes
+    seconds INTEGER (0..63, ..., 64..MAX) OPTIONAL, -- 6 bits for up to 63 seconds
+    fractional-part SEQUENCE {
+        number-of-digits INTEGER (1..3, ..., 4..MAX),  -- 3 bits for up to 3-digit accuracy
+        fractional-value INTEGER (0..999, ..., 1000..MAX) -- 11 bits for up to 3-digit accuracy
+    } OPTIONAL
+}
+
+-- 32.7: encoding subtypes with the Basic=Interval Interval-type=SD or
+-- Basic=Interval Interval-type=DE property setting (start+duration, or
+-- duration+end).
+
+Times-START-DATE-DURATION-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    start    Date-Type,
+    duration Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-START-TIME-DURATION-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    start    Time-Type,
+    duration Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-START-DATE-TIME-DURATION-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    start    SEQUENCE { date Date-Type, time Time-Type },
+    duration Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-DURATION-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    duration Times-DURATION-INTERVAL-ENCODING,
+    end      Date-Type
+}
+
+Times-DURATION-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    duration Times-DURATION-INTERVAL-ENCODING,
+    end      Time-Type
+}
+
+Times-DURATION-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    duration Times-DURATION-INTERVAL-ENCODING,
+    end      SEQUENCE { date Date-Type, time Time-Type }
+}
+
+-- 32.8: encoding subtypes with the Basic=Rec-Interval Interval-type=SE
+-- property setting (recurring start/end interval). recurrence is absent
+-- for an unlimited number of recurrences, else the recurrence count.
+
+Times-REC-START-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Date-Type,
+    end        Date-Type
+}
+
+Times-REC-START-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Time-Type,
+    end        Time-Type
+}
+
+Times-REC-START-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      SEQUENCE { date Date-Type, time Time-Type },
+    end        SEQUENCE { date Date-Type, time Time-Type }
+}
+
+-- 32.9: encoding subtypes with the Basic=Rec-Interval Interval-type=D
+-- property setting (recurring duration).
+
+Times-REC-DURATION-INTERVAL-ENCODING ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   Times-DURATION-INTERVAL-ENCODING
+}
+
+-- 32.10: encoding subtypes with the Basic=Rec-Interval Interval-type=SD
+-- or Basic=Rec-Interval Interval-type=DE property setting (recurring
+-- start+duration, or duration+end).
+
+Times-REC-START-DATE-DURATION-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Date-Type,
+    duration   Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-REC-START-TIME-DURATION-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      Time-Type,
+    duration   Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-REC-START-DATE-TIME-DURATION-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    start      SEQUENCE { date Date-Type, time Time-Type },
+    duration   Times-DURATION-INTERVAL-ENCODING
+}
+
+Times-REC-DURATION-END-DATE-INTERVAL-ENCODING {Date-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   Times-DURATION-INTERVAL-ENCODING,
+    end        Date-Type
+}
+
+Times-REC-DURATION-END-TIME-INTERVAL-ENCODING {Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   Times-DURATION-INTERVAL-ENCODING,
+    end        Time-Type
+}
+
+Times-REC-DURATION-END-DATE-TIME-INTERVAL-ENCODING {Date-Type, Time-Type} ::= SEQUENCE {
+    recurrence INTEGER OPTIONAL,
+    duration   Times-DURATION-INTERVAL-ENCODING,
+    end        SEQUENCE { date Date-Type, time Time-Type }
+}
+
+-- 32.11: encoding subtypes with mixed settings of the Basic property (the
+-- unconstrained TIME type, or any subset spanning more than one row of
+-- Table 2). DATE-TYPE/TIME-TYPE select the row-specific date/time-of-day
+-- encoding that matches the abstract value's actual property settings;
+-- MIXED-ENCODING is the top-level type used whenever a TIME value doesn't
+-- fall entirely within one single row of Table 2.
+
+Times-FRACTIONAL-TIME {Time-Type} ::= SEQUENCE {
+    number-of-digits INTEGER (1..MAX),
+    time-value       Time-Type
+}
+
+Times-DATE-TYPE ::= CHOICE {
+    row-1  Times-CENTURY-ENCODING,
+    row-2  Times-ANY-CENTURY-ENCODING,
+    row-3  Times-YEAR-ENCODING,
+    row-4  Times-ANY-YEAR-ENCODING,
+    row-5  Times-YEAR-MONTH-ENCODING,
+    row-6  Times-ANY-YEAR-MONTH-ENCODING,
+    row-7  Times-DATE-ENCODING,
+    row-8  Times-ANY-DATE-ENCODING,
+    row-9  Times-YEAR-DAY-ENCODING,
+    row-10 Times-ANY-YEAR-DAY-ENCODING,
+    row-11 Times-YEAR-WEEK-ENCODING,
+    row-12 Times-ANY-YEAR-WEEK-ENCODING,
+    row-13 Times-YEAR-WEEK-DAY-ENCODING,
+    row-14 Times-ANY-YEAR-WEEK-DAY-ENCODING
+}
+
+Times-TIME-TYPE ::= SEQUENCE {
+    number-of-digits INTEGER (1..MAX) OPTIONAL, -- present iff time-type is row-24..row-32
+    time-type CHOICE {
+        row-15 Times-HOURS-ENCODING,
+        row-16 Times-HOURS-UTC-ENCODING,
+        row-17 Times-HOURS-AND-DIFF-ENCODING,
+        row-18 Times-MINUTES-ENCODING,
+        row-19 Times-MINUTES-UTC-ENCODING,
+        row-20 Times-MINUTES-AND-DIFF-ENCODING,
+        row-21 Times-TIME-OF-DAY-ENCODING,
+        row-22 Times-TIME-OF-DAY-UTC-ENCODING,
+        row-23 Times-TIME-OF-DAY-AND-DIFF-ENCODING,
+        row-24 Times-HOURS-AND-FRACTION-ENCODING,
+        row-25 Times-HOURS-UTC-AND-FRACTION-ENCODING,
+        row-26 Times-HOURS-AND-DIFF-AND-FRACTION-ENCODING,
+        row-27 Times-MINUTES-AND-FRACTION-ENCODING,
+        row-28 Times-MINUTES-UTC-AND-FRACTION-ENCODING,
+        row-29 Times-MINUTES-AND-DIFF-AND-FRACTION-ENCODING,
+        row-30 Times-TIME-OF-DAY-AND-FRACTION-ENCODING,
+        row-31 Times-TIME-OF-DAY-UTC-AND-FRACTION-ENCODING,
+        row-32 Times-TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING
+    }
+}
+
+Times-MIXED-ENCODING ::= CHOICE {
+    row-1  Times-CENTURY-ENCODING,
+    row-2  Times-ANY-CENTURY-ENCODING,
+    row-3  Times-YEAR-ENCODING,
+    row-4  Times-ANY-YEAR-ENCODING,
+    row-5  Times-YEAR-MONTH-ENCODING,
+    row-6  Times-ANY-YEAR-MONTH-ENCODING,
+    row-7  Times-DATE-ENCODING,
+    row-8  Times-ANY-DATE-ENCODING,
+    row-9  Times-YEAR-DAY-ENCODING,
+    row-10 Times-ANY-YEAR-DAY-ENCODING,
+    row-11 Times-YEAR-WEEK-ENCODING,
+    row-12 Times-ANY-YEAR-WEEK-ENCODING,
+    row-13 Times-YEAR-WEEK-DAY-ENCODING,
+    row-14 Times-ANY-YEAR-WEEK-DAY-ENCODING,
+    row-15 Times-HOURS-ENCODING,
+    row-16 Times-HOURS-UTC-ENCODING,
+    row-17 Times-HOURS-AND-DIFF-ENCODING,
+    row-18 Times-MINUTES-ENCODING,
+    row-19 Times-MINUTES-UTC-ENCODING,
+    row-20 Times-MINUTES-AND-DIFF-ENCODING,
+    row-21 Times-TIME-OF-DAY-ENCODING,
+    row-22 Times-TIME-OF-DAY-UTC-ENCODING,
+    row-23 Times-TIME-OF-DAY-AND-DIFF-ENCODING,
+    row-24 Times-FRACTIONAL-TIME {Times-HOURS-AND-FRACTION-ENCODING},
+    row-25 Times-FRACTIONAL-TIME {Times-HOURS-UTC-AND-FRACTION-ENCODING},
+    row-26 Times-FRACTIONAL-TIME {Times-HOURS-AND-DIFF-AND-FRACTION-ENCODING},
+    row-27 Times-FRACTIONAL-TIME {Times-MINUTES-AND-FRACTION-ENCODING},
+    row-28 Times-FRACTIONAL-TIME {Times-MINUTES-UTC-AND-FRACTION-ENCODING},
+    row-29 Times-FRACTIONAL-TIME {Times-MINUTES-AND-DIFF-AND-FRACTION-ENCODING},
+    row-30 Times-FRACTIONAL-TIME {Times-TIME-OF-DAY-AND-FRACTION-ENCODING},
+    row-31 Times-FRACTIONAL-TIME {Times-TIME-OF-DAY-UTC-AND-FRACTION-ENCODING},
+    row-32 Times-FRACTIONAL-TIME {Times-TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING},
+    row-33 Times-DATE-TIME-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-34 Times-START-END-DATE-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-35 Times-START-END-TIME-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-36 Times-START-END-DATE-TIME-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-37 Times-DURATION-INTERVAL-ENCODING,
+    row-38 Times-START-DATE-DURATION-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-39 Times-START-TIME-DURATION-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-40 Times-START-DATE-TIME-DURATION-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-41 Times-DURATION-END-DATE-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-42 Times-DURATION-END-TIME-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-43 Times-DURATION-END-DATE-TIME-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-44 Times-REC-START-END-DATE-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-45 Times-REC-START-END-TIME-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-46 Times-REC-START-END-DATE-TIME-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-47 Times-REC-DURATION-INTERVAL-ENCODING,
+    row-48 Times-REC-START-DATE-DURATION-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-49 Times-REC-START-TIME-DURATION-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-50 Times-REC-START-DATE-TIME-DURATION-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE},
+    row-51 Times-REC-DURATION-END-DATE-INTERVAL-ENCODING {Times-DATE-TYPE},
+    row-52 Times-REC-DURATION-END-TIME-INTERVAL-ENCODING {Times-TIME-TYPE},
+    row-53 Times-REC-DURATION-END-DATE-TIME-INTERVAL-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE}
+}
+
+
+-- Probe types. Each one is a row of Table 2 with its parameters instantiated as the clause says.
+
+-- Row 7, DATE (X.680 38.4.1: Date=YMD Year=Basic).
+Times-DateProbe ::= Times-DATE-ENCODING
+
+-- Row 21, TIME-OF-DAY (X.680 38.4.2: Time=HMS Local-or-UTC=L).
+Times-TimeOfDayProbe ::= Times-TIME-OF-DAY-ENCODING
+
+-- Row 33 with rows 7 and 21, DATE-TIME (X.680 38.4.3; X.691 32.4.2).
+Times-DateTimeProbe ::= Times-DATE-TIME-ENCODING {Times-DATE-ENCODING, Times-TIME-OF-DAY-ENCODING}
+
+-- Row 37, DURATION (X.680 38.4.4).
+Times-DurationProbe ::= Times-DURATION-INTERVAL-ENCODING
+
+-- The unconstrained TIME (X.691 32.1.4 note 2): the MIXED-ENCODING of 32.11.5.
+Times-MixedProbe ::= Times-MIXED-ENCODING
+
+-- The parts of the MIXED-ENCODING, asked alone: the date types, the time types, the
+-- fractional time, the YEAR-ENCODING.
+Times-DateTypeProbe      ::= Times-DATE-TYPE
+Times-TimeTypeProbe      ::= Times-TIME-TYPE
+Times-YearProbe          ::= Times-YEAR-ENCODING
+Times-AnyDateProbe       ::= Times-ANY-DATE-ENCODING
+Times-TimeDiffProbe      ::= Times-TIME-DIFFERENCE
+Times-TodUtcProbe        ::= Times-TIME-OF-DAY-UTC-ENCODING
+Times-TodDiffProbe       ::= Times-TIME-OF-DAY-AND-DIFF-ENCODING
+Times-TodFracUtcProbe    ::= Times-TIME-OF-DAY-UTC-AND-FRACTION-ENCODING
+Times-TodFracDiffProbe   ::= Times-TIME-OF-DAY-AND-DIFF-AND-FRACTION-ENCODING
+Times-DateTimeMixedProbe ::= Times-DATE-TIME-ENCODING {Times-DATE-TYPE, Times-TIME-TYPE}
+
+
+-- NumericString after k BOOLEAN bits (k = 0 to 7), so the characters start at every bit
+-- offset. U: no SIZE; F-n: SIZE (n); R-n: SIZE (0..n+7). Read by testing/numeric_offset.py.
+
+Numoff-0-U      ::= NumericString
+Numoff-0-F-0    ::= NumericString (SIZE (0))
+Numoff-0-F-1    ::= NumericString (SIZE (1))
+Numoff-0-F-2    ::= NumericString (SIZE (2))
+Numoff-0-F-3    ::= NumericString (SIZE (3))
+Numoff-0-F-4    ::= NumericString (SIZE (4))
+Numoff-0-F-7    ::= NumericString (SIZE (7))
+Numoff-0-F-8    ::= NumericString (SIZE (8))
+Numoff-0-F-15   ::= NumericString (SIZE (15))
+Numoff-0-F-16   ::= NumericString (SIZE (16))
+Numoff-0-F-17   ::= NumericString (SIZE (17))
+Numoff-0-F-31   ::= NumericString (SIZE (31))
+Numoff-0-F-32   ::= NumericString (SIZE (32))
+Numoff-0-F-33   ::= NumericString (SIZE (33))
+Numoff-0-F-47   ::= NumericString (SIZE (47))
+Numoff-0-F-48   ::= NumericString (SIZE (48))
+Numoff-0-F-63   ::= NumericString (SIZE (63))
+Numoff-0-F-64   ::= NumericString (SIZE (64))
+Numoff-0-F-65   ::= NumericString (SIZE (65))
+Numoff-0-F-100  ::= NumericString (SIZE (100))
+Numoff-0-F-129  ::= NumericString (SIZE (129))
+Numoff-0-F-256  ::= NumericString (SIZE (256))
+Numoff-0-F-257  ::= NumericString (SIZE (257))
+Numoff-0-F-300  ::= NumericString (SIZE (300))
+Numoff-0-F-1000 ::= NumericString (SIZE (1000))
+Numoff-0-R-0    ::= NumericString (SIZE (0..7))
+Numoff-0-R-1    ::= NumericString (SIZE (0..8))
+Numoff-0-R-2    ::= NumericString (SIZE (0..9))
+Numoff-0-R-3    ::= NumericString (SIZE (0..10))
+Numoff-0-R-4    ::= NumericString (SIZE (0..11))
+Numoff-0-R-7    ::= NumericString (SIZE (0..14))
+Numoff-0-R-8    ::= NumericString (SIZE (0..15))
+Numoff-0-R-15   ::= NumericString (SIZE (0..22))
+Numoff-0-R-16   ::= NumericString (SIZE (0..23))
+Numoff-0-R-17   ::= NumericString (SIZE (0..24))
+Numoff-0-R-31   ::= NumericString (SIZE (0..38))
+Numoff-0-R-32   ::= NumericString (SIZE (0..39))
+Numoff-0-R-33   ::= NumericString (SIZE (0..40))
+Numoff-0-R-47   ::= NumericString (SIZE (0..54))
+Numoff-0-R-48   ::= NumericString (SIZE (0..55))
+Numoff-0-R-63   ::= NumericString (SIZE (0..70))
+Numoff-0-R-64   ::= NumericString (SIZE (0..71))
+Numoff-0-R-65   ::= NumericString (SIZE (0..72))
+Numoff-0-R-100  ::= NumericString (SIZE (0..107))
+Numoff-0-R-129  ::= NumericString (SIZE (0..136))
+Numoff-0-R-256  ::= NumericString (SIZE (0..263))
+Numoff-0-R-257  ::= NumericString (SIZE (0..264))
+Numoff-0-R-300  ::= NumericString (SIZE (0..307))
+Numoff-0-R-1000 ::= NumericString (SIZE (0..1007))
+Numoff-1-U      ::= SEQUENCE { b1 BOOLEAN, s NumericString }
+Numoff-1-F-0    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-1-F-1    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-1-F-2    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-1-F-3    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-1-F-4    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-1-F-7    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-1-F-8    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-1-F-15   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-1-F-16   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-1-F-17   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-1-F-31   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-1-F-32   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-1-F-33   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-1-F-47   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-1-F-48   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-1-F-63   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-1-F-64   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-1-F-65   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-1-F-100  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-1-F-129  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-1-F-256  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-1-F-257  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-1-F-300  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-1-F-1000 ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-1-R-0    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-1-R-1    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-1-R-2    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-1-R-3    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-1-R-4    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-1-R-7    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-1-R-8    ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-1-R-15   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-1-R-16   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-1-R-17   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-1-R-31   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-1-R-32   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-1-R-33   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-1-R-47   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-1-R-48   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-1-R-63   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-1-R-64   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-1-R-65   ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-1-R-100  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-1-R-129  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-1-R-256  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-1-R-257  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-1-R-300  ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-1-R-1000 ::= SEQUENCE { b1 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-2-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString }
+Numoff-2-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-2-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-2-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-2-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-2-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-2-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-2-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-2-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-2-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-2-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-2-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-2-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-2-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-2-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-2-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-2-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-2-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-2-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-2-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-2-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-2-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-2-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-2-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-2-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-2-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-2-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-2-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-2-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-2-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-2-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-2-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-2-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-2-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-2-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-2-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-2-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-2-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-2-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-2-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-2-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-2-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-2-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-2-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-2-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-2-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-2-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-2-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-2-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-3-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString }
+Numoff-3-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-3-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-3-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-3-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-3-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-3-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-3-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-3-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-3-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-3-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-3-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-3-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-3-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-3-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-3-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-3-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-3-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-3-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-3-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-3-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-3-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-3-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-3-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-3-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-3-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-3-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-3-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-3-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-3-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-3-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-3-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-3-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-3-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-3-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-3-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-3-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-3-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-3-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-3-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-3-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-3-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-3-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-3-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-3-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-3-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-3-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-3-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-3-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-4-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString }
+Numoff-4-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-4-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-4-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-4-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-4-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-4-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-4-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-4-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-4-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-4-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-4-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-4-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-4-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-4-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-4-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-4-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-4-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-4-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-4-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-4-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-4-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-4-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-4-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-4-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-4-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-4-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-4-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-4-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-4-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-4-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-4-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-4-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-4-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-4-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-4-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-4-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-4-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-4-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-4-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-4-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-4-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-4-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-4-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-4-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-4-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-4-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-4-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-4-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-5-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString }
+Numoff-5-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-5-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-5-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-5-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-5-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-5-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-5-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-5-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-5-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-5-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-5-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-5-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-5-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-5-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-5-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-5-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-5-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-5-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-5-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-5-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-5-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-5-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-5-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-5-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-5-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-5-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-5-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-5-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-5-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-5-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-5-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-5-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-5-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-5-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-5-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-5-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-5-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-5-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-5-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-5-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-5-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-5-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-5-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-5-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-5-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-5-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-5-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-5-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-6-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString }
+Numoff-6-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-6-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-6-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-6-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-6-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-6-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-6-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-6-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-6-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-6-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-6-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-6-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-6-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-6-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-6-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-6-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-6-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-6-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-6-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-6-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-6-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-6-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-6-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-6-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-6-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-6-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-6-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-6-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-6-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-6-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-6-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-6-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-6-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-6-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-6-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-6-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-6-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-6-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-6-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-6-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-6-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-6-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-6-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-6-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-6-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-6-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-6-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-6-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, s NumericString (SIZE (0..1007)) }
+Numoff-7-U      ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString }
+Numoff-7-F-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0)) }
+Numoff-7-F-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (1)) }
+Numoff-7-F-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (2)) }
+Numoff-7-F-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (3)) }
+Numoff-7-F-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (4)) }
+Numoff-7-F-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (7)) }
+Numoff-7-F-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (8)) }
+Numoff-7-F-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (15)) }
+Numoff-7-F-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (16)) }
+Numoff-7-F-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (17)) }
+Numoff-7-F-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (31)) }
+Numoff-7-F-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (32)) }
+Numoff-7-F-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (33)) }
+Numoff-7-F-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (47)) }
+Numoff-7-F-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (48)) }
+Numoff-7-F-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (63)) }
+Numoff-7-F-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (64)) }
+Numoff-7-F-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (65)) }
+Numoff-7-F-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (100)) }
+Numoff-7-F-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (129)) }
+Numoff-7-F-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (256)) }
+Numoff-7-F-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (257)) }
+Numoff-7-F-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (300)) }
+Numoff-7-F-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (1000)) }
+Numoff-7-R-0    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..7)) }
+Numoff-7-R-1    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..8)) }
+Numoff-7-R-2    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..9)) }
+Numoff-7-R-3    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..10)) }
+Numoff-7-R-4    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..11)) }
+Numoff-7-R-7    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..14)) }
+Numoff-7-R-8    ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..15)) }
+Numoff-7-R-15   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..22)) }
+Numoff-7-R-16   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..23)) }
+Numoff-7-R-17   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..24)) }
+Numoff-7-R-31   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..38)) }
+Numoff-7-R-32   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..39)) }
+Numoff-7-R-33   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..40)) }
+Numoff-7-R-47   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..54)) }
+Numoff-7-R-48   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..55)) }
+Numoff-7-R-63   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..70)) }
+Numoff-7-R-64   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..71)) }
+Numoff-7-R-65   ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..72)) }
+Numoff-7-R-100  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..107)) }
+Numoff-7-R-129  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..136)) }
+Numoff-7-R-256  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..263)) }
+Numoff-7-R-257  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..264)) }
+Numoff-7-R-300  ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..307)) }
+Numoff-7-R-1000 ::= SEQUENCE { b1 BOOLEAN, b2 BOOLEAN, b3 BOOLEAN, b4 BOOLEAN, b5 BOOLEAN, b6 BOOLEAN, b7 BOOLEAN, s NumericString (SIZE (0..1007)) }
+
+Held-Bits16  ::= SEQUENCE { b BOOLEAN, s BIT STRING (SIZE (16)) }
+Held-Octets2 ::= SEQUENCE { b BOOLEAN, s OCTET STRING (SIZE (2)) }
+Held-From    ::= IA5String (FROM ("ACGT"))
+
+END

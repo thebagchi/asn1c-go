@@ -1,266 +1,106 @@
-#!/usr/bin/env python3
+"""Oracle vectors for EncodeReal and DecodeReal (X.691 15, X.690 8.5).
 
-import json
-import os
+One type, FLOAT-64 of testing.asn1 (REAL). A finite value is given to both oracles as the
+(mantissa, 2, exponent) of its IEEE 754 bits with an odd mantissa, the form of CER and DER
+(X.690 11.3.1), and zero as (0, 10, 0) for pycrate and 0 for OTP (OTP reads {0, 10, 0} as decimal). pycrate 0.8.1 and Erlang/OTP 29.1.1 both encode each
+one in APER and UPER, and the run stops when they differ. The four special values are
+PLUS-INFINITY, MINUS-INFINITY, NOT-A-NUMBER and minus zero (X.690 8.5.9: the contents octet
+0x40, 0x41, 0x42 and 0x43 behind an unconstrained length). pycrate cannot encode any of them,
+OTP encodes the first two (the atoms PLUS-INFINITY and MINUS-INFINITY) and neither of the
+last two, so their octets are those of the clause; the row keeps the clause octets as derived
+and the run stops when OTP answers differently. Output: the key "real" of testing.json; a row
+is {type, input {value}, aper, uper, ...} in the form of harness.py, where value is a number or Inf, -Inf, NaN
+or -0.
+
+Run: testing.py runs this module; see harness.py
+
+Revisions:
+  - 2026-09-22 06:43: initial creation
+  - 2026-10-20 00:13: read the type from testing.asn1 and ask both oracles for every value (the lists of
+    the pycrate run and the OTP run are one list); one row for each value instead of a row for each variant; the special
+    values have a row with the octets of X.690 8.5.9, asked of OTP where it can encode them; return the
+    vectors, write no file
+  - 2026-10-20 00:43: every row keeps the answers of both oracles, py and er for each variant, with
+    expected and derived (see harness.py)
+"""
+
 import struct
-import subprocess
-import sys
-from binascii import hexlify
 
-from pycrate_asn1rt.asnobj_basic import REAL  # type: ignore
+import harness
+
+KIND = "real"
+PREFIX = ""
+
+TYPE = "FLOAT-64"
+
+VALUES = [
+    0.0, 1.0, 2.0, 3.0, -1.0, -2.0, -3.0, 0.5, 0.25, 0.125, 4.0, 8.0, 16.0, 256.0, 1024.0, 65536.0,
+    1.5, 2.5, 3.75, -0.5, -1.5, -3.75, 10.0, 100.0, 1000.0, -10.0, -100.0, 1e-10, 1e-20, -1e-10,
+    10000000000.0, 1e+20, 1e+50, -10000000000.0, -1e+20, 1e+100, 1e+200, 1e-100, 1e-200, -1e+100,
+    3.141592653589793, 2.718281828459045, -3.141592653589793, 1.7976931348623157e+308,
+    -1.7976931348623157e+308, 2.2250738585072014e-308, 5e-324, -5e-324, -2.2250738585072014e-308
+]
+
+# label -> (Erlang term of OTP or None, the length octet and the contents octet of X.690 8.5.9)
+SPECIAL = {
+    "Inf": ("'PLUS-INFINITY'", "0140"),
+    "-Inf": ("'MINUS-INFINITY'", "0141"),
+    "NaN": (None, "0142"),
+    "-0": (None, "0143"),
+}
 
 
-def encode_per(obj, aligned=True):
-    if aligned:
-        return obj.to_aper()
-    else:
-        return obj.to_uper()
-
-
-def float_to_real_tuple(value):
-    """Convert a Python float to pycrate REAL (mantissa, base, exponent) tuple.
-
-    This extracts the IEEE 754 components and normalizes the mantissa to be odd
-    (matching the CER/DER canonical encoding per X.690 11.3.1).
-    """
+def real_tuple(value):
+    """The (mantissa, base, exponent) of a float64 with an odd mantissa (X.690 11.3.1)."""
     if value == 0.0:
-        return (0, 10, 0)  # pycrate expects base 10 for zero
-
-    # Use struct to extract IEEE 754 bits
+        return (0, 10, 0)
     bits = struct.unpack(">Q", struct.pack(">d", value))[0]
     sign = (bits >> 63) & 1
-    bexp = (bits >> 52) & 0x7FF
-    frac = bits & 0xFFFFFFFFFFFFF  # 52-bit mantissa
-
-    if bexp == 0:
-        # Subnormal
-        mantissa = frac
+    biased = (bits >> 52) & 0x7FF
+    fraction = bits & 0xFFFFFFFFFFFFF
+    if biased == 0:
+        mantissa = fraction
         exponent = -1022 - 52
     else:
-        # Normal
-        mantissa = (1 << 52) | frac
-        exponent = bexp - 1023 - 52
-
+        mantissa = (1 << 52) | fraction
+        exponent = biased - 1023 - 52
     if sign == 1:
         mantissa = -mantissa
-
-    # Normalize: make mantissa odd
     while mantissa != 0 and mantissa % 2 == 0:
         mantissa //= 2
         exponent += 1
-
     return (mantissa, 2, exponent)
 
 
-def encode_real(value, aligned=True):
-    """Encode a float64 value as PER REAL. Returns the encoded bytes."""
-    obj = REAL(name="REAL")
-    real_val = float_to_real_tuple(value)
-    obj.set_val(real_val)
-    return encode_per(obj, aligned)
-
-
-def make_real(value):
-    """Build an input dict for a REAL test case."""
-    return {"value": value}
-
-
-def main():
-    results = []
-
-    cases = [
-        # Zero
-        make_real(0.0),
-        # Simple positive integers (exact in float64)
-        make_real(1.0),
-        make_real(2.0),
-        make_real(3.0),
-        make_real(-1.0),
-        make_real(-2.0),
-        make_real(-3.0),
-        # Powers of 2
-        make_real(0.5),
-        make_real(0.25),
-        make_real(0.125),
-        make_real(4.0),
-        make_real(8.0),
-        make_real(16.0),
-        make_real(256.0),
-        make_real(1024.0),
-        make_real(65536.0),
-        # Simple fractions
-        make_real(1.5),
-        make_real(2.5),
-        make_real(3.75),
-        make_real(-0.5),
-        make_real(-1.5),
-        make_real(-3.75),
-        # Common values
-        make_real(10.0),
-        make_real(100.0),
-        make_real(1000.0),
-        make_real(-10.0),
-        make_real(-100.0),
-        # Small values
-        make_real(1e-10),
-        make_real(1e-20),
-        make_real(-1e-10),
-        # Large values
-        make_real(1e10),
-        make_real(1e20),
-        make_real(1e50),
-        make_real(-1e10),
-        make_real(-1e20),
-        # Values requiring multi-byte exponents
-        make_real(1e100),
-        make_real(1e200),
-        make_real(1e-100),
-        make_real(1e-200),
-        make_real(-1e100),
-        # Pi and e approximations
-        make_real(3.141592653589793),
-        make_real(2.718281828459045),
-        make_real(-3.141592653589793),
-        # Max/min normal float64 values
-        make_real(1.7976931348623157e308),
-        make_real(-1.7976931348623157e308),
-        make_real(2.2250738585072014e-308),
-        # Smallest subnormal
-        make_real(5e-324),
-        # Negative edge cases
-        make_real(-5e-324),
-        make_real(-2.2250738585072014e-308),
-    ]
-
-    for case in cases:
-        value = case["value"]
-        for aligned in [True, False]:
-            data = encode_real(value, aligned)
-            output = hexlify(data).decode("ascii")
-            result = {
-                "input": case,
-                "aligned": aligned,
-                "output": output,
-            }
-            results.append(result)
-
-    # Special values: PLUS-INFINITY, MINUS-INFINITY, NOT-A-NUMBER, minus-zero
-    # These are encoded per X.690 8.5.9:
-    #   PLUS-INFINITY:  length=1, content=0x40
-    #   MINUS-INFINITY: length=1, content=0x41
-    #   NOT-A-NUMBER:   length=1, content=0x42
-    #   Minus zero:     length=1, content=0x43
-    # PER wraps this via unconstrained length determinant (EncodeOctetString with no constraints)
-    # pycrate does not support these directly, so we hardcode the encodings.
-    special_cases = [
-        ("Inf", "0140"),
-        ("-Inf", "0141"),
-        ("NaN", "0142"),
-        ("-0", "0143"),
-    ]
-    for label, output in special_cases:
-        for aligned in [True, False]:
-            result = {
-                "input": {"value": label},
-                "aligned": aligned,
-                "output": output,
-            }
-            results.append(result)
-
-    # --- Erlang cross-validation ---
-    # Only non-special, non-zero floats (Erlang can't encode 0, Inf, NaN, -0 via tuples)
-    erlang_cases = [
-        make_real(1.0),
-        make_real(2.0),
-        make_real(3.0),
-        make_real(-1.0),
-        make_real(-2.0),
-        make_real(-3.0),
-        make_real(0.5),
-        make_real(0.25),
-        make_real(0.125),
-        make_real(4.0),
-        make_real(8.0),
-        make_real(16.0),
-        make_real(256.0),
-        make_real(1024.0),
-        make_real(65536.0),
-        make_real(1.5),
-        make_real(2.5),
-        make_real(3.75),
-        make_real(-0.5),
-        make_real(-1.5),
-        make_real(-3.75),
-        make_real(10.0),
-        make_real(100.0),
-        make_real(1000.0),
-        make_real(-10.0),
-        make_real(-100.0),
-        make_real(1e-10),
-        make_real(1e-20),
-        make_real(-1e-10),
-        make_real(1e10),
-        make_real(1e20),
-        make_real(1e50),
-        make_real(-1e10),
-        make_real(-1e20),
-        make_real(1e100),
-        make_real(1e200),
-        make_real(1e-100),
-        make_real(1e-200),
-        make_real(-1e100),
-        make_real(3.141592653589793),
-        make_real(2.718281828459045),
-        make_real(-3.141592653589793),
-        make_real(1.7976931348623157e308),
-        make_real(-1.7976931348623157e308),
-        make_real(2.2250738585072014e-308),
-        make_real(5e-324),
-        # Additional edge cases
-        make_real(-5e-324),
-        make_real(-2.2250738585072014e-308),
-    ]
-    for case in erlang_cases:
-        value = case["value"]
-        for aligned in [True, False]:
-            output = encode_real_erl(value, aligned)
-            results.append(
-                {
-                    "input": case,
-                    "aligned": aligned,
-                    "output": output,
-                }
+def special_rows():
+    """The rows of the special values: octets of the clause, checked against OTP where it answers."""
+    terms = [(TYPE, term) for term, _ in SPECIAL.values() if term is not None]
+    answers = iter(harness.otp_encode(PREFIX, terms))
+    rows = []
+    for label, (term, octets) in SPECIAL.items():
+        row = {"type": TYPE, "input": {"value": label}}
+        er = None
+        if term is not None:
+            er = next(answers)
+            if er != (octets, octets):
+                raise SystemExit(f"OTP gave {er} for {label}, the clause gives {octets}")
+        row.update(
+            harness.compose(
+                ("error not encodable", "error not encodable"),
+                er,
+                clause="X.690 8.5.9: pycrate cannot encode it; OTP, where it can, agrees with the clause",
+                derived={"aper": octets, "uper": octets, "how": "X.690 8.5.9: length 1, contents octet of the special value"},
+                expected={"aper": "derived", "uper": "derived"},
             )
-
-    content = json.dumps(results, indent=2)
-    with open("real.json", "w") as f:
-        f.write(content)
-
-    print(f"Generated {len(results)} real test cases")
-
-
-# ---------------------------------------------------------------------------
-# Erlang-based encoder (calls encode_real.erl for cross-validation).
-# ---------------------------------------------------------------------------
-
-_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
-
-
-def encode_real_erl(value, aligned):
-    script = os.path.join(_ERLANG_DIR_, "encode_real.erl")
-    cmd = ["escript", script, "-value", f"{value:.20e}"]
-    if aligned:
-        cmd.append("-aligned")
-    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(
-            f"Erlang encode error for REAL value={value} aligned={aligned}:",
-            file=sys.stderr,
         )
-        print(result.stderr, file=sys.stderr)
-        sys.exit(1)
-    return result.stdout.strip().lower()
+        rows.append(row)
+    return rows
 
 
-if __name__ == "__main__":
-    main()
+def vectors():
+    module = harness.pycrate_module(PREFIX)
+    rows = [{"type": TYPE, "input": {"value": value}} for value in VALUES]
+    tuples = [real_tuple(value) for value in VALUES]
+    py = harness.pycrate_encode(module, [(TYPE, item) for item in tuples])
+    otp = harness.otp_encode(PREFIX, [(TYPE, "0" if item[0] == 0 else "{%d,%d,%d}" % item) for item in tuples])
+    return harness.merge(rows, py, otp, {}) + special_rows()

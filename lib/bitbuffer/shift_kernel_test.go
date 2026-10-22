@@ -30,15 +30,25 @@ var (
 //   - 2026-09-24 01:40: portable, with the Go kernel a table entry
 func TestRegressionEveryKernelMatchesScalar(t *testing.T) {
 	for _, kernel := range bitbuffer.SHIFT_KERNELS {
-		t.Run(kernel.Name(), func(t *testing.T) {
-			if !kernel.Have() {
-				t.Skipf("%s is not supported on this processor", kernel.Name())
-			}
+		t.Run(
+			kernel.Name(),
+			func(t *testing.T) {
+				if !kernel.Have() {
+					t.Skipf(
+						"%s is not supported on this processor",
+						kernel.Name(),
+					)
+				}
 
-			for _, blocks := range KERNEL_BLOCKS {
-				checkKernel(t, kernel, blocks*kernel.Block())
-			}
-		})
+				for _, blocks := range KERNEL_BLOCKS {
+					_CheckKernel(
+						t,
+						kernel,
+						blocks*kernel.Block(),
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -51,7 +61,10 @@ func TestRegressionEveryKernelMatchesScalar(t *testing.T) {
 func TestSelectedKernelIsTheWidestSupported(t *testing.T) {
 	first := bitbuffer.SHIFT_KERNELS[0]
 	if first.Name() != bitbuffer.NAME_GO || !first.Have() {
-		t.Errorf("the table opens with %s, want the Go kernel", first.Name())
+		t.Errorf(
+			"the table opens with %s, want the Go kernel",
+			first.Name(),
+		)
 	}
 
 	var (
@@ -65,7 +78,11 @@ func TestSelectedKernelIsTheWidestSupported(t *testing.T) {
 	}
 
 	if got := bitbuffer.SHIFT_KERNEL.Name(); got != widest {
-		t.Errorf("selected %s, widest supported is %s", got, widest)
+		t.Errorf(
+			"selected %s, widest supported is %s",
+			got,
+			widest,
+		)
 	}
 
 	t.Logf(
@@ -81,24 +98,48 @@ func TestSelectedKernelIsTheWidestSupported(t *testing.T) {
 //
 // Revisions:
 //   - 2026-09-23 04:02: initial creation
-func checkKernel(t *testing.T, kernel interface {
-	Name() string
-	Run(dst, src []byte, left, right uint8)
-}, size int) {
+func _CheckKernel(
+	t *testing.T,
+	kernel interface {
+		Name() string
+		Run(
+			dst,
+			src []byte,
+			left,
+			right uint8,
+		)
+	}, size int,
+) {
 	t.Helper()
 
-	src := payload(size + 1)
+	src := _Payload(size + 1)
 
 	for left := uint8(1); left < bitbuffer.BITS_PER_BYTE; left++ {
 		var (
 			right = bitbuffer.BITS_PER_BYTE - left
-			got   = make([]byte, size)
-			want  = shiftedReference(src, size, left, right)
+			got   = make(
+				[]byte,
+				size,
+			)
+			want = _ShiftedReference(
+				src,
+				size,
+				left,
+				right,
+			)
 		)
 
-		kernel.Run(got, src, left, right)
+		kernel.Run(
+			got,
+			src,
+			left,
+			right,
+		)
 
-		if !bytes.Equal(got, want) {
+		if !bytes.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf(
 				"%s: len %d, <<%d >>%d: got % x, want % x",
 				kernel.Name(),
@@ -116,8 +157,16 @@ func checkKernel(t *testing.T, kernel interface {
 //
 // Revisions:
 //   - 2026-09-23 04:02: initial creation
-func shiftedReference(src []byte, size int, left, right uint8) []byte {
-	out := make([]byte, size)
+func _ShiftedReference(
+	src []byte,
+	size int,
+	left,
+	right uint8,
+) []byte {
+	out := make(
+		[]byte,
+		size,
+	)
 
 	for idx := range out {
 		out[idx] = src[idx]<<left | src[idx+1]>>right

@@ -1,1312 +1,516 @@
-import json
-import os
-import subprocess
-import sys
-from binascii import hexlify
-from pycrate_asn1rt.asnobj_basic import INT
-from pycrate_asn1rt.asnobj_construct import ASN1Set, ASN1RangeInt
+"""Oracle vectors for EncodeInteger and DecodeInteger (X.691 10.5, 13).
+
+One type of testing.asn1 for each constraint shape: INTEGER-<lb>-<ub>-<TRUE or FALSE> (NULL
+for no bound, N before a negative bound, TRUE when the range has the extension marker). A
+bound pair (lb, MAX) is semi-constrained; (NULL, NULL) is the plain INTEGER (the spelling of
+INTEGER (MIN..MAX) that both oracles accept). pycrate 0.8.1 and Erlang/OTP 29.1.1 both encode
+every value in APER and UPER, and the run stops when they differ. Output: the key "integer" of
+testing.json; a row is {type, input {value, lb, ub, extensible}, aper, uper, ...} in the form of harness.py.
+
+Run: testing.py runs this module; see harness.py
+
+Revisions:
+  - 2026-09-22 06:43: initial creation
+  - 2026-10-20 00:13: read the types from testing.asn1 and ask both oracles for every value (the lists of
+    the pycrate run and the OTP run are one list); one row for each value instead of a row for each variant; return the
+    vectors, write no file
+  - 2026-10-20 00:43: every row keeps the answers of both oracles, py and er for each variant, with
+    expected and derived (see harness.py)
+"""
+
+import harness
+
+KIND = "integer"
+PREFIX = ""
+
+# (lb, ub, extensible) -> the values. None is no bound.
+SHAPES = {
+    (0, 100, False): [
+        10, 0, 100, 50
+    ],
+    (0, 200, False): [
+        10, 0, 200, 100
+    ],
+    (None, None, False): [
+        10, 0, 1, 127, 128, 255, 256, 32767, 32768, 65535, 65536, 131072, 262144, 524288, 1048576,
+        2097152, 4194304, 8388607, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, -1,
+        -128, -129, -32768, -32769, -256, -65536, 1000000, -1000000, 4294967296, -4294967296,
+        4294967295, -4294967295, 1099511627776, -1099511627776, 281474976710656, -281474976710656,
+        72057594037927936, -72057594037927936, 9223372036854775807, -9223372036854775808
+    ],
+    (10, None, False): [
+        50, 10, 100, 1000, 10000, 100000, 1000000
+    ],
+    (0, None, False): [
+        0, 255, 256, 65535, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608,
+        16777216, 33554432, 67108864, 134217728, 268435456
+    ],
+    (-10, None, False): [
+        -5, 0, 10
+    ],
+    (100, None, False): [
+        1000, 100
+    ],
+    (0, 1, False): [
+        0, 1
+    ],
+    (0, 2, False): [
+        0, 2, 1
+    ],
+    (0, 4, False): [
+        0, 4, 2
+    ],
+    (0, 8, False): [
+        0, 8, 4
+    ],
+    (0, 16, False): [
+        0, 16, 8
+    ],
+    (0, 32, False): [
+        0, 32, 16
+    ],
+    (0, 64, False): [
+        0, 64, 32
+    ],
+    (0, 128, False): [
+        0, 128, 64
+    ],
+    (0, 256, False): [
+        0, 256, 128, 254
+    ],
+    (0, 512, False): [
+        0, 512, 256
+    ],
+    (0, 1024, False): [
+        0, 1024, 512
+    ],
+    (0, 2048, False): [
+        0, 2048, 1024
+    ],
+    (0, 4096, False): [
+        0, 4096, 2048
+    ],
+    (0, 8192, False): [
+        0, 8192, 4096
+    ],
+    (0, 16384, False): [
+        0, 16384, 8192
+    ],
+    (0, 32768, False): [
+        0, 32768, 16384
+    ],
+    (0, 65536, False): [
+        0, 65536, 32768
+    ],
+    (0, 131072, False): [
+        0, 131072, 65536
+    ],
+    (0, 262144, False): [
+        0, 262144, 131072
+    ],
+    (0, 524288, False): [
+        0, 524288, 262144
+    ],
+    (0, 1048576, False): [
+        0, 1048576, 524288
+    ],
+    (0, 2097152, False): [
+        0, 2097152, 1048576
+    ],
+    (0, 4194304, False): [
+        0, 4194304, 2097152
+    ],
+    (0, 8388608, False): [
+        0, 8388608, 4194304
+    ],
+    (0, 16777216, False): [
+        0, 16777216, 8388608
+    ],
+    (0, 33554432, False): [
+        0, 33554432, 16777216
+    ],
+    (0, 67108864, False): [
+        0, 67108864, 33554432
+    ],
+    (0, 134217728, False): [
+        0, 134217728, 67108864
+    ],
+    (0, 268435456, False): [
+        0, 268435456, 134217728
+    ],
+    (0, 536870911, False): [
+        0, 536870911, 268435456
+    ],
+    (0, 1073741823, False): [
+        0, 1073741823, 536870912
+    ],
+    (0, 2147483647, False): [
+        0, 2147483647, 1073741824
+    ],
+    (0, 4294967295, False): [
+        0, 4294967295, 2147483648
+    ],
+    (-128, 127, False): [
+        -128, 0, 127, -1
+    ],
+    (-2147483648, 2147483647, False): [
+        -2147483648, 0, 2147483647, -1
+    ],
+    (0, 1, True): [
+        0, 1, 2
+    ],
+    (0, 2, True): [
+        0, 2, 1, 3
+    ],
+    (0, 4, True): [
+        0, 4, 2, 5
+    ],
+    (0, 8, True): [
+        0, 8, 4, 9
+    ],
+    (0, 16, True): [
+        0, 16, 8, 17
+    ],
+    (0, 32, True): [
+        0, 32, 16, 33
+    ],
+    (0, 64, True): [
+        0, 64, 32, 65
+    ],
+    (0, 128, True): [
+        0, 128, 64, 129
+    ],
+    (0, 256, True): [
+        0, 256, 128, 257
+    ],
+    (0, 512, True): [
+        0, 512, 256, 513
+    ],
+    (0, 1024, True): [
+        0, 1024, 512, 1025
+    ],
+    (0, 2048, True): [
+        0, 2048, 1024, 2049
+    ],
+    (0, 4096, True): [
+        0, 4096, 2048, 4097
+    ],
+    (0, 8192, True): [
+        0, 8192, 4096, 8193
+    ],
+    (0, 16384, True): [
+        0, 16384, 8192, 16385
+    ],
+    (0, 32768, True): [
+        0, 32768, 16384, 32769
+    ],
+    (0, 65536, True): [
+        0, 65536, 32768, 65537, 10000000
+    ],
+    (0, 131072, True): [
+        0, 131072, 65536, 131073
+    ],
+    (0, 262144, True): [
+        0, 262144, 131072, 262145
+    ],
+    (0, 524288, True): [
+        0, 524288, 262144, 524289
+    ],
+    (0, 1048576, True): [
+        0, 1048576, 524288, 1048577
+    ],
+    (0, 2097152, True): [
+        0, 2097152, 1048576, 2097153
+    ],
+    (0, 4194304, True): [
+        0, 4194304, 2097152, 4194305
+    ],
+    (0, 8388608, True): [
+        0, 8388608, 4194304, 8388609
+    ],
+    (0, 16777216, True): [
+        0, 16777216, 8388608, 16777217
+    ],
+    (0, 33554432, True): [
+        0, 33554432, 16777216, 33554433
+    ],
+    (0, 67108864, True): [
+        0, 67108864, 33554432, 67108865
+    ],
+    (0, 134217728, True): [
+        0, 134217728, 67108864, 134217729
+    ],
+    (0, 268435456, True): [
+        0, 268435456, 134217728, 268435457
+    ],
+    (0, 536870911, True): [
+        0, 536870911, 536870912
+    ],
+    (0, 1073741823, True): [
+        0, 1073741823, 1073741824
+    ],
+    (0, 2147483647, True): [
+        0, 2147483647, 2147483648
+    ],
+    (0, 4294967295, True): [
+        0, 4294967295, 4294967296
+    ],
+    (-128, 127, True): [
+        -128, 127, -129, 128, 0
+    ],
+    (-2147483648, 2147483647, True): [
+        -2147483648, 2147483647, -2147483649, 2147483648, 0
+    ],
+    (0, 100, True): [
+        -1, -10, 1000, -1000, 50, 200, 500, 0, 100, 101
+    ],
+    (-50, 50, True): [
+        -100, -51, 51, 0, 50
+    ],
+    (-100, 100, True): [
+        -200, 200, 101, -101, -100, 100
+    ],
+    (0, 1000, True): [
+        -1000, 100000, 0, 1000, 1001
+    ],
+    (10, None, True): [
+        9, 10
+    ],
+    (0, None, True): [
+        -100, 0, 1048576
+    ],
+    (-200, -10, False): [
+        -100, -10, -200, -50
+    ],
+    (-100, -10, False): [
+        -50, -10, -100
+    ],
+    (-100, 100, False): [
+        0, 50, -50, -100, 100
+    ],
+    (-500, 500, True): [
+        -1000, 0, 500
+    ],
+    (0, 65534, False): [
+        65534, 0
+    ],
+    (0, 65535, False): [
+        65535, 65534, 0
+    ],
+    (0, 65535, True): [
+        65535, 0
+    ],
+    (0, 65537, False): [
+        65536, 0
+    ],
+    (50, 50, True): [
+        51, 50
+    ],
+    (100, 100, True): [
+        99, 100, 101
+    ],
+    (0, 100000, True): [
+        500000, 0, 100000
+    ],
+    (50, 100, False): [
+        50, 51, 99, 100, 75
+    ],
+    (50, 100, True): [
+        49, 101, 50, 100
+    ],
+    (100, 200, False): [
+        200, 150, 100
+    ],
+    (100, 200, True): [
+        201, 100, 200
+    ],
+    (0, 255, False): [
+        0, 255, 128, 127
+    ],
+    (0, 257, False): [
+        0, 257
+    ],
+    (0, 99, False): [
+        0, 99
+    ],
+    (10, 150, False): [
+        50, 10, 150, 75, 80
+    ],
+    (10, 150, True): [
+        9, 151, 10, 150
+    ],
+    (0, 99, True): [
+        100, 0, 99
+    ],
+    (0, 253, False): [
+        0, 100, 253
+    ],
+    (0, 254, False): [
+        254, 0
+    ],
+    (20, 40, False): [
+        30, 20, 40, 25, 35
+    ],
+    (20, 40, True): [
+        19, 41, 20, 40
+    ],
+    (0, 10000, False): [
+        5000, 0, 10000
+    ],
+    (0, 10000, True): [
+        10001, 0, 10000
+    ],
+    (-100, -10, True): [
+        -101, -9, -100, -10
+    ],
+    (1000, 1000, True): [
+        1001, 1000
+    ],
+    (0, 257, True): [
+        258, 0, 257
+    ],
+    (1, 1, True): [
+        2, 1
+    ],
+    (1, 3, False): [
+        3, 1
+    ],
+    (1, 3, True): [
+        4, 0, 1, 3
+    ],
+    (0, 1000000, False): [
+        500000, 750000, 1000000, 0
+    ],
+    (0, 1000000, True): [
+        1000001, 0, 1000000
+    ],
+    (-50, 50, False): [
+        0, -50, 50
+    ],
+    (20, None, False): [
+        100, 50
+    ],
+    (20, None, True): [
+        19, 100
+    ],
+    (-100, None, False): [
+        -50, 0
+    ],
+    (-100, None, True): [
+        -101, -100
+    ],
+    (0, 127, False): [
+        127, 0
+    ],
+    (0, 511, False): [
+        511, 0
+    ],
+    (0, 2047, False): [
+        2047, 0
+    ],
+    (-10, 10, False): [
+        -1, 0, 10, -10
+    ],
+    (-10, 10, True): [
+        -11, 11, -10, 10
+    ],
+    (-1799999999, 1800000001, False): [
+        -1799999999, 0, 10, -10, 1800000001, 1000000000, -1000000000
+    ],
+    (-1799999999, 1800000001, True): [
+        -1799999999, 0, 10, 1800000001, -1800000000, 1800000002, 2000000000
+    ],
+    (2, 17, True): [
+        2, 3, 10, 17, 1, 0, -5, 18, 100
+    ],
+    (-500000, 500000, False): [
+        -500000, 0, 500000, 250000, -250000
+    ],
+    (-500000, 500000, True): [
+        0, -500001, 500001
+    ],
+    (0, 16777215, False): [
+        0, 8388608, 16777215
+    ],
+    (-200, None, False): [
+        -200, -100
+    ],
+    (-200, None, True): [
+        -201
+    ],
+    (100, None, True): [
+        99
+    ],
+    (3, 6, False): [
+        3, 4, 6
+    ],
+    (3, 6, True): [
+        2, 7, 3, 6
+    ],
+    (4000, 4254, False): [
+        4000, 4127, 4254
+    ],
+    (4000, 4254, True): [
+        3999, 4255, 4000, 4254
+    ],
+    (4000, 4255, False): [
+        4000, 4128, 4255
+    ],
+    (4000, 4255, True): [
+        3999, 4256, 4000, 4255
+    ],
+    (0, 32000, False): [
+        0, 16000, 31000, 32000
+    ],
+    (0, 32000, True): [
+        32001, 0, 32000
+    ],
+    (1, 65538, False): [
+        1, 257, 32770, 65538
+    ],
+    (1, 65538, True): [
+        0, 65539, 1, 65538
+    ],
+    (-1, None, False): [
+        -1, 0, 255, 4096
+    ],
+    (-1, None, True): [
+        -1, 0, -2, -100
+    ],
+    (0, 1000, False): [
+        0, 1000
+    ],
+    (0, 100000, False): [
+        0, 100000
+    ],
+    (0, 200, True): [
+        0, 200, 201
+    ],
+}
 
 
-def encode_per(obj, aligned=True):
-    if aligned:
-        return obj.to_aper()
-    else:
-        return obj.to_uper()
+def type_name(lb, ub, ext):
+    def bound(value):
+        if value is None:
+            return "NULL"
+        if value < 0:
+            return f"N{abs(value)}"
+        return str(value)
+
+    return f"INTEGER-{bound(lb)}-{bound(ub)}-{'TRUE' if ext else 'FALSE'}"
 
 
-def make_integer(value, lb=None, ub=None, extensible=False):
-    return {"value": value, "lb": lb, "ub": ub, "extensible": extensible}
-
-
-def encode_integer(value, aligned=True, lb=None, ub=None, extensible=None):
-    obj = INT(name="INTEGER")
-    if lb is not None or ub is not None:
-        ev = [] if extensible else None
-        if lb is not None and ub is not None:
-            constraint = ASN1Set(
-                rv=[lb] if lb == ub else [],
-                rr=[] if lb == ub else [ASN1RangeInt(lb=lb, ub=ub)],
-                ev=ev,
-                er=[],
-            )
-        elif lb is not None:
-            constraint = ASN1Set(rv=[], rr=[ASN1RangeInt(lb=lb, ub=None)], ev=ev, er=[])
-        elif ub is not None:
-            constraint = ASN1Set(rv=[], rr=[ASN1RangeInt(lb=0, ub=ub)], ev=ev, er=[])
-        constraint._set_root_bnd()
-        obj._const_val = constraint
-    obj.set_val(value)
-    return encode_per(obj, aligned)
-
-
-def main():
-    results = []
-    cases = [
-        make_integer(10, 0, 100, False),
-        make_integer(10, 0, 200, False),
-        make_integer(10, None, None, False),
-        make_integer(0, None, None, False),
-        make_integer(1, None, None, False),
-        make_integer(127, None, None, False),
-        make_integer(128, None, None, False),
-        make_integer(255, None, None, False),
-        make_integer(256, None, None, False),
-        make_integer(32767, None, None, False),
-        make_integer(32768, None, None, False),
-        make_integer(65535, None, None, False),
-        make_integer(65536, None, None, False),
-        make_integer(131072, None, None, False),
-        make_integer(262144, None, None, False),
-        make_integer(524288, None, None, False),
-        make_integer(1048576, None, None, False),
-        make_integer(2097152, None, None, False),
-        make_integer(4194304, None, None, False),
-        make_integer(8388607, None, None, False),
-        make_integer(8388608, None, None, False),
-        make_integer(16777216, None, None, False),
-        make_integer(33554432, None, None, False),
-        make_integer(67108864, None, None, False),
-        make_integer(134217728, None, None, False),
-        make_integer(268435456, None, None, False),
-        make_integer(-1, None, None, False),
-        make_integer(-128, None, None, False),
-        make_integer(-129, None, None, False),
-        make_integer(-32768, None, None, False),
-        make_integer(-32769, None, None, False),
-        make_integer(0, 0, 100, False),
-        make_integer(0, 0, 200, False),
-        make_integer(100, 0, 100, False),
-        make_integer(200, 0, 200, False),
-        make_integer(50, 10, None, False),
-        make_integer(10, 10, None, False),
-        make_integer(100, 10, None, False),
-        make_integer(0, 0, None, False),
-        make_integer(255, 0, None, False),
-        make_integer(256, 0, None, False),
-        make_integer(-5, -10, None, False),
-        make_integer(0, -10, None, False),
-        make_integer(10, -10, None, False),
-        make_integer(1000, 100, None, False),
-        make_integer(65535, 0, None, False),
-        make_integer(65536, 0, None, False),
-        make_integer(131072, 0, None, False),
-        make_integer(262144, 0, None, False),
-        make_integer(524288, 0, None, False),
-        make_integer(1048576, 0, None, False),
-        make_integer(2097152, 0, None, False),
-        make_integer(4194304, 0, None, False),
-        make_integer(8388608, 0, None, False),
-        make_integer(16777216, 0, None, False),
-        make_integer(33554432, 0, None, False),
-        make_integer(67108864, 0, None, False),
-        make_integer(134217728, 0, None, False),
-        make_integer(268435456, 0, None, False),
-        make_integer(0, 0, 1, False),
-        make_integer(1, 0, 1, False),
-        make_integer(0, 0, 2, False),
-        make_integer(2, 0, 2, False),
-        make_integer(0, 0, 4, False),
-        make_integer(4, 0, 4, False),
-        make_integer(0, 0, 8, False),
-        make_integer(8, 0, 8, False),
-        make_integer(0, 0, 16, False),
-        make_integer(16, 0, 16, False),
-        make_integer(0, 0, 32, False),
-        make_integer(32, 0, 32, False),
-        make_integer(0, 0, 64, False),
-        make_integer(64, 0, 64, False),
-        make_integer(0, 0, 128, False),
-        make_integer(128, 0, 128, False),
-        make_integer(0, 0, 256, False),
-        make_integer(256, 0, 256, False),
-        make_integer(0, 0, 512, False),
-        make_integer(512, 0, 512, False),
-        make_integer(0, 0, 1024, False),
-        make_integer(1024, 0, 1024, False),
-        make_integer(0, 0, 2048, False),
-        make_integer(2048, 0, 2048, False),
-        make_integer(0, 0, 4096, False),
-        make_integer(4096, 0, 4096, False),
-        make_integer(0, 0, 8192, False),
-        make_integer(8192, 0, 8192, False),
-        make_integer(0, 0, 16384, False),
-        make_integer(16384, 0, 16384, False),
-        make_integer(0, 0, 32768, False),
-        make_integer(32768, 0, 32768, False),
-        make_integer(0, 0, 65536, False),
-        make_integer(65536, 0, 65536, False),
-        make_integer(0, 0, 131072, False),
-        make_integer(131072, 0, 131072, False),
-        make_integer(0, 0, 262144, False),
-        make_integer(262144, 0, 262144, False),
-        make_integer(0, 0, 524288, False),
-        make_integer(524288, 0, 524288, False),
-        make_integer(0, 0, 1048576, False),
-        make_integer(1048576, 0, 1048576, False),
-        make_integer(0, 0, 2097152, False),
-        make_integer(2097152, 0, 2097152, False),
-        make_integer(0, 0, 4194304, False),
-        make_integer(4194304, 0, 4194304, False),
-        make_integer(0, 0, 8388608, False),
-        make_integer(8388608, 0, 8388608, False),
-        make_integer(0, 0, 16777216, False),
-        make_integer(16777216, 0, 16777216, False),
-        make_integer(0, 0, 33554432, False),
-        make_integer(33554432, 0, 33554432, False),
-        make_integer(0, 0, 67108864, False),
-        make_integer(67108864, 0, 67108864, False),
-        make_integer(0, 0, 134217728, False),
-        make_integer(134217728, 0, 134217728, False),
-        make_integer(0, 0, 268435456, False),
-        make_integer(268435456, 0, 268435456, False),
-        make_integer(0, 0, 1, False),
-        make_integer(1, 0, 2, False),
-        make_integer(2, 0, 4, False),
-        make_integer(4, 0, 8, False),
-        make_integer(8, 0, 16, False),
-        make_integer(16, 0, 32, False),
-        make_integer(32, 0, 64, False),
-        make_integer(64, 0, 128, False),
-        make_integer(128, 0, 256, False),
-        make_integer(256, 0, 512, False),
-        make_integer(512, 0, 1024, False),
-        make_integer(1024, 0, 2048, False),
-        make_integer(2048, 0, 4096, False),
-        make_integer(4096, 0, 8192, False),
-        make_integer(8192, 0, 16384, False),
-        make_integer(16384, 0, 32768, False),
-        make_integer(32768, 0, 65536, False),
-        make_integer(65536, 0, 131072, False),
-        make_integer(131072, 0, 262144, False),
-        make_integer(262144, 0, 524288, False),
-        make_integer(524288, 0, 1048576, False),
-        make_integer(1048576, 0, 2097152, False),
-        make_integer(2097152, 0, 4194304, False),
-        make_integer(4194304, 0, 8388608, False),
-        make_integer(8388608, 0, 16777216, False),
-        make_integer(16777216, 0, 33554432, False),
-        make_integer(33554432, 0, 67108864, False),
-        make_integer(67108864, 0, 134217728, False),
-        make_integer(134217728, 0, 268435456, False),
-        # 29-31 bit and 32-bit ranges
-        make_integer(0, 0, 536870911, False),
-        make_integer(536870911, 0, 536870911, False),
-        make_integer(268435456, 0, 536870911, False),
-        make_integer(0, 0, 1073741823, False),
-        make_integer(1073741823, 0, 1073741823, False),
-        make_integer(536870912, 0, 1073741823, False),
-        make_integer(0, 0, 2147483647, False),
-        make_integer(2147483647, 0, 2147483647, False),
-        make_integer(1073741824, 0, 2147483647, False),
-        make_integer(0, 0, 4294967295, False),
-        make_integer(4294967295, 0, 4294967295, False),
-        make_integer(2147483648, 0, 4294967295, False),
-        # Signed byte range (-128..127)
-        make_integer(-128, -128, 127, False),
-        make_integer(0, -128, 127, False),
-        make_integer(127, -128, 127, False),
-        make_integer(-1, -128, 127, False),
-        # Full 32-bit signed range
-        make_integer(-2147483648, -2147483648, 2147483647, False),
-        make_integer(0, -2147483648, 2147483647, False),
-        make_integer(2147483647, -2147483648, 2147483647, False),
-        make_integer(-1, -2147483648, 2147483647, False),
-        make_integer(0, 0, 1, True),
-        make_integer(1, 0, 1, True),
-        make_integer(0, 0, 2, True),
-        make_integer(2, 0, 2, True),
-        make_integer(0, 0, 4, True),
-        make_integer(4, 0, 4, True),
-        make_integer(0, 0, 8, True),
-        make_integer(8, 0, 8, True),
-        make_integer(0, 0, 16, True),
-        make_integer(16, 0, 16, True),
-        make_integer(0, 0, 32, True),
-        make_integer(32, 0, 32, True),
-        make_integer(0, 0, 64, True),
-        make_integer(64, 0, 64, True),
-        make_integer(0, 0, 128, True),
-        make_integer(128, 0, 128, True),
-        make_integer(0, 0, 256, True),
-        make_integer(256, 0, 256, True),
-        make_integer(0, 0, 512, True),
-        make_integer(512, 0, 512, True),
-        make_integer(0, 0, 1024, True),
-        make_integer(1024, 0, 1024, True),
-        make_integer(0, 0, 2048, True),
-        make_integer(2048, 0, 2048, True),
-        make_integer(0, 0, 4096, True),
-        make_integer(4096, 0, 4096, True),
-        make_integer(0, 0, 8192, True),
-        make_integer(8192, 0, 8192, True),
-        make_integer(0, 0, 16384, True),
-        make_integer(16384, 0, 16384, True),
-        make_integer(0, 0, 32768, True),
-        make_integer(32768, 0, 32768, True),
-        make_integer(0, 0, 65536, True),
-        make_integer(65536, 0, 65536, True),
-        make_integer(0, 0, 131072, True),
-        make_integer(131072, 0, 131072, True),
-        make_integer(0, 0, 262144, True),
-        make_integer(262144, 0, 262144, True),
-        make_integer(0, 0, 524288, True),
-        make_integer(524288, 0, 524288, True),
-        make_integer(0, 0, 1048576, True),
-        make_integer(1048576, 0, 1048576, True),
-        make_integer(0, 0, 2097152, True),
-        make_integer(2097152, 0, 2097152, True),
-        make_integer(0, 0, 4194304, True),
-        make_integer(4194304, 0, 4194304, True),
-        make_integer(0, 0, 8388608, True),
-        make_integer(8388608, 0, 8388608, True),
-        make_integer(0, 0, 16777216, True),
-        make_integer(16777216, 0, 16777216, True),
-        make_integer(0, 0, 33554432, True),
-        make_integer(33554432, 0, 33554432, True),
-        make_integer(0, 0, 67108864, True),
-        make_integer(67108864, 0, 67108864, True),
-        make_integer(0, 0, 134217728, True),
-        make_integer(134217728, 0, 134217728, True),
-        make_integer(0, 0, 268435456, True),
-        make_integer(268435456, 0, 268435456, True),
-        make_integer(0, 0, 1, True),
-        make_integer(1, 0, 2, True),
-        make_integer(2, 0, 4, True),
-        make_integer(4, 0, 8, True),
-        make_integer(8, 0, 16, True),
-        make_integer(16, 0, 32, True),
-        make_integer(32, 0, 64, True),
-        make_integer(64, 0, 128, True),
-        make_integer(128, 0, 256, True),
-        make_integer(256, 0, 512, True),
-        make_integer(512, 0, 1024, True),
-        make_integer(1024, 0, 2048, True),
-        make_integer(2048, 0, 4096, True),
-        make_integer(4096, 0, 8192, True),
-        make_integer(8192, 0, 16384, True),
-        make_integer(16384, 0, 32768, True),
-        make_integer(32768, 0, 65536, True),
-        make_integer(65536, 0, 131072, True),
-        make_integer(131072, 0, 262144, True),
-        make_integer(262144, 0, 524288, True),
-        make_integer(524288, 0, 1048576, True),
-        make_integer(1048576, 0, 2097152, True),
-        make_integer(2097152, 0, 4194304, True),
-        make_integer(4194304, 0, 8388608, True),
-        make_integer(8388608, 0, 16777216, True),
-        make_integer(16777216, 0, 33554432, True),
-        make_integer(33554432, 0, 67108864, True),
-        make_integer(67108864, 0, 134217728, True),
-        make_integer(134217728, 0, 268435456, True),
-        # 29-31 bit and 32-bit extensible ranges
-        make_integer(0, 0, 536870911, True),
-        make_integer(536870911, 0, 536870911, True),
-        make_integer(536870912, 0, 536870911, True),
-        make_integer(0, 0, 1073741823, True),
-        make_integer(1073741823, 0, 1073741823, True),
-        make_integer(1073741824, 0, 1073741823, True),
-        make_integer(0, 0, 2147483647, True),
-        make_integer(2147483647, 0, 2147483647, True),
-        make_integer(2147483648, 0, 2147483647, True),
-        make_integer(0, 0, 4294967295, True),
-        make_integer(4294967295, 0, 4294967295, True),
-        make_integer(4294967296, 0, 4294967295, True),
-        # Signed byte extensible
-        make_integer(-128, -128, 127, True),
-        make_integer(127, -128, 127, True),
-        make_integer(-129, -128, 127, True),
-        make_integer(128, -128, 127, True),
-        # Full 32-bit signed extensible
-        make_integer(-2147483648, -2147483648, 2147483647, True),
-        make_integer(2147483647, -2147483648, 2147483647, True),
-        make_integer(-2147483649, -2147483648, 2147483647, True),
-        make_integer(2147483648, -2147483648, 2147483647, True),
-        make_integer(2, 0, 1, True),
-        make_integer(3, 0, 2, True),
-        make_integer(5, 0, 4, True),
-        make_integer(9, 0, 8, True),
-        make_integer(17, 0, 16, True),
-        make_integer(33, 0, 32, True),
-        make_integer(65, 0, 64, True),
-        make_integer(129, 0, 128, True),
-        make_integer(257, 0, 256, True),
-        make_integer(513, 0, 512, True),
-        make_integer(1025, 0, 1024, True),
-        make_integer(2049, 0, 2048, True),
-        make_integer(4097, 0, 4096, True),
-        make_integer(8193, 0, 8192, True),
-        make_integer(16385, 0, 16384, True),
-        make_integer(32769, 0, 32768, True),
-        make_integer(65537, 0, 65536, True),
-        make_integer(131073, 0, 131072, True),
-        make_integer(262145, 0, 262144, True),
-        make_integer(524289, 0, 524288, True),
-        make_integer(1048577, 0, 1048576, True),
-        make_integer(2097153, 0, 2097152, True),
-        make_integer(4194305, 0, 4194304, True),
-        make_integer(8388609, 0, 8388608, True),
-        make_integer(16777217, 0, 16777216, True),
-        make_integer(33554433, 0, 33554432, True),
-        make_integer(67108865, 0, 67108864, True),
-        make_integer(134217729, 0, 134217728, True),
-        make_integer(268435457, 0, 268435456, True),
-        make_integer(-1, 0, 100, True),
-        make_integer(-10, 0, 100, True),
-        make_integer(-100, -50, 50, True),
-        make_integer(-200, -100, 100, True),
-        make_integer(-1000, 0, 1000, True),
-        make_integer(100, 10, None, False),
-        make_integer(1000, 10, None, False),
-        make_integer(10000, 10, None, False),
-        make_integer(100000, 10, None, False),
-        make_integer(1000000, 10, None, False),
-        make_integer(10, 10, None, False),
-        make_integer(9, 10, None, True),
-        make_integer(-100, 0, None, True),
-        make_integer(-100, -200, -10, False),
-        make_integer(-10, -200, -10, False),
-        make_integer(-200, -200, -10, False),
-        make_integer(-50, -100, -10, False),
-        make_integer(0, -100, 100, False),
-        make_integer(50, -100, 100, False),
-        make_integer(-50, -100, 100, False),
-        make_integer(-100, -100, 100, False),
-        make_integer(100, -100, 100, False),
-        make_integer(-200, -100, 100, True),
-        make_integer(200, -100, 100, True),
-        make_integer(-1000, -500, 500, True),
-        make_integer(65534, 0, 65534, False),
-        make_integer(65535, 0, 65535, False),
-        make_integer(65536, 0, 65536, False),
-        make_integer(65537, 0, 65536, True),
-        make_integer(65534, 0, 65535, False),
-        make_integer(65535, 0, 65535, True),
-        make_integer(65536, 0, 65537, False),
-        make_integer(0, 0, 65536, False),
-        make_integer(51, 50, 50, True),
-        make_integer(99, 100, 100, True),
-        make_integer(1000, 0, 100, True),
-        make_integer(100000, 0, 1000, True),
-        make_integer(10000000, 0, 65536, True),
-        make_integer(500000, 0, 100000, True),
-        make_integer(-1000, 0, 100, True),
-        make_integer(50, 50, 100, False),
-        make_integer(51, 50, 100, False),
-        make_integer(99, 50, 100, False),
-        make_integer(100, 50, 100, False),
-        make_integer(49, 50, 100, True),
-        make_integer(101, 50, 100, True),
-        make_integer(75, 50, 100, False),
-        make_integer(200, 100, 200, False),
-        make_integer(150, 100, 200, False),
-        make_integer(0, 0, 200, False),
-        make_integer(201, 100, 200, True),
-        make_integer(-256, None, None, False),
-        make_integer(-65536, None, None, False),
-        make_integer(1000000, None, None, False),
-        make_integer(-1000000, None, None, False),
-        make_integer(32767, None, None, False),
-        make_integer(-32768, None, None, False),
-        make_integer(0, 0, 255, False),
-        make_integer(255, 0, 255, False),
-        make_integer(0, 0, 256, False),
-        make_integer(256, 0, 256, False),
-        make_integer(0, 0, 257, False),
-        make_integer(257, 0, 257, False),
-        make_integer(128, 0, 255, False),
-        make_integer(127, 0, 255, False),
-        make_integer(254, 0, 256, False),
-        make_integer(256, 0, 256, True),
-        make_integer(50, 0, 100, False),
-        make_integer(50, 0, 100, True),
-        make_integer(0, 0, 99, False),
-        make_integer(50, 10, 150, False),
-        make_integer(10, 10, 150, False),
-        make_integer(150, 10, 150, False),
-        make_integer(75, 10, 150, False),
-        make_integer(9, 10, 150, True),
-        make_integer(151, 10, 150, True),
-        make_integer(99, 0, 99, False),
-        make_integer(100, 0, 99, True),
-        make_integer(0, 0, 253, False),
-        make_integer(100, 0, 253, False),
-        make_integer(253, 0, 253, False),
-        make_integer(254, 0, 254, False),
-        make_integer(0, 0, 200, False),
-        make_integer(100, 0, 200, False),
-        make_integer(200, 0, 200, False),
-        make_integer(30, 20, 40, False),
-        make_integer(20, 20, 40, False),
-        make_integer(40, 20, 40, False),
-        make_integer(25, 20, 40, False),
-        make_integer(35, 20, 40, False),
-        make_integer(19, 20, 40, True),
-        make_integer(41, 20, 40, True),
-        make_integer(5000, 0, 10000, False),
-        make_integer(0, 0, 10000, False),
-        make_integer(10000, 0, 10000, False),
-        make_integer(10001, 0, 10000, True),
-        make_integer(-50, -100, -10, False),
-        make_integer(-10, -100, -10, False),
-        make_integer(-100, -100, -10, False),
-        make_integer(-101, -100, -10, True),
-        make_integer(-9, -100, -10, True),
-        make_integer(-1, 0, 100, True),
-        make_integer(-10, 0, 100, True),
-        make_integer(-100, -50, 50, True),
-        make_integer(100, 10, None, False),
-        make_integer(1000, 10, None, False),
-        make_integer(10000, 10, None, False),
-        make_integer(9, 10, None, True),
-        make_integer(-100, -200, -10, False),
-        make_integer(-10, -200, -10, False),
-        make_integer(0, -100, 100, False),
-        make_integer(50, -100, 100, False),
-        make_integer(-50, -100, 100, False),
-        make_integer(101, -100, 100, True),
-        make_integer(-101, -100, 100, True),
-        make_integer(65534, 0, 65534, False),
-        make_integer(65535, 0, 65535, False),
-        make_integer(65536, 0, 65536, False),
-        make_integer(65537, 0, 65536, True),
-        make_integer(51, 50, 50, True),
-        make_integer(1001, 1000, 1000, True),
-        make_integer(1000, 0, 100, True),
-        make_integer(100000, 0, 1000, True),
-        make_integer(10000000, 0, 65536, True),
-        make_integer(50, 50, 100, False),
-        make_integer(51, 50, 100, False),
-        make_integer(99, 50, 100, False),
-        make_integer(100, 50, 100, False),
-        make_integer(49, 50, 100, True),
-        make_integer(101, 50, 100, True),
-        make_integer(-256, None, None, False),
-        make_integer(-65536, None, None, False),
-        make_integer(1000000, None, None, False),
-        make_integer(0, 0, 255, False),
-        make_integer(255, 0, 255, False),
-        make_integer(0, 0, 256, False),
-        make_integer(256, 0, 256, False),
-        make_integer(0, 0, 257, False),
-        make_integer(257, 0, 257, False),
-        make_integer(258, 0, 257, True),
-        make_integer(50, 0, 100, False),
-        make_integer(50, 0, 100, True),
-        make_integer(0, 0, 99, False),
-        make_integer(50, 10, 150, False),
-        make_integer(2, 1, 1, True),
-        make_integer(3, 1, 3, False),
-        make_integer(4, 1, 3, True),
-        make_integer(0, 1, 3, True),
-        make_integer(500000, 0, 1000000, False),
-        make_integer(750000, 0, 1000000, False),
-        make_integer(1000000, 0, 1000000, False),
-        make_integer(1000001, 0, 1000000, True),
-        make_integer(0, -50, 50, False),
-        make_integer(-50, -50, 50, False),
-        make_integer(50, -50, 50, False),
-        make_integer(-51, -50, 50, True),
-        make_integer(51, -50, 50, True),
-        make_integer(100, 20, None, False),
-        make_integer(50, 20, None, False),
-        make_integer(19, 20, None, True),
-        make_integer(-50, -100, None, False),
-        make_integer(-101, -100, None, True),
-        make_integer(127, 0, 127, False),
-        make_integer(128, 0, 128, False),
-        make_integer(511, 0, 511, False),
-        make_integer(512, 0, 512, False),
-        make_integer(2047, 0, 2047, False),
-        make_integer(2048, 0, 2048, False),
-        make_integer(200, 0, 100, True),
-        make_integer(500, 0, 100, True),
-        make_integer(1000, 0, 100, True),
-        make_integer(-1, -10, 10, False),
-        make_integer(0, -10, 10, False),
-        make_integer(10, -10, 10, False),
-        make_integer(-10, -10, 10, False),
-        make_integer(-11, -10, 10, True),
-        make_integer(11, -10, 10, True),
-        # ---- Negative lb with large range (Longitude-like, range > 64K) ----
-        # lb=-1799999999, ub=1800000001, range=3600000001 (needs 4 bytes)
-        make_integer(-1799999999, -1799999999, 1800000001, False),
-        make_integer(0, -1799999999, 1800000001, False),
-        make_integer(10, -1799999999, 1800000001, False),
-        make_integer(-10, -1799999999, 1800000001, False),
-        make_integer(1800000001, -1799999999, 1800000001, False),
-        make_integer(1000000000, -1799999999, 1800000001, False),
-        make_integer(-1000000000, -1799999999, 1800000001, False),
-        # Same constraint, extensible
-        make_integer(-1799999999, -1799999999, 1800000001, True),
-        make_integer(0, -1799999999, 1800000001, True),
-        make_integer(10, -1799999999, 1800000001, True),
-        make_integer(1800000001, -1799999999, 1800000001, True),
-        # Extension values outside root
-        make_integer(-1800000000, -1799999999, 1800000001, True),
-        make_integer(1800000002, -1799999999, 1800000001, True),
-        make_integer(2000000000, -1799999999, 1800000001, True),
-        # ---- Extensible constrained "Sv2-like" (small range, extensible) ----
-        # lb=2, ub=17, extensible, range=16 (4 bits)
-        make_integer(2, 2, 17, True),
-        make_integer(3, 2, 17, True),
-        make_integer(10, 2, 17, True),
-        make_integer(17, 2, 17, True),
-        # Extension values
-        make_integer(1, 2, 17, True),
-        make_integer(0, 2, 17, True),
-        make_integer(-5, 2, 17, True),
-        make_integer(18, 2, 17, True),
-        make_integer(100, 2, 17, True),
-        # ---- Negative lb, positive ub, large range, non-extensible ----
-        # lb=-500000, ub=500000, range=1000001 (needs 3 bytes in >64K path)
-        make_integer(-500000, -500000, 500000, False),
-        make_integer(0, -500000, 500000, False),
-        make_integer(500000, -500000, 500000, False),
-        make_integer(250000, -500000, 500000, False),
-        make_integer(-250000, -500000, 500000, False),
-        # Same, extensible with extension values
-        make_integer(0, -500000, 500000, True),
-        make_integer(-500001, -500000, 500000, True),
-        make_integer(500001, -500000, 500000, True),
-        # ---- Large unconstrained values (5-8 byte encoding paths) ----
-        # 5 bytes (> 2^32)
-        make_integer(4294967296, None, None, False),
-        make_integer(-4294967296, None, None, False),
-        make_integer(4294967295, None, None, False),
-        make_integer(-4294967295, None, None, False),
-        # 6 bytes (> 2^40)
-        make_integer(1099511627776, None, None, False),
-        make_integer(-1099511627776, None, None, False),
-        # 7 bytes (> 2^48)
-        make_integer(281474976710656, None, None, False),
-        make_integer(-281474976710656, None, None, False),
-        # 8 bytes (> 2^56)
-        make_integer(72057594037927936, None, None, False),
-        make_integer(-72057594037927936, None, None, False),
-        # Near int64 boundaries
-        make_integer(9223372036854775807, None, None, False),
-        make_integer(-9223372036854775808, None, None, False),
-        # ---- Constrained range > 64K needing 3-4 byte encoding ----
-        # range = 16777216 (exactly 3 bytes, 0..16777215)
-        make_integer(0, 0, 16777215, False),
-        make_integer(8388608, 0, 16777215, False),
-        make_integer(16777215, 0, 16777215, False),
-        # range = 16777217 (just over 3 bytes, needs 4 bytes in APER)
-        make_integer(0, 0, 16777216, False),
-        make_integer(16777216, 0, 16777216, False),
-        # ---- Semi-constrained with value exactly at lb ----
-        make_integer(-200, -200, None, False),
-        make_integer(100, 100, None, False),
-        # ---- Extensible semi-constrained, value below lb ----
-        make_integer(-201, -200, None, True),
-        make_integer(99, 100, None, True),
-        # ---- Gap 1: Non-zero positive LB with high offset ----
-        # (3..6): range=4, 2 bits; offset=value-3
-        make_integer(3, 3, 6, False),
-        make_integer(4, 3, 6, False),
-        make_integer(6, 3, 6, False),
-        make_integer(2, 3, 6, True),
-        make_integer(7, 3, 6, True),
-        # (4000..4254): range=255, 8 bits; offset=value-4000
-        make_integer(4000, 4000, 4254, False),
-        make_integer(4127, 4000, 4254, False),
-        make_integer(4254, 4000, 4254, False),
-        make_integer(3999, 4000, 4254, True),
-        make_integer(4255, 4000, 4254, True),
-        # (4000..4255): range=256, 9 bits UPER / 2 bytes APER; offset=value-4000
-        make_integer(4000, 4000, 4255, False),
-        make_integer(4128, 4000, 4255, False),
-        make_integer(4255, 4000, 4255, False),
-        make_integer(3999, 4000, 4255, True),
-        make_integer(4256, 4000, 4255, True),
-        # ---- Gap 2: Non-power-of-2 range (APER != UPER) ----
-        # (0..32000): range=32001, 15 bits; APER pads to 2 bytes, UPER uses 15 bits
-        make_integer(0, 0, 32000, False),
-        make_integer(16000, 0, 32000, False),
-        make_integer(31000, 0, 32000, False),
-        make_integer(32000, 0, 32000, False),
-        make_integer(32001, 0, 32000, True),
-        # ---- Gap 3: Large range > 65536 with non-zero positive LB ----
-        # (1..65538): range=65538, > 65536; APER uses length-determinant prefix
-        make_integer(1, 1, 65538, False),
-        make_integer(257, 1, 65538, False),
-        make_integer(32770, 1, 65538, False),
-        make_integer(65538, 1, 65538, False),
-        make_integer(0, 1, 65538, True),
-        make_integer(65539, 1, 65538, True),
-        # ---- Gap 4: Semi-constrained with -1 lower bound ----
-        # (-1..MAX): offset encoding, offset=value-(-1)=value+1
-        make_integer(-1, -1, None, False),
-        make_integer(0, -1, None, False),
-        make_integer(255, -1, None, False),
-        make_integer(4096, -1, None, False),
-        # ---- Gap 5: Extensible semi-constrained with -1 LB ----
-        make_integer(-1, -1, None, True),
-        make_integer(0, -1, None, True),
-        make_integer(-2, -1, None, True),
-        make_integer(-100, -1, None, True),
-    ]
-    for case in cases:
-        value = case["value"]
-        lb = case["lb"]
-        ub = case["ub"]
-        extensible = case["extensible"]
-        for aligned in [True, False]:
-            data = encode_integer(value, aligned, lb, ub, extensible)
-            output = hexlify(data).decode("ascii")
-            result = {
-                "input": make_integer(value, lb, ub, extensible),
-                "output": output,
-                "aligned": aligned,
-            }
-            results.append(result)
-    # All cases encoded via Erlang/OTP (encode_integer.erl) for complete
-    # reference set. Covers every unique constraint from the pycrate cases above.
-    erlang_cases = [
-        # Unconstrained
-        make_integer(10, None, None, False),
-        make_integer(0, None, None, False),
-        make_integer(127, None, None, False),
-        make_integer(128, None, None, False),
-        make_integer(255, None, None, False),
-        make_integer(256, None, None, False),
-        make_integer(32767, None, None, False),
-        make_integer(32768, None, None, False),
-        make_integer(65535, None, None, False),
-        make_integer(65536, None, None, False),
-        make_integer(-1, None, None, False),
-        make_integer(-128, None, None, False),
-        make_integer(-129, None, None, False),
-        make_integer(-32768, None, None, False),
-        make_integer(-256, None, None, False),
-        make_integer(-65536, None, None, False),
-        make_integer(1000000, None, None, False),
-        make_integer(-1000000, None, None, False),
-        # Semi-constrained (0..MAX)
-        make_integer(0, 0, None, False),
-        make_integer(255, 0, None, False),
-        make_integer(256, 0, None, False),
-        make_integer(65535, 0, None, False),
-        make_integer(65536, 0, None, False),
-        make_integer(1048576, 0, None, False),
-        make_integer(268435456, 0, None, False),
-        # Semi-constrained (10..MAX)
-        make_integer(10, 10, None, False),
-        make_integer(100, 10, None, False),
-        make_integer(1000000, 10, None, False),
-        # Semi-constrained (20..MAX)
-        make_integer(100, 20, None, False),
-        make_integer(50, 20, None, False),
-        # Semi-constrained (100..MAX)
-        make_integer(100, 100, None, False),
-        make_integer(1000, 100, None, False),
-        # Semi-constrained (-10..MAX)
-        make_integer(-5, -10, None, False),
-        make_integer(0, -10, None, False),
-        make_integer(10, -10, None, False),
-        # Semi-constrained (-100..MAX)
-        make_integer(-50, -100, None, False),
-        make_integer(0, -100, None, False),
-        # Semi-constrained (-200..MAX)
-        make_integer(-200, -200, None, False),
-        make_integer(-100, -200, None, False),
-        # Semi-constrained extensible
-        make_integer(0, 0, None, True),
-        make_integer(1048576, 0, None, True),
-        make_integer(-100, 0, None, True),
-        make_integer(10, 10, None, True),
-        make_integer(9, 10, None, True),
-        make_integer(100, 20, None, True),
-        make_integer(19, 20, None, True),
-        make_integer(-100, -100, None, True),
-        make_integer(-101, -100, None, True),
-        # Constrained (0..1)
-        make_integer(0, 0, 1, False),
-        make_integer(1, 0, 1, False),
-        # Constrained (0..2)
-        make_integer(0, 0, 2, False),
-        make_integer(2, 0, 2, False),
-        # Constrained (0..4)
-        make_integer(0, 0, 4, False),
-        make_integer(4, 0, 4, False),
-        # Constrained (0..8)
-        make_integer(0, 0, 8, False),
-        make_integer(8, 0, 8, False),
-        # Constrained (0..16)
-        make_integer(0, 0, 16, False),
-        make_integer(16, 0, 16, False),
-        # Constrained (0..32)
-        make_integer(0, 0, 32, False),
-        make_integer(32, 0, 32, False),
-        # Constrained (0..64)
-        make_integer(0, 0, 64, False),
-        make_integer(64, 0, 64, False),
-        # Constrained (0..99)
-        make_integer(0, 0, 99, False),
-        make_integer(99, 0, 99, False),
-        # Constrained (0..100)
-        make_integer(0, 0, 100, False),
-        make_integer(50, 0, 100, False),
-        make_integer(100, 0, 100, False),
-        # Constrained (0..127)
-        make_integer(0, 0, 127, False),
-        make_integer(127, 0, 127, False),
-        # Constrained (0..128)
-        make_integer(0, 0, 128, False),
-        make_integer(128, 0, 128, False),
-        # Constrained (0..200)
-        make_integer(0, 0, 200, False),
-        make_integer(100, 0, 200, False),
-        make_integer(200, 0, 200, False),
-        # Constrained (0..253)
-        make_integer(0, 0, 253, False),
-        make_integer(253, 0, 253, False),
-        # Constrained (0..254)
-        make_integer(0, 0, 254, False),
-        make_integer(254, 0, 254, False),
-        # Constrained (0..255)
-        make_integer(0, 0, 255, False),
-        make_integer(127, 0, 255, False),
-        make_integer(255, 0, 255, False),
-        # Constrained (0..256)
-        make_integer(0, 0, 256, False),
-        make_integer(256, 0, 256, False),
-        # Constrained (0..257)
-        make_integer(0, 0, 257, False),
-        make_integer(257, 0, 257, False),
-        # Constrained (0..511)
-        make_integer(0, 0, 511, False),
-        make_integer(511, 0, 511, False),
-        # Constrained (0..512)
-        make_integer(0, 0, 512, False),
-        make_integer(512, 0, 512, False),
-        # Constrained (0..1000)
-        make_integer(0, 0, 1000, False),
-        make_integer(1000, 0, 1000, False),
-        # Constrained (0..1024)
-        make_integer(0, 0, 1024, False),
-        make_integer(1024, 0, 1024, False),
-        # Constrained (0..2047)
-        make_integer(0, 0, 2047, False),
-        make_integer(2047, 0, 2047, False),
-        # Constrained (0..2048)
-        make_integer(0, 0, 2048, False),
-        make_integer(2048, 0, 2048, False),
-        # Constrained (0..4096)
-        make_integer(0, 0, 4096, False),
-        make_integer(4096, 0, 4096, False),
-        # Constrained (0..8192)
-        make_integer(0, 0, 8192, False),
-        make_integer(8192, 0, 8192, False),
-        # Constrained (0..10000)
-        make_integer(0, 0, 10000, False),
-        make_integer(5000, 0, 10000, False),
-        make_integer(10000, 0, 10000, False),
-        # Constrained (0..16384)
-        make_integer(0, 0, 16384, False),
-        make_integer(16384, 0, 16384, False),
-        # Constrained (0..32768)
-        make_integer(0, 0, 32768, False),
-        make_integer(32768, 0, 32768, False),
-        # Constrained (0..65534)
-        make_integer(0, 0, 65534, False),
-        make_integer(65534, 0, 65534, False),
-        # Constrained (0..65535)
-        make_integer(0, 0, 65535, False),
-        make_integer(65535, 0, 65535, False),
-        # Constrained (0..65536)
-        make_integer(0, 0, 65536, False),
-        make_integer(65536, 0, 65536, False),
-        # Constrained (0..65537)
-        make_integer(0, 0, 65537, False),
-        make_integer(65536, 0, 65537, False),
-        # Constrained (0..100000)
-        make_integer(0, 0, 100000, False),
-        make_integer(100000, 0, 100000, False),
-        # Constrained (0..131072)
-        make_integer(0, 0, 131072, False),
-        make_integer(131072, 0, 131072, False),
-        # Constrained (0..262144)
-        make_integer(0, 0, 262144, False),
-        make_integer(262144, 0, 262144, False),
-        # Constrained (0..524288)
-        make_integer(0, 0, 524288, False),
-        make_integer(524288, 0, 524288, False),
-        # Constrained (0..1000000)
-        make_integer(0, 0, 1000000, False),
-        make_integer(500000, 0, 1000000, False),
-        make_integer(1000000, 0, 1000000, False),
-        # Constrained (0..1048576)
-        make_integer(0, 0, 1048576, False),
-        make_integer(1048576, 0, 1048576, False),
-        # Constrained (0..2097152)
-        make_integer(0, 0, 2097152, False),
-        make_integer(2097152, 0, 2097152, False),
-        # Constrained (0..4194304)
-        make_integer(0, 0, 4194304, False),
-        make_integer(4194304, 0, 4194304, False),
-        # Constrained (0..8388608)
-        make_integer(0, 0, 8388608, False),
-        make_integer(8388608, 0, 8388608, False),
-        # Constrained (0..16777216)
-        make_integer(0, 0, 16777216, False),
-        make_integer(16777216, 0, 16777216, False),
-        # Constrained (0..33554432)
-        make_integer(0, 0, 33554432, False),
-        make_integer(33554432, 0, 33554432, False),
-        # Constrained (0..67108864)
-        make_integer(0, 0, 67108864, False),
-        make_integer(67108864, 0, 67108864, False),
-        # Constrained (0..134217728)
-        make_integer(0, 0, 134217728, False),
-        make_integer(134217728, 0, 134217728, False),
-        # Constrained (0..268435456)
-        make_integer(0, 0, 268435456, False),
-        make_integer(268435456, 0, 268435456, False),
-        # Constrained (0..536870911) -- 29-bit range
-        make_integer(0, 0, 536870911, False),
-        make_integer(268435456, 0, 536870911, False),
-        make_integer(536870911, 0, 536870911, False),
-        # Constrained (0..1073741823) -- 30-bit range
-        make_integer(0, 0, 1073741823, False),
-        make_integer(536870912, 0, 1073741823, False),
-        make_integer(1073741823, 0, 1073741823, False),
-        # Constrained (0..2147483647) -- 31-bit range
-        make_integer(0, 0, 2147483647, False),
-        make_integer(1073741824, 0, 2147483647, False),
-        make_integer(2147483647, 0, 2147483647, False),
-        # Constrained (0..4294967295) -- unsigned 32-bit
-        make_integer(0, 0, 4294967295, False),
-        make_integer(2147483648, 0, 4294967295, False),
-        make_integer(4294967295, 0, 4294967295, False),
-        # Other ranges (non-negative), not extensible
-        make_integer(10, 10, 150, False),
-        make_integer(80, 10, 150, False),
-        make_integer(150, 10, 150, False),
-        make_integer(20, 20, 40, False),
-        make_integer(30, 20, 40, False),
-        make_integer(40, 20, 40, False),
-        make_integer(50, 50, 100, False),
-        make_integer(75, 50, 100, False),
-        make_integer(100, 50, 100, False),
-        make_integer(100, 100, 200, False),
-        make_integer(150, 100, 200, False),
-        make_integer(200, 100, 200, False),
-        make_integer(1, 1, 3, False),
-        make_integer(3, 1, 3, False),
-        # Negative ranges, not extensible
-        make_integer(-100, -200, -10, False),
-        make_integer(-50, -200, -10, False),
-        make_integer(-10, -200, -10, False),
-        make_integer(-50, -100, -10, False),
-        make_integer(-100, -100, -10, False),
-        make_integer(-10, -100, -10, False),
-        make_integer(0, -100, 100, False),
-        make_integer(50, -100, 100, False),
-        make_integer(-100, -100, 100, False),
-        make_integer(100, -100, 100, False),
-        make_integer(0, -50, 50, False),
-        make_integer(-50, -50, 50, False),
-        make_integer(50, -50, 50, False),
-        make_integer(0, -10, 10, False),
-        make_integer(-10, -10, 10, False),
-        make_integer(10, -10, 10, False),
-        # Constrained (-128..127)
-        make_integer(-128, -128, 127, False),
-        make_integer(0, -128, 127, False),
-        make_integer(127, -128, 127, False),
-        make_integer(-1, -128, 127, False),
-        # Constrained (-2147483648..2147483647) -- full signed 32-bit
-        make_integer(-2147483648, -2147483648, 2147483647, False),
-        make_integer(0, -2147483648, 2147483647, False),
-        make_integer(2147483647, -2147483648, 2147483647, False),
-        make_integer(-1, -2147483648, 2147483647, False),
-        # Extensible constrained (0..X, ...)
-        make_integer(0, 0, 1, True),
-        make_integer(1, 0, 1, True),
-        make_integer(2, 0, 1, True),
-        make_integer(0, 0, 2, True),
-        make_integer(2, 0, 2, True),
-        make_integer(3, 0, 2, True),
-        make_integer(0, 0, 4, True),
-        make_integer(4, 0, 4, True),
-        make_integer(5, 0, 4, True),
-        make_integer(0, 0, 8, True),
-        make_integer(8, 0, 8, True),
-        make_integer(9, 0, 8, True),
-        make_integer(0, 0, 16, True),
-        make_integer(16, 0, 16, True),
-        make_integer(17, 0, 16, True),
-        make_integer(0, 0, 32, True),
-        make_integer(32, 0, 32, True),
-        make_integer(33, 0, 32, True),
-        make_integer(0, 0, 64, True),
-        make_integer(64, 0, 64, True),
-        make_integer(65, 0, 64, True),
-        make_integer(0, 0, 99, True),
-        make_integer(99, 0, 99, True),
-        make_integer(100, 0, 99, True),
-        make_integer(0, 0, 100, True),
-        make_integer(50, 0, 100, True),
-        make_integer(100, 0, 100, True),
-        make_integer(101, 0, 100, True),
-        make_integer(-1, 0, 100, True),
-        make_integer(0, 0, 128, True),
-        make_integer(128, 0, 128, True),
-        make_integer(129, 0, 128, True),
-        make_integer(0, 0, 200, True),
-        make_integer(200, 0, 200, True),
-        make_integer(201, 0, 200, True),
-        make_integer(0, 0, 256, True),
-        make_integer(256, 0, 256, True),
-        make_integer(257, 0, 256, True),
-        make_integer(0, 0, 257, True),
-        make_integer(257, 0, 257, True),
-        make_integer(258, 0, 257, True),
-        make_integer(0, 0, 512, True),
-        make_integer(512, 0, 512, True),
-        make_integer(513, 0, 512, True),
-        make_integer(0, 0, 1000, True),
-        make_integer(1000, 0, 1000, True),
-        make_integer(1001, 0, 1000, True),
-        make_integer(0, 0, 1024, True),
-        make_integer(1024, 0, 1024, True),
-        make_integer(1025, 0, 1024, True),
-        make_integer(0, 0, 2048, True),
-        make_integer(2048, 0, 2048, True),
-        make_integer(2049, 0, 2048, True),
-        make_integer(0, 0, 4096, True),
-        make_integer(4096, 0, 4096, True),
-        make_integer(4097, 0, 4096, True),
-        make_integer(0, 0, 8192, True),
-        make_integer(8192, 0, 8192, True),
-        make_integer(8193, 0, 8192, True),
-        make_integer(0, 0, 10000, True),
-        make_integer(10000, 0, 10000, True),
-        make_integer(10001, 0, 10000, True),
-        make_integer(0, 0, 16384, True),
-        make_integer(16384, 0, 16384, True),
-        make_integer(16385, 0, 16384, True),
-        make_integer(0, 0, 32768, True),
-        make_integer(32768, 0, 32768, True),
-        make_integer(32769, 0, 32768, True),
-        make_integer(0, 0, 65535, True),
-        make_integer(65535, 0, 65535, True),
-        make_integer(0, 0, 65536, True),
-        make_integer(65536, 0, 65536, True),
-        make_integer(65537, 0, 65536, True),
-        make_integer(0, 0, 100000, True),
-        make_integer(100000, 0, 100000, True),
-        make_integer(500000, 0, 100000, True),
-        make_integer(0, 0, 131072, True),
-        make_integer(131072, 0, 131072, True),
-        make_integer(131073, 0, 131072, True),
-        make_integer(0, 0, 262144, True),
-        make_integer(262144, 0, 262144, True),
-        make_integer(262145, 0, 262144, True),
-        make_integer(0, 0, 524288, True),
-        make_integer(524288, 0, 524288, True),
-        make_integer(524289, 0, 524288, True),
-        make_integer(0, 0, 1000000, True),
-        make_integer(1000000, 0, 1000000, True),
-        make_integer(1000001, 0, 1000000, True),
-        make_integer(0, 0, 1048576, True),
-        make_integer(1048576, 0, 1048576, True),
-        make_integer(1048577, 0, 1048576, True),
-        make_integer(0, 0, 2097152, True),
-        make_integer(2097152, 0, 2097152, True),
-        make_integer(2097153, 0, 2097152, True),
-        make_integer(0, 0, 4194304, True),
-        make_integer(4194304, 0, 4194304, True),
-        make_integer(4194305, 0, 4194304, True),
-        make_integer(0, 0, 8388608, True),
-        make_integer(8388608, 0, 8388608, True),
-        make_integer(8388609, 0, 8388608, True),
-        make_integer(0, 0, 16777216, True),
-        make_integer(16777216, 0, 16777216, True),
-        make_integer(16777217, 0, 16777216, True),
-        make_integer(0, 0, 33554432, True),
-        make_integer(33554432, 0, 33554432, True),
-        make_integer(33554433, 0, 33554432, True),
-        make_integer(0, 0, 67108864, True),
-        make_integer(67108864, 0, 67108864, True),
-        make_integer(67108865, 0, 67108864, True),
-        make_integer(0, 0, 134217728, True),
-        make_integer(134217728, 0, 134217728, True),
-        make_integer(134217729, 0, 134217728, True),
-        make_integer(0, 0, 268435456, True),
-        make_integer(268435456, 0, 268435456, True),
-        make_integer(268435457, 0, 268435456, True),
-        # Extensible (0..536870911)
-        make_integer(0, 0, 536870911, True),
-        make_integer(536870911, 0, 536870911, True),
-        make_integer(536870912, 0, 536870911, True),
-        # Extensible (0..1073741823)
-        make_integer(0, 0, 1073741823, True),
-        make_integer(1073741823, 0, 1073741823, True),
-        make_integer(1073741824, 0, 1073741823, True),
-        # Extensible (0..2147483647)
-        make_integer(0, 0, 2147483647, True),
-        make_integer(2147483647, 0, 2147483647, True),
-        make_integer(2147483648, 0, 2147483647, True),
-        # Extensible (0..4294967295)
-        make_integer(0, 0, 4294967295, True),
-        make_integer(4294967295, 0, 4294967295, True),
-        make_integer(4294967296, 0, 4294967295, True),
-        # Extensible other ranges
-        make_integer(9, 10, 150, True),
-        make_integer(10, 10, 150, True),
-        make_integer(150, 10, 150, True),
-        make_integer(151, 10, 150, True),
-        make_integer(19, 20, 40, True),
-        make_integer(20, 20, 40, True),
-        make_integer(40, 20, 40, True),
-        make_integer(41, 20, 40, True),
-        make_integer(49, 50, 100, True),
-        make_integer(50, 50, 100, True),
-        make_integer(100, 50, 100, True),
-        make_integer(101, 50, 100, True),
-        make_integer(51, 50, 50, True),
-        make_integer(50, 50, 50, True),
-        make_integer(99, 100, 100, True),
-        make_integer(100, 100, 100, True),
-        make_integer(101, 100, 100, True),
-        make_integer(100, 100, 200, True),
-        make_integer(200, 100, 200, True),
-        make_integer(201, 100, 200, True),
-        make_integer(1001, 1000, 1000, True),
-        make_integer(1000, 1000, 1000, True),
-        make_integer(2, 1, 1, True),
-        make_integer(1, 1, 1, True),
-        make_integer(1, 1, 3, True),
-        make_integer(3, 1, 3, True),
-        make_integer(4, 1, 3, True),
-        make_integer(0, 1, 3, True),
-        # Extensible negative ranges
-        make_integer(-1000, -500, 500, True),
-        make_integer(0, -500, 500, True),
-        make_integer(500, -500, 500, True),
-        make_integer(-101, -100, -10, True),
-        make_integer(-100, -100, -10, True),
-        make_integer(-10, -100, -10, True),
-        make_integer(-9, -100, -10, True),
-        make_integer(-200, -100, 100, True),
-        make_integer(-100, -100, 100, True),
-        make_integer(100, -100, 100, True),
-        make_integer(200, -100, 100, True),
-        make_integer(-101, -100, 100, True),
-        make_integer(101, -100, 100, True),
-        make_integer(-100, -50, 50, True),
-        make_integer(0, -50, 50, True),
-        make_integer(50, -50, 50, True),
-        make_integer(-51, -50, 50, True),
-        make_integer(51, -50, 50, True),
-        make_integer(-11, -10, 10, True),
-        make_integer(-10, -10, 10, True),
-        make_integer(10, -10, 10, True),
-        make_integer(11, -10, 10, True),
-        # Extensible (-128..127)
-        make_integer(-128, -128, 127, True),
-        make_integer(0, -128, 127, True),
-        make_integer(127, -128, 127, True),
-        make_integer(-129, -128, 127, True),
-        make_integer(128, -128, 127, True),
-        # Extensible (-2147483648..2147483647)
-        make_integer(-2147483648, -2147483648, 2147483647, True),
-        make_integer(0, -2147483648, 2147483647, True),
-        make_integer(2147483647, -2147483648, 2147483647, True),
-        make_integer(-2147483649, -2147483648, 2147483647, True),
-        make_integer(2147483648, -2147483648, 2147483647, True),
-        # In-range mid-values
-        make_integer(1, 0, 2, False),
-        make_integer(2, 0, 4, False),
-        make_integer(4, 0, 8, False),
-        make_integer(8, 0, 16, False),
-        make_integer(16, 0, 32, False),
-        make_integer(32, 0, 64, False),
-        make_integer(64, 0, 128, False),
-        make_integer(128, 0, 256, False),
-        make_integer(256, 0, 512, False),
-        make_integer(512, 0, 1024, False),
-        make_integer(1024, 0, 2048, False),
-        make_integer(2048, 0, 4096, False),
-        make_integer(4096, 0, 8192, False),
-        make_integer(8192, 0, 16384, False),
-        make_integer(16384, 0, 32768, False),
-        make_integer(32768, 0, 65536, False),
-        make_integer(65536, 0, 131072, False),
-        make_integer(131072, 0, 262144, False),
-        make_integer(262144, 0, 524288, False),
-        make_integer(524288, 0, 1048576, False),
-        make_integer(1048576, 0, 2097152, False),
-        make_integer(2097152, 0, 4194304, False),
-        make_integer(4194304, 0, 8388608, False),
-        make_integer(8388608, 0, 16777216, False),
-        make_integer(16777216, 0, 33554432, False),
-        make_integer(33554432, 0, 67108864, False),
-        make_integer(67108864, 0, 134217728, False),
-        make_integer(134217728, 0, 268435456, False),
-        # In-range mid-values extensible
-        make_integer(1, 0, 2, True),
-        make_integer(2, 0, 4, True),
-        make_integer(4, 0, 8, True),
-        make_integer(8, 0, 16, True),
-        make_integer(16, 0, 32, True),
-        make_integer(32, 0, 64, True),
-        make_integer(64, 0, 128, True),
-        make_integer(128, 0, 256, True),
-        make_integer(256, 0, 512, True),
-        make_integer(512, 0, 1024, True),
-        make_integer(1024, 0, 2048, True),
-        make_integer(2048, 0, 4096, True),
-        make_integer(4096, 0, 8192, True),
-        make_integer(8192, 0, 16384, True),
-        make_integer(16384, 0, 32768, True),
-        make_integer(32768, 0, 65536, True),
-        make_integer(65536, 0, 131072, True),
-        make_integer(131072, 0, 262144, True),
-        make_integer(262144, 0, 524288, True),
-        make_integer(524288, 0, 1048576, True),
-        make_integer(1048576, 0, 2097152, True),
-        make_integer(2097152, 0, 4194304, True),
-        make_integer(4194304, 0, 8388608, True),
-        make_integer(8388608, 0, 16777216, True),
-        make_integer(16777216, 0, 33554432, True),
-        make_integer(33554432, 0, 67108864, True),
-        make_integer(67108864, 0, 134217728, True),
-        make_integer(134217728, 0, 268435456, True),
-        # Out-of-range extensible values
-        make_integer(-10, 0, 100, True),
-        make_integer(-1000, 0, 100, True),
-        make_integer(200, 0, 100, True),
-        make_integer(500, 0, 100, True),
-        make_integer(1000, 0, 100, True),
-        make_integer(100000, 0, 1000, True),
-        make_integer(10000000, 0, 65536, True),
-        make_integer(-1000, 0, 1000, True),
-        # ---- Gap 1: Non-zero positive LB with high offset ----
-        # Constrained (3..6): range=4, 2 bits
-        make_integer(3, 3, 6, False),
-        make_integer(4, 3, 6, False),
-        make_integer(6, 3, 6, False),
-        make_integer(2, 3, 6, True),
-        make_integer(3, 3, 6, True),
-        make_integer(6, 3, 6, True),
-        make_integer(7, 3, 6, True),
-        # Constrained (4000..4254): range=255, 8 bits
-        make_integer(4000, 4000, 4254, False),
-        make_integer(4127, 4000, 4254, False),
-        make_integer(4254, 4000, 4254, False),
-        make_integer(3999, 4000, 4254, True),
-        make_integer(4000, 4000, 4254, True),
-        make_integer(4254, 4000, 4254, True),
-        make_integer(4255, 4000, 4254, True),
-        # Constrained (4000..4255): range=256, 9 bits UPER / 2 bytes APER
-        make_integer(4000, 4000, 4255, False),
-        make_integer(4128, 4000, 4255, False),
-        make_integer(4255, 4000, 4255, False),
-        make_integer(3999, 4000, 4255, True),
-        make_integer(4000, 4000, 4255, True),
-        make_integer(4255, 4000, 4255, True),
-        make_integer(4256, 4000, 4255, True),
-        # ---- Gap 2: Non-power-of-2 range (APER != UPER) ----
-        # Constrained (0..32000): range=32001, 15 bits
-        make_integer(0, 0, 32000, False),
-        make_integer(16000, 0, 32000, False),
-        make_integer(31000, 0, 32000, False),
-        make_integer(32000, 0, 32000, False),
-        make_integer(0, 0, 32000, True),
-        make_integer(32000, 0, 32000, True),
-        make_integer(32001, 0, 32000, True),
-        # ---- Gap 3: Large range > 65536 with non-zero LB ----
-        # Constrained (1..65538): range=65538
-        make_integer(1, 1, 65538, False),
-        make_integer(257, 1, 65538, False),
-        make_integer(32770, 1, 65538, False),
-        make_integer(65538, 1, 65538, False),
-        make_integer(0, 1, 65538, True),
-        make_integer(1, 1, 65538, True),
-        make_integer(65538, 1, 65538, True),
-        make_integer(65539, 1, 65538, True),
-        # ---- Gap 4: Semi-constrained with -1 LB ----
-        # Semi-constrained (-1..MAX)
-        make_integer(-1, -1, None, False),
-        make_integer(0, -1, None, False),
-        make_integer(255, -1, None, False),
-        make_integer(4096, -1, None, False),
-        # ---- Gap 5: Extensible semi-constrained with -1 LB ----
-        make_integer(-1, -1, None, True),
-        make_integer(0, -1, None, True),
-        make_integer(-2, -1, None, True),
-        make_integer(-100, -1, None, True),
-        # Large unconstrained values (5-8 byte encoding)
-        make_integer(4294967296, None, None, False),
-        make_integer(-4294967296, None, None, False),
-        make_integer(4294967295, None, None, False),
-        make_integer(-4294967295, None, None, False),
-        make_integer(1099511627776, None, None, False),
-        make_integer(-1099511627776, None, None, False),
-        make_integer(281474976710656, None, None, False),
-        make_integer(-281474976710656, None, None, False),
-        make_integer(72057594037927936, None, None, False),
-        make_integer(-72057594037927936, None, None, False),
-        make_integer(9223372036854775807, None, None, False),
-        make_integer(-9223372036854775808, None, None, False),
-    ]
-    for case in erlang_cases:
-        value = case["value"]
-        lb = case["lb"]
-        ub = case["ub"]
-        extensible = case["extensible"]
-        type_name = asn1_type_name(lb, ub, extensible)
-        for aligned in [True, False]:
-            output = encode_integer_erl(type_name, value, aligned)
-            results.append(
+def vectors():
+    module = harness.pycrate_module(PREFIX)
+    rows = []
+    for (lb, ub, ext), values in SHAPES.items():
+        for value in values:
+            rows.append(
                 {
-                    "input": make_integer(value, lb, ub, extensible),
-                    "output": output,
-                    "aligned": aligned,
+                    "type": type_name(lb, ub, ext),
+                    "input": {"value": value, "lb": lb, "ub": ub, "extensible": ext},
                 }
             )
-
-    with open("integer.json", "w") as f:
-        json.dump(results, f, indent=2)
-
-
-# ---------------------------------------------------------------------------
-# Erlang-based encoder (calls encode_integer.erl for complete reference set)
-# ---------------------------------------------------------------------------
-
-_ERLANG_DIR_ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erlang")
-
-
-def asn1_type_name(lb, ub, extensible):
-    def fmt(v):
-        if v is None:
-            return "NULL"
-        if v < 0:
-            return f"N{abs(v)}"
-        return str(v)
-
-    ext_s = "TRUE" if extensible else "FALSE"
-    return f"INTEGER-{fmt(lb)}-{fmt(ub)}-{ext_s}"
-
-
-def encode_integer_erl(type_name, value, aligned):
-    script = os.path.join(_ERLANG_DIR_, "encode_integer.erl")
-    cmd = ["escript", script, "-name", type_name, "-value", str(value)]
-    if aligned:
-        cmd.append("-aligned")
-    result = subprocess.run(cmd, cwd=_ERLANG_DIR_, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(
-            f"Erlang encode error for {type_name} value={value} aligned={aligned}:",
-            file=sys.stderr,
-        )
-        print(result.stderr, file=sys.stderr)
-        sys.exit(1)
-    return result.stdout.strip().lower()
-
-
-if __name__ == "__main__":
-    main()
+    py = harness.pycrate_encode(module, [(row["type"], row["input"]["value"]) for row in rows])
+    otp = harness.otp_encode(PREFIX, [(row["type"], str(row["input"]["value"])) for row in rows])
+    return harness.merge(rows, py, otp, {})

@@ -33,30 +33,48 @@ func TestRegressionHexMatchesStandardLibrary(t *testing.T) {
 	t.Parallel()
 
 	for size := range HEX_LENGTHS + 1 {
-		t.Run(strconv.Itoa(size), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			strconv.Itoa(size),
+			func(t *testing.T) {
+				t.Parallel()
 
-			var (
-				data = textPayload(size)
-				want = hex.EncodeToString(data)
-				got  = per.BytesToHex(data)
-			)
+				var (
+					data = _TextPayload(size)
+					want = hex.EncodeToString(data)
+					got  = per.BytesToHex(data)
+				)
 
-			if got != want {
-				t.Fatalf("BytesToHex = %s, want %s", got, want)
-			}
-
-			for _, text := range []string{want, strings.ToUpper(want)} {
-				back, err := per.HexToBytes(text)
-				if err != nil {
-					t.Fatalf("HexToBytes(%q): %v", text, err)
+				if got != want {
+					t.Fatalf(
+						"BytesToHex = %s, want %s",
+						got,
+						want,
+					)
 				}
 
-				if !bytes.Equal(back, data) {
-					t.Fatalf("HexToBytes = % x, want % x", back, data)
+				for _, text := range []string{want, strings.ToUpper(want)} {
+					back, err := per.HexToBytes(text)
+					if err != nil {
+						t.Fatalf(
+							"HexToBytes(%q): %v",
+							text,
+							err,
+						)
+					}
+
+					if !bytes.Equal(
+						back,
+						data,
+					) {
+						t.Fatalf(
+							"HexToBytes = % x, want % x",
+							back,
+							data,
+						)
+					}
 				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -70,43 +88,76 @@ func TestRegressionHexMatchesStandardLibrary(t *testing.T) {
 func TestRegressionHexRejectsInvalid(t *testing.T) {
 	t.Parallel()
 
-	clean := per.BytesToHex(textPayload(HEX_LENGTHS))
+	clean := per.BytesToHex(_TextPayload(HEX_LENGTHS))
 
 	for _, at := range HEX_INVALID_AT {
-		t.Run("at_"+strconv.Itoa(at), func(t *testing.T) {
-			t.Parallel()
+		t.Run(
+			"at_"+strconv.Itoa(at),
+			func(t *testing.T) {
+				t.Parallel()
 
-			text := []byte(clean)
-			text[at] = 'g'
+				text := []byte(clean)
+				text[at] = 'g'
 
-			_, err := per.HexToBytes(string(text))
-			if !errors.Is(err, per.ErrInvalidHex) {
-				t.Fatalf("got %v, want ErrInvalidHex", err)
-			}
+				_, err := per.HexToBytes(string(text))
+				if !errors.Is(
+					err,
+					per.ErrInvalidHex,
+				) {
+					t.Fatalf(
+						"got %v, want ErrInvalidHex",
+						err,
+					)
+				}
 
-			if !strings.Contains(err.Error(), "'g'") {
-				t.Errorf("error %q does not name the character", err)
-			}
-		})
+				if !strings.Contains(
+					err.Error(),
+					"'g'",
+				) {
+					t.Errorf(
+						"error %q does not name the character",
+						err,
+					)
+				}
+			},
+		)
 	}
 
-	t.Run("odd length", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"odd length",
+		func(t *testing.T) {
+			t.Parallel()
 
-		_, err := per.HexToBytes(clean[:len(clean)-1])
-		if !errors.Is(err, per.ErrOddHexLength) {
-			t.Fatalf("got %v, want ErrOddHexLength", err)
-		}
-	})
+			_, err := per.HexToBytes(clean[:len(clean)-1])
+			if !errors.Is(
+				err,
+				per.ErrOddHexLength,
+			) {
+				t.Fatalf(
+					"got %v, want ErrOddHexLength",
+					err,
+				)
+			}
+		},
+	)
 
-	t.Run("invalid before odd length", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"invalid before odd length",
+		func(t *testing.T) {
+			t.Parallel()
 
-		text := []byte(clean[:len(clean)-1])
-		text[HEX_INVALID_AT[3]] = 'g'
+			text := []byte(clean[:len(clean)-1])
+			text[HEX_INVALID_AT[3]] = 'g'
 
-		if _, err := per.HexToBytes(string(text)); !errors.Is(err, per.ErrInvalidHex) {
-			t.Fatalf("got %v, want ErrInvalidHex", err)
-		}
-	})
+			if _, err := per.HexToBytes(string(text)); !errors.Is(
+				err,
+				per.ErrInvalidHex,
+			) {
+				t.Fatalf(
+					"got %v, want ErrInvalidHex",
+					err,
+				)
+			}
+		},
+	)
 }

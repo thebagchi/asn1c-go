@@ -1,28 +1,49 @@
 # asn1c-go quality gates
 #
-#   make quick         fmt-check + vet + lint-new + test-changed  (after every edit)
-#   make check         fmt-check + vet + lint + test          (what CI should run)
+#   make quick         fmt-check + vet + lint + test-changed  (after every edit)
+#   make check         fmt-check + vet + lint + convention + test  (what CI should run)
 #   make lint          golangci-lint (bundles staticcheck, errcheck, ineffassign, unused)
+#   make convention   the go.md checks no published linter expresses, on every hand-written file
+#   make changed       convention on the Go files that differ from HEAD
+#   make revision      the new revision.md row names every changed Go file
+#   make graph         callers of functions defined in the diff
+#   make fold          fold calls, signatures and struct literals to one item a line, on every hand-written file
 #   make staticcheck   standalone staticcheck, if its Go version matches the module
 #   make race          full test suite under the race detector (about 30 seconds)
 #   make regression    just the tests guarding the defects found in review
 #   make bin           build cmd/asn1c as tools/bin/asn1c.bin
 #   make bench         all benchmarks with memory stats
+#   make benchstat     compare two benchmark output files (OLD=old.txt NEW=new.txt)
 #   make vuln          govulncheck against the module
 #   make toolchain     fetch a pinned Go into .go/, to test against another release
+#   make sde           run a program with a CPU feature (SDE_FLAGS=...)
 #   make generate      regenerate the AST schema, the goyacc parser and the avo kernels
+#   make generate-check fail when go generate ./lib/per/ changes a .s file; the tree stays as it is
 #   make catalog       regenerate the instruction catalogue from this toolchain
+#   make short         unit tests with -short
+#   make test          unit tests; test-changed runs the changed packages only
+#   make fmt           rewrite files with gofmt, after fmt-asn1; fmt-check only reports
+#   make fmt-asn1      line up the ::= of every ASN.1 module this project owns; fmt-asn1-check only reports
+#   make fmt-asn1-test run the unit tests of tools/fmt_asn1/fmt_asn1.py
+#   make tidy          go mod tidy, then fail if go.mod or go.sum changed
+#   make tools         fetch the pinned tools into the module cache
+#   make clean         remove build and profile artefacts
+#   make help          list targets
 #
-# Every tool this file runs is pinned in go.mod as a `tool` directive, so `go tool
-# <name>` builds it from the version recorded there. A fresh clone needs no install
-# step and cannot run a different version than CI does.
+# Every linter this file runs is pinned in go.mod as a `tool` directive and runs
+# with `go run <module path>`, so the version recorded there is the version used.
+# A fresh clone needs no install step and cannot run a different version than CI
+# does. No target builds a linter binary. Generators (goyacc, buf, avo,
+# protoc-gen-go) are not linters and keep their own invocation.
 
 # Every target takes GO, so a pinned toolchain is used without installing it:
 #   make toolchain && make GO=.go/go/bin/go check
 GO          ?= go
-GO_VERSION  ?= 1.27.1
+GO_VERSION  ?= 1.27.3
 GO_DIR      ?= .go
-PKGS        ?= ./...
+# .tools starts with a dot, so ./... skips it. Name cmd and common.
+DOT_PKGS    = ./.tools/cmd/... ./.tools/common
+PKGS        ?= ./... $(DOT_PKGS)
 TEST_FLAGS  ?= -count=1
 RACE_TIMEOUT?= 30m
 BENCH       ?= .
@@ -33,29 +54,57 @@ BENCH_FLAGS ?= -benchmem -run=^$$
 # without anything saying why.
 ARCH_MODULE ?= golang.org/x/arch@v0.11.0
 
+# Every linter runs from the version pinned in go.mod, through `go run`.
+GOLANGCI    ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+STATICCHECK ?= $(GO) run honnef.co/go/tools/cmd/staticcheck
+GOVULNCHECK ?= $(GO) run golang.org/x/vuln/cmd/govulncheck
+BENCHSTAT   ?= $(GO) run golang.org/x/perf/cmd/benchstat
+CONVENTION  ?= $(GO) run ./.tools/cmd/convention
+FOLD        ?= $(GO) run ./.tools/cmd/fold
+REVISION    ?= $(GO) run ./.tools/cmd/revision
+GRAPH       ?= $(GO) run ./.tools/cmd/graph
+# convention and fold read every package. A layout check skips a generated file.
+# ./... skips .tools, so name cmd and common here too.
+GATE_PKGS ?= ./... $(DOT_PKGS)
+
 # Every hand-written Go file. Generated files (banner on line 1) are dropped: nobody may
 # edit one, so a formatter complaint about it is a complaint nobody can act on.
 # $(GO_DIR) is excluded as well as .git: a toolchain fetched by "make toolchain"
 # puts ten thousand Go files under it, none of them this module's.
+# `-r` keeps xargs from running grep with no path, which would read stdin forever.
 GO_FILES    := $(shell find . -type f -name '*.go' \
 	-not -path './.git/*' -not -path './$(GO_DIR)/*' \
-	| xargs grep -L '^// Code generated .* DO NOT EDIT\.$$')
+	| xargs -r grep -L '^// Code generated .* DO NOT EDIT\.$$')
+
+# The formatter for ASN.1 modules. It needs only a python3 on the path.
+FMT_ASN1    ?= python3 -I tools/fmt_asn1/fmt_asn1.py
+
+# Every ASN.1 module this project writes. The OTP and 3GPP corpora are left out: they are
+# copies of another project's text, and a copy that is reformatted no longer diffs against its
+# source. Name other files with ASN1_FILES=...
+ASN1_FILES  ?= $(shell find . -type f -name '*.asn1' \
+	-not -path './.git/*' -not -path './$(GO_DIR)/*' \
+	-not -path './compiler/testdata/otp/*' -not -path './testdata/3gpp/*')
 
 # Directories holding Go files that differ from HEAD or are untracked: what `quick` looks at.
 CHANGED_DIRS := $(shell { git diff --name-only HEAD -- '*.go'; git ls-files --others --exclude-standard -- '*.go'; } 2>/dev/null | xargs -r -n1 dirname | sort -u)
 
-.PHONY: all quick check regression fmt fmt-check vet lint lint-new staticcheck test test-changed race short bench vuln tidy tools toolchain generate catalog bin clean help
+# `go vet ./...` and `go test ./...` exit 1 when the pattern matches no packages.
+# The steps below skip that case.
+PACKAGES := $(shell $(GO) list $(PKGS) 2>/dev/null)
+
+.PHONY: all quick check regression fmt fmt-check fmt-asn1 fmt-asn1-check fmt-asn1-test vet lint convention changed revision graph fold staticcheck benchstat test test-changed race short bench vuln tidy tools toolchain sde generate generate-check catalog bin clean help
 
 all: check
 
 ## check: run every gate that should block a merge
-check: fmt-check vet lint test
+check: fmt-check vet lint convention test
 
-## quick: the after-every-edit gate; lint and tests limited to what changed
-quick: fmt-check vet lint-new test-changed
+## quick: the after-every-edit gate; tests limited to what changed
+quick: fmt-check vet lint test-changed
 
-## fmt: rewrite files with gofmt, and spell the escape hatch 'any'
-fmt:
+## fmt: format the ASN.1 modules, then rewrite files with gofmt and spell the escape hatch 'any'
+fmt: fmt-asn1
 	gofmt -w -l $(GO_FILES)
 	gofmt -w -l -r 'interface{} -> any' $(GO_FILES)
 
@@ -68,18 +117,50 @@ fmt-check:
 	@out="$$(gofmt -l -r 'interface{} -> any' $(GO_FILES))"; \
 	if [ -n "$$out" ]; then echo "spell the escape hatch 'any', not 'interface{}':"; echo "$$out"; exit 1; fi
 
+## fmt-asn1: rewrite the ASN.1 modules so that the ::= of each block of assignments stands in one column
+fmt-asn1:
+	@test -z "$(ASN1_FILES)" || $(FMT_ASN1) -w $(ASN1_FILES)
+
+## fmt-asn1-check: fail if an ASN.1 module is not formatted, and list it
+fmt-asn1-check:
+	@echo "==> fmt_asn1              $(words $(ASN1_FILES)) file(s)"
+	@test -z "$(ASN1_FILES)" || $(FMT_ASN1) -l $(ASN1_FILES)
+
+## fmt-asn1-test: run the unit tests of the ASN.1 formatter
+fmt-asn1-test:
+	python3 -I -m unittest discover -s tools/fmt_asn1 -p '*_test.py' -v
+
 ## vet: go vet
 vet:
-	$(GO) vet $(PKGS)
+	@test -z "$(PACKAGES)" || $(GO) vet $(PKGS)
 
 ## lint: golangci-lint (includes a current staticcheck)
 lint:
-	$(GO) tool golangci-lint run $(PKGS)
+	@test -z "$(PACKAGES)" || $(GOLANGCI) run $(PKGS)
 
-## lint-new: golangci-lint on uncommitted changes only (or HEAD~ when the tree is clean)
-lint-new:
-	@echo "==> golangci-lint --new  (uncommitted changes)"
-	$(GO) tool golangci-lint run --new $(PKGS)
+## convention: the checks in go.md that no published linter expresses
+convention:
+	@echo "==> convention            $(GATE_PKGS)"
+	@test -z "$(PACKAGES)" || $(CONVENTION) $(GATE_PKGS)
+
+## changed: convention on the Go files that differ from HEAD
+changed:
+	@echo "==> convention -changed"
+	@$(CONVENTION) -changed
+
+## revision: the new revision.md row names every changed Go file
+revision:
+	@echo "==> revision"
+	@$(REVISION)
+
+## graph: callers of the functions defined in the diff
+graph:
+	@echo "==> graph -changed"
+	@$(GRAPH) -changed
+
+## fold: fold calls, signatures and struct literals to one item a line (convention call, literal)
+fold:
+	@test -z "$(PACKAGES)" || $(FOLD) -w $(GATE_PKGS)
 
 ## staticcheck: staticcheck on its own, beyond the copy inside golangci-lint
 #
@@ -87,11 +168,11 @@ lint-new:
 # refuses a module whose go directive is newer than the Go it was compiled with, which
 # is what made this target unusable before.
 staticcheck:
-	$(GO) tool staticcheck $(PKGS)
+	@test -z "$(PACKAGES)" || $(STATICCHECK) $(PKGS)
 
 ## test: unit tests (no race detector)
 test:
-	$(GO) test $(TEST_FLAGS) $(PKGS)
+	@test -z "$(PACKAGES)" || $(GO) test $(TEST_FLAGS) $(PKGS)
 
 ## test-changed: tests for packages with changed files, plus every package that imports them
 test-changed:
@@ -106,11 +187,11 @@ test-changed:
 
 ## short: unit tests with -short (once long loops are gated behind testing.Short)
 short:
-	$(GO) test $(TEST_FLAGS) -short $(PKGS)
+	@test -z "$(PACKAGES)" || $(GO) test $(TEST_FLAGS) -short $(PKGS)
 
 ## race: unit tests under the race detector
 race:
-	$(GO) test $(TEST_FLAGS) -race -timeout $(RACE_TIMEOUT) $(PKGS)
+	@test -z "$(PACKAGES)" || $(GO) test $(TEST_FLAGS) -race -timeout $(RACE_TIMEOUT) $(PKGS)
 
 ## regression: the tests guarding the defects found in review (lib/review.md)
 #
@@ -128,9 +209,13 @@ bin:
 bench:
 	$(GO) test $(BENCH_FLAGS) -bench '$(BENCH)' $(PKGS)
 
+## benchstat: compare two benchmark output files
+benchstat:
+	$(BENCHSTAT) $(OLD) $(NEW)
+
 ## vuln: govulncheck against the module
 vuln:
-	$(GO) tool govulncheck $(PKGS)
+	@test -z "$(PACKAGES)" || $(GOVULNCHECK) $(PKGS)
 
 ## tidy: go mod tidy and verify nothing changed
 tidy:
@@ -140,7 +225,7 @@ tidy:
 ## tools: fetch the pinned tools into the module cache (a fresh clone needs only this)
 tools:
 	$(GO) mod download
-	$(GO) tool golangci-lint --version
+	$(GOLANGCI) --version
 
 ## generate: rerun the code generators, then check the tree still builds
 #
@@ -159,6 +244,24 @@ generate:
 	$(GO) generate ./lib/... ./compiler/...
 	$(GO) build ./...
 
+## generate-check: fail when go generate ./lib/per/ changes an assembly file
+#
+# The kernels of lib/per are generated by lib/per/gen. This runs that generator
+# as go generate does, compares each .s file with the copy taken before the run,
+# and then puts every copy back, so the files in the tree do not change. A file
+# that differs names a generator and a .s file that are no longer in step.
+generate-check:
+	@saved=$$(mktemp -d) && \
+	trap 'cp "$$saved"/*.s lib/per/ && rm -rf "$$saved"' EXIT && \
+	cp lib/per/*.s "$$saved"/ && \
+	$(GO) generate ./lib/per/ && \
+	status=0 && \
+	for file in "$$saved"/*.s; do \
+		name=$$(basename "$$file"); \
+		cmp -s "$$file" "lib/per/$$name" || { echo "generate-check: lib/per/$$name changes"; status=1; }; \
+	done; \
+	exit $$status
+
 ## catalog: regenerate the instruction catalogue under tools/simd/catalog
 #
 # It reads the assembler's own tables out of GOROOT, so it describes whichever
@@ -171,6 +274,16 @@ catalog:
 		-out tools/simd/catalog \
 		-arch "$$($(GO) env GOMODCACHE)/$(ARCH_MODULE)"
 	$(GO) test ./tools/simd/catalog/
+
+## sde: run a program with a CPU feature, under SDE when this CPU lacks it
+#
+# SDE_FLAGS are the flags of .tools/cmd/sde. The kit is the Intel Simplified
+# Software License. The command fetches it, and it is not committed.
+#   make sde
+#   make sde SDE_FLAGS='-feature avx512 -- go test ./lib/bitbuffer -count=1 -run TestName'
+#   make sde SDE_FLAGS='-feature avx512 -count -- go test ./lib/bitbuffer -bench . -count=1'
+sde:
+	$(GO) run ./.tools/cmd/sde $(SDE_FLAGS)
 
 ## toolchain: download a pinned Go into .go/, for testing against another release
 #
